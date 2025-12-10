@@ -17,7 +17,6 @@ target_link_libraries(poker_tests
 # Set compile features
 target_compile_features(poker_tests PRIVATE cxx_std_17)
 
-# Enable testing
-enable_testing()
+# Enable testing - ALREADY ENABLED IN ROOT
 include(GoogleTest)
 gtest_discover_tests(poker_tests)

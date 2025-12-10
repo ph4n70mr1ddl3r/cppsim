@@ -143,6 +143,17 @@ Conducted adversarial code review of Story 1-1.  Found 8 issues (1 CRITICAL, 1 H
 - ~~Issue #5: File List incomplete~~ ✅ RESOLVED: Story 1.2 scope
 - ~~Issue #7: Missing #include <cstdlib> in main.cpp~~ ✅ FIXED: Added proper includes and EXIT_SUCCESS
 
+### Issues Found & Fixed (2025-12-11 - Review Round 2)
+
+#### MEDIUM Severity
+- ~~Issue #9: enable_testing() in wrong location~~ ✅ FIXED: Moved to root CMakeLists.txt
+
+#### LOW Severity
+- ~~Issue #10: Outdated GoogleTest (v1.14.0)~~ ✅ FIXED: Updated to v1.15.2
+- ~~Issue #11: Outdated nlohmann/json (v3.11.2)~~ ✅ FIXED: Updated to v3.11.3
+- ~~Issue #12: Hardcoded Boost URL~~ ✅ FIXED: Added BOOST_VERSION variables
+
+
 ### Validation Results
 
 ✅ **All Acceptance Criteria Met:**

@@ -21,10 +21,12 @@ include(FetchContent)
 # =============================================================================
 
 # Boost - Use FetchContent for cross-platform builds (per AC requirement)
-message(STATUS "Fetching Boost...")
+set(BOOST_VERSION "1.83.0")
+set(BOOST_VERSION_UNDERSCORE "1_83_0")
+message(STATUS "Fetching Boost ${BOOST_VERSION}...")
 FetchContent_Declare(
   Boost
-  URL https://github.com/boostorg/boost/releases/download/boost-1.83.0/boost-1.83.0.tar.gz
+  URL https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}.tar.gz
   URL_HASH SHA256=0c6049764e80aa32754acd7d4f179fd5551d8172a83b71532ae093e7384e98da
 )
 FetchContent_MakeAvailable(Boost)
@@ -34,7 +36,7 @@ message(STATUS "Fetching nlohmann/json...")
 FetchContent_Declare(
   json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
-  GIT_TAG v3.11.2
+  GIT_TAG v3.11.3
 )
 FetchContent_MakeAvailable(json)
 
@@ -43,7 +45,7 @@ message(STATUS "Fetching Google Test...")
 FetchContent_Declare(
   googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG v1.14.0
+  GIT_TAG v1.15.2
 )
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
@@ -55,6 +57,9 @@ FetchContent_MakeAvailable(googletest)
 add_subdirectory(src/common)
 add_subdirectory(src/server)
 add_subdirectory(src/client)
+
+# Enable testing at root (must be before adding tests subdirectory)
+enable_testing()
 add_subdirectory(tests)
 
 # =============================================================================
