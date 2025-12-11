@@ -44,14 +44,25 @@ class websocket_session
   void do_write();
   void on_write(boost::beast::error_code ec, std::size_t bytes_transferred);
 
-  boost::beast::websocket::stream<
-      boost::beast::tcp_stream>
-      ws_;
+  void check_deadline();
+
+  boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;
   boost::beast::flat_buffer buffer_;
   std::string session_id_;
   std::shared_ptr<connection_manager> conn_mgr_;
   std::queue<std::string> write_queue_;
   bool writing_{false};
+
+  // Session state
+  enum class state { unauthenticated, authenticated, closed };
+  state state_{state::unauthenticated};
+
+  // Authentication timeout
+  boost::asio::steady_timer deadline_;
+  
+  // Graceful closure support
+  bool should_close_{false};
+  void do_close();
 };
 
 }  // namespace server

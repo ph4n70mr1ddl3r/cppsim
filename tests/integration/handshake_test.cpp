@@ -1,0 +1,199 @@
+#include <gtest/gtest.h>
+#include "../../src/server/boost_wrapper.hpp"
+#include "../../src/server/websocket_server.hpp"
+#include <nlohmann/json.hpp>
+#include <thread>
+#include <chrono>
+#include <iostream>
+#include "protocol.hpp"
+
+namespace beast = boost::beast;
+namespace http = beast::http;
+namespace websocket = beast::websocket;
+namespace net = boost::asio;
+using tcp = boost::asio::ip::tcp;
+
+class HandshakeTest : public ::testing::Test {
+protected:
+    net::io_context server_ioc;
+    std::thread server_thread;
+    std::shared_ptr<cppsim::server::websocket_server> server;
+
+    void SetUp() override {
+        // Start server on 8080
+        try {
+            server = std::make_shared<cppsim::server::websocket_server>(server_ioc, 8080);
+            server->run();
+            
+            server_thread = std::thread([this]{ 
+                if (server_ioc.stopped()) server_ioc.restart();
+                server_ioc.run(); 
+            });
+            
+            // Give server a moment to start
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        } catch (const std::exception& e) {
+            FAIL() << "Failed to start server: " << e.what();
+        }
+    }
+
+    void TearDown() override {
+        server_ioc.stop();
+        if(server_thread.joinable()) server_thread.join();
+        server.reset();
+    }
+
+    // Helper to perform a handshake
+    void perform_handshake(websocket::stream<tcp::socket>& ws) {
+        ws.handshake("localhost", "/");
+    }
+};
+
+// Test 1: Happy Path - Valid Handshake
+TEST_F(HandshakeTest, SuccessfulHandshake) {
+    net::io_context ioc;
+    tcp::resolver resolver(ioc);
+    websocket::stream<tcp::socket> ws(ioc);
+
+    auto const results = resolver.resolve("localhost", "8080");
+    net::connect(ws.next_layer(), results.begin(), results.end());
+    perform_handshake(ws);
+
+    // Send Handshake
+    cppsim::protocol::message_envelope env;
+    env.message_type = "HANDSHAKE";
+    env.protocol_version = cppsim::protocol::PROTOCOL_VERSION;
+    
+    cppsim::protocol::handshake_message h_msg;
+    h_msg.protocol_version = cppsim::protocol::PROTOCOL_VERSION;
+    h_msg.client_name = "TestClient";
+    
+    nlohmann::json payload;
+    cppsim::protocol::to_json(payload, h_msg);
+    env.payload = payload;
+
+    nlohmann::json j;
+    cppsim::protocol::to_json(j, env);
+
+    ws.write(net::buffer(j.dump()));
+
+    // Read Response
+    beast::flat_buffer buffer;
+    ws.read(buffer);
+    std::string response = beast::buffers_to_string(buffer.data());
+    
+    auto resp_json = nlohmann::json::parse(response);
+    auto resp_env = resp_json.get<cppsim::protocol::message_envelope>();
+
+    EXPECT_EQ(resp_env.message_type, "HANDSHAKE_RESPONSE");
+    EXPECT_EQ(resp_env.protocol_version, cppsim::protocol::PROTOCOL_VERSION);
+    
+    ws.close(websocket::close_code::normal);
+}
+
+// Test 2: Incompatible Version
+TEST_F(HandshakeTest, IncompatibleVersion) {
+    net::io_context ioc;
+    tcp::resolver resolver(ioc);
+    websocket::stream<tcp::socket> ws(ioc);
+
+    auto const results = resolver.resolve("localhost", "8080");
+    net::connect(ws.next_layer(), results.begin(), results.end());
+    perform_handshake(ws);
+
+    // Send Bad Handshake
+    cppsim::protocol::message_envelope env;
+    env.message_type = "HANDSHAKE";
+    env.protocol_version = "v0.9"; // Bad version
+    env.payload = nlohmann::json::object(); // Empty payload fine for this test check
+
+    nlohmann::json j;
+    cppsim::protocol::to_json(j, env);
+
+    ws.write(net::buffer(j.dump()));
+
+    // Expect Error
+    beast::flat_buffer buffer;
+    try {
+        ws.read(buffer);
+        std::string response = beast::buffers_to_string(buffer.data());
+        auto resp_json = nlohmann::json::parse(response);
+        auto resp_env = resp_json.get<cppsim::protocol::message_envelope>();
+        
+        EXPECT_EQ(resp_env.message_type, "ERROR");
+        EXPECT_EQ(resp_env.payload["error_code"], "INCOMPATIBLE_VERSION");
+    } catch (const beast::system_error& se) {
+        // It might close immediately
+        if (se.code() != websocket::error::closed) {
+             throw;
+        }
+    }
+
+    // Should be closed now
+    try {
+        ws.read(buffer);
+        FAIL() << "Connection should be closed";
+    } catch (const beast::system_error& se) {
+        EXPECT_EQ(se.code(), websocket::error::closed);
+    }
+}
+
+// Test 3: Garbage Data (Malformed)
+TEST_F(HandshakeTest, MalformedData) {
+    net::io_context ioc;
+    tcp::resolver resolver(ioc);
+    websocket::stream<tcp::socket> ws(ioc);
+
+    auto const results = resolver.resolve("localhost", "8080");
+    net::connect(ws.next_layer(), results.begin(), results.end());
+    perform_handshake(ws);
+
+    // Send Garbage
+    ws.write(net::buffer("Not JSON"));
+
+    // Expect Error or Close
+    beast::flat_buffer buffer;
+    try {
+        ws.read(buffer);
+        std::string response = beast::buffers_to_string(buffer.data());
+        auto resp_json = nlohmann::json::parse(response);
+        // If we get here, it should be an error message
+        auto resp_env = resp_json.get<cppsim::protocol::message_envelope>();
+        EXPECT_EQ(resp_env.message_type, "ERROR");
+        EXPECT_EQ(resp_env.payload["error_code"], "MALFORMED_HANDSHAKE");
+    } catch (...) {
+        // Closing is also acceptable
+    }
+}
+
+// Test 4: Protocol Error (Wrong Message Type)
+TEST_F(HandshakeTest, ProtocolError) {
+    net::io_context ioc;
+    tcp::resolver resolver(ioc);
+    websocket::stream<tcp::socket> ws(ioc);
+
+    auto const results = resolver.resolve("localhost", "8080");
+    net::connect(ws.next_layer(), results.begin(), results.end());
+    perform_handshake(ws);
+
+    // Send ACTION instead of HANDSHAKE
+    cppsim::protocol::message_envelope env;
+    env.message_type = "ACTION";
+    env.protocol_version = cppsim::protocol::PROTOCOL_VERSION;
+    env.payload = nlohmann::json::object();
+
+    nlohmann::json j;
+    cppsim::protocol::to_json(j, env);
+
+    ws.write(net::buffer(j.dump()));
+
+    // Expect Error
+    beast::flat_buffer buffer;
+    ws.read(buffer);
+    std::string response = beast::buffers_to_string(buffer.data());
+    auto resp_json = nlohmann::json::parse(response);
+    auto resp_env = resp_json.get<cppsim::protocol::message_envelope>();
+
+    EXPECT_EQ(resp_env.message_type, "ERROR");
+    EXPECT_EQ(resp_env.payload["error_code"], "PROTOCOL_ERROR");
+}

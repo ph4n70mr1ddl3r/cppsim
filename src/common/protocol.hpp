@@ -97,8 +97,7 @@ std::string serialize_error(const error_message& msg);
 std::string serialize_handshake_response(const handshake_response& msg);
 std::string serialize_reload_response(const reload_response_message& msg);
 
-}  // namespace protocol
-}  // namespace cppsim
+// Protocols definitions
 
 // nlohmann/json serialization functions MUST be in global namespace
 // Manual to_json/from_json for proper std::optional support
@@ -252,3 +251,6 @@ inline void from_json(const nlohmann::json& j, cppsim::protocol::message_envelop
   j.at("protocol_version").get_to(m.protocol_version);
   j.at("payload").get_to(m.payload);
 }
+
+}  // namespace protocol
+}  // namespace cppsim
