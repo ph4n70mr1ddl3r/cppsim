@@ -17,6 +17,7 @@ A high-performance, single-threaded WebSocket poker server for heads-up No-Limit
 
 - CMake 3.15 or later
 - C++17-compatible compiler (GCC 9+, Clang 10+, MSVC 2019+)
+- clang-format 10+ (for code style enforcement)
 - Internet connection (for CMake FetchContent dependency downloads)
 
 ### Build Steps

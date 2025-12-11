@@ -501,6 +501,18 @@ After adding strict warnings, ensure **existing placeholder code** (from Story 1
   - **Fixed LOW L-4:** Verified all targets (server, client, tests) build cleanly with strict warnings
   - Story status: All review issues addressed, ready for final approval
 
+- 2025-12-11: Final adversarial code review fixes applied
+  - **Fixed MEDIUM M-1:** `test_build.sh` not executable - Added execution permissions (`chmod +x`).
+  - **Fixed MEDIUM M-2:** Hardcoded path in `test_build.sh` - Replaced with dynamic directory resolution.
+  - **Fixed MEDIUM M-1:** `test_build.sh` not executable - Added execution permissions (`chmod +x`).
+  - **Fixed MEDIUM M-2:** Hardcoded path in `test_build.sh` - Replaced with dynamic directory resolution.
+  - Story status: VERIFIED DONE
+
+- 2025-12-11: Final adversarial code review document updates
+  - **Fixed MEDIUM M-3:** Added `clang-format` to `README.md` prerequisites to match validation script requirements.
+  - **Fixed MEDIUM M-4:** Committed all pending changes (`test_build.sh`, `sprint-status.yaml`, story file) to ensure reproducible state.
+  - Story status: DONE
+
 ---
 
 ## Definition of Done
