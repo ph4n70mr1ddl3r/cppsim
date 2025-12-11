@@ -603,6 +603,22 @@ So that **bots can participate in poker games**.
 **And** handles reconnection on disconnect
 **And** logs all messages to client console
 
+### Story 2.9: Review Undocumented WebSocket Implementation
+
+As a **developer**,
+I want **to review and test the undocumented WebSocket implementation**,
+So that **I can ensure it meets quality standards and doesn't introduce technical debt**.
+
+**Acceptance Criteria:**
+
+**Given** the existing WebSocket implementation in src/server/websocket_session.cpp
+**When** I review the code
+**Then** I verify it follows project architecture patterns
+**And** I ensure all edge cases are handled
+**And** I add missing documentation and comments
+**And** I verify unit tests cover the implementation
+**And** I refactor any non-compliant code
+
 ---
 
 ## Epic 3: Poker Game Engine & Rules

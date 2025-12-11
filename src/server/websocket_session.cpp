@@ -142,8 +142,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     
     // Store and Log Client Name if present
     if (handshake_msg.client_name) {
-        client_name_ = *handshake_msg.client_name;
-        log_message("[WebSocketSession] Client Name: " + client_name_);
+        log_message("[WebSocketSession] Client Name: " + *handshake_msg.client_name);
     }
     
     // Set Idle Timeout
@@ -244,6 +243,11 @@ void websocket_session::check_deadline() {
   deadline_.async_wait(
       [self](boost::beast::error_code ec) {
         if (ec) {
+          if (ec == boost::asio::error::operation_aborted) {
+             // Timer was updated (expires_after called), wait again
+             self->check_deadline();
+             return;
+          }
           if (ec != boost::asio::error::operation_aborted) {
              std::stringstream ss;
              ss << "[WebSocketSession] Timer error: " << ec.message();

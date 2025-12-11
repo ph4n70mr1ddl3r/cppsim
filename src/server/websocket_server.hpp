@@ -22,16 +22,27 @@ class websocket_server {
  private:
   void do_accept();
   
-  template <typename Socket>
-  void on_accept(boost::beast::error_code ec, Socket socket) {
+  void on_accept(boost::beast::error_code ec, boost::asio::ip::tcp::socket socket) {
       if (ec) {
         std::cerr << "[WebSocketServer] Accept failed: " << ec.message()
                   << std::endl;
+        
+        // Prevent infinite loop on persistent errors (e.g. EMFILE)
+        if (!acceptor_.is_open()) return;
+
+        // Backoff: Wait 1s before retrying
+        auto timer = std::make_shared<boost::asio::steady_timer>(ioc_);
+        timer->expires_after(std::chrono::seconds(1));
+        timer->async_wait([this, timer](boost::beast::error_code timer_ec) {
+            if (!timer_ec && acceptor_.is_open()) {
+                do_accept();
+            }
+        });
+        return;
       } else {
         // Create a new session for this connection
-        // We assume Socket is movable to tcp::socket (or is compatible)
         auto session = std::make_shared<websocket_session>(
-            boost::asio::ip::tcp::socket(std::move(socket)), conn_mgr_);
+            std::move(socket), conn_mgr_);
 
         // Register the session and get its ID
         std::string session_id = conn_mgr_->register_session(session);

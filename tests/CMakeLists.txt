@@ -7,15 +7,13 @@ target_sources(poker_tests
     unit/protocol_test.cpp
     integration/websocket_server_test.cpp
     integration/handshake_test.cpp
-    ../src/server/websocket_server.cpp
-    ../src/server/websocket_session.cpp
-    ../src/server/connection_manager.cpp
 )
 
 # Link dependencies
 target_link_libraries(poker_tests
   PRIVATE
     poker_common
+    poker_server_lib
     GTest::gtest
     GTest::gtest_main
     Boost::beast

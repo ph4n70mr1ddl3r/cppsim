@@ -62,5 +62,14 @@ std::string connection_manager::generate_session_id() {
   return "session_" + std::to_string(id + 1);  // Start from session_1
 }
 
+void connection_manager::stop_all() {
+  std::lock_guard<std::mutex> lock(sessions_mutex_);
+  for (auto& pair : sessions_) {
+    pair.second->close();
+  }
+  sessions_.clear();
+  std::cout << "[ConnectionManager] All sessions stopped." << std::endl;
+}
+
 }  // namespace server
 }  // namespace cppsim

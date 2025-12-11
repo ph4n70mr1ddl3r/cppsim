@@ -14,4 +14,7 @@ target_include_directories(poker_common
 target_link_libraries(poker_common
   PUBLIC
     nlohmann_json::nlohmann_json
+    project_options
+  PRIVATE
+    project_warnings
 )

@@ -62,6 +62,12 @@ void websocket_server::stop() {
     std::cerr << "[WebSocketServer] Error closing acceptor: " << ec.message()
               << std::endl;
   }
+  
+  // Stop all active sessions
+  if (conn_mgr_) {
+      conn_mgr_->stop_all();
+  }
+  
   std::cout << "[WebSocketServer] Stopped accepting connections" << std::endl;
 }
 

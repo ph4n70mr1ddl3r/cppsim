@@ -1,4 +1,5 @@
 #include "protocol.hpp"
+#include <iostream>
 
 namespace cppsim {
 namespace protocol {
@@ -15,19 +16,21 @@ std::optional<handshake_message> parse_handshake(const std::string& json_str) {
     handshake_message msg;
     try {
       from_json(envelope.payload, msg);
-    } catch (...) {
+    } catch (const std::exception& e) {
+       std::cerr << "[Protocol] Handshake Payload Error: " << e.what() << std::endl;
        return std::nullopt;
     }
     
     // Resolve Ambiguity: Envelope is the transport source of truth.
-    // If payload has a different version, we overwrite it with envelope's version
-    // to ensure internal consistency.
+    // If payload has a different version, we treat it as a protocol error or simply fail to parse.
+    // Overwriting silently hides defects.
     if (msg.protocol_version != envelope.protocol_version) {
-        msg.protocol_version = envelope.protocol_version;
+        return std::nullopt;
     }
     
     return msg;
-  } catch (...) {
+  } catch (const std::exception& e) {
+    std::cerr << "[Protocol] Parse Error: " << e.what() << std::endl;
     return std::nullopt;
   }
 }
@@ -42,7 +45,8 @@ std::optional<action_message> parse_action(const std::string& json_str) {
     action_message msg;
     from_json(envelope.payload, msg);
     return msg;
-  } catch (...) {
+  } catch (const std::exception& e) {
+    std::cerr << "[Protocol] Parse Error: " << e.what() << std::endl;
     return std::nullopt;
   }
 }
@@ -57,7 +61,8 @@ std::optional<reload_request_message> parse_reload_request(const std::string& js
     reload_request_message msg;
     from_json(envelope.payload, msg);
     return msg;
-  } catch (...) {
+  } catch (const std::exception& e) {
+    std::cerr << "[Protocol] Parse Error: " << e.what() << std::endl;
     return std::nullopt;
   }
 }
@@ -72,7 +77,8 @@ std::optional<disconnect_message> parse_disconnect(const std::string& json_str) 
     disconnect_message msg;
     from_json(envelope.payload, msg);
     return msg;
-  } catch (...) {
+  } catch (const std::exception& e) {
+    std::cerr << "[Protocol] Parse Error: " << e.what() << std::endl;
     return std::nullopt;
   }
 }

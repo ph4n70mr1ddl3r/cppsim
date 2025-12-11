@@ -1,17 +1,20 @@
 #include <iostream>
 #include "boost_wrapper.hpp"
 #include <csignal>
+#include <cstdlib>
 
 #include "websocket_server.hpp"
+
+// Configuration constants
+constexpr uint16_t DEFAULT_PORT = 8080;
 
 int main() {
   try {
     // Create the io_context
     boost::asio::io_context ioc;
 
-    // Create the WebSocket server on port 8080
-    constexpr uint16_t port = 8080;
-    cppsim::server::websocket_server server(ioc, port);
+    // Create the WebSocket server
+    cppsim::server::websocket_server server(ioc, DEFAULT_PORT);
 
     // Set up signal handling for graceful shutdown
     boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
@@ -30,10 +33,10 @@ int main() {
     ioc.run();
 
     std::cout << "[Main] Server stopped." << std::endl;
-    return 0;
+    return EXIT_SUCCESS;
 
   } catch (const std::exception& e) {
     std::cerr << "[Main] Exception: " << e.what() << std::endl;
-    return 1;
+    return EXIT_FAILURE;
   }
 }

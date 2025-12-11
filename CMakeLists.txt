@@ -72,9 +72,9 @@ add_subdirectory(tests)
 # warnings to consumers.
 target_link_libraries(poker_server PRIVATE project_options project_warnings)
 target_link_libraries(poker_client PRIVATE project_options project_warnings)
-# poker_common is an INTERFACE library (no sources yet) - it doesn't need warnings
+# poker_common is a STATIC library
 # Consumers (server/client) already link project_warnings above, which is sufficient
-# Warnings propagate through poker_common automatically since it's INTERFACE
+# Warnings propagate through poker_common automatically since it links publicly/interface
 target_link_libraries(poker_tests PRIVATE project_options project_warnings)
 
 # =============================================================================
@@ -90,8 +90,9 @@ message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "Boost Version: ${Boost_VERSION}")
 message(STATUS "Targets:")
 message(STATUS "  - poker_server (server executable)")
+message(STATUS "  - poker_server_lib (server static library)")
 message(STATUS "  - poker_client (client executable)")
-message(STATUS "  - poker_common (shared library)")
+message(STATUS "  - poker_common (static library)")
 message(STATUS "  - poker_tests (test executable)")
 message(STATUS "===================================")
 message(STATUS "")

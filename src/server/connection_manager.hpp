@@ -35,6 +35,9 @@ class connection_manager {
   // Get count of active sessions
   size_t session_count() const;
 
+  // Stop all active sessions
+  void stop_all();
+
  private:
   // Generate unique session ID
   std::string generate_session_id();

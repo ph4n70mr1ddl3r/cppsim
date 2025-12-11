@@ -33,9 +33,6 @@ class websocket_session
 
   // Set the session ID (called by connection_manager after registration)
   void set_session_id(const std::string& id) { session_id_ = id; }
-  
-  // Get the client name
-  std::string client_name() const { return client_name_; }
 
  private:
   void do_accept();
@@ -52,7 +49,6 @@ class websocket_session
   boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;
   boost::beast::flat_buffer buffer_;
   std::string session_id_;
-  std::string client_name_;
   std::weak_ptr<connection_manager> conn_mgr_;
   std::queue<std::string> write_queue_;
   bool writing_{false};

@@ -9,10 +9,8 @@ target_sources(poker_client
 # Link dependencies
 target_link_libraries(poker_client
   PRIVATE
-    poker_common
-    Boost::beast
-    Boost::asio
-    Boost::system
+    project_options
+    project_warnings
 )
 
 # Set compile features

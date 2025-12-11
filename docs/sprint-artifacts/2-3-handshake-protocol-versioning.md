@@ -120,7 +120,13 @@ So that **the server validates my client version**.
 - [x] [AI-Review][Low] Update misleading comment in `protocol.hpp` (global namespace vs ADL)
 
 ### Review Follow-ups (AI) - Round 4
-- [ ] [AI-Review][Low] Unused Member Variable: `client_name_` is set but never used in `websocket_session` `src/server/websocket_session.hpp`
+- [x] [AI-Review][Low] Unused Member Variable: `client_name_` is set but never used in `websocket_session` `src/server/websocket_session.hpp`
+
+### Review Follow-ups (AI) - Round 5
+- [ ] [AI-Review][High] Security: Set `max_message_size` in `websocket_session` to prevent memory exhaustion (DoS) `src/server/websocket_session.cpp`
+- [ ] [AI-Review][Medium] Error Handling: Catch `std::exception` instead of `...` in `protocol.cpp` to avoid swallowing critical errors `src/common/protocol.cpp`
+- [ ] [AI-Review][Medium] Protocol Logic: Reject (or explicitly validate) handshake if envelope version differs from payload version `src/common/protocol.cpp`
+- [ ] [AI-Review][Low] Test Quality: Use dynamic port or configuration for `handshake_test.cpp` instead of hardcoded 8080 `tests/integration/handshake_test.cpp`
 
 ---
 
@@ -172,6 +178,7 @@ Gemini 2.0 Flash
 - **Review Fixes**: Implemented central `protocol.cpp` parsing helpers, refactored `websocket_session.cpp` to use them + properly defined protocol constants.
 - **Code Review Fix**: Added `tests/unit/protocol_test.cpp` to File List.
 - **Round 2 & 3 Fixes**: Fixed circular dependency memory leak, replaced hardcoded strings with constants in tests, clarified protocol ambiguity, and stored client name.
+- **Round 4 Fixes**: Removed unused member variable client_name_ and its getter.
 
 ### File List
 - src/common/protocol.hpp
@@ -187,4 +194,5 @@ Gemini 2.0 Flash
 - 2025-12-11: Second AI Review (Adversarial) - Added action items for code quality improvements. Status reverted to In Progress.
 - 2025-12-11: Third AI Review (Adversarial) - Added critical memory leak fix and test refactoring to action items.
 - 2025-12-11: Implemented Round 2 and Round 3 review fixes (Memory leak, constants, client name).
+- 2025-12-11: Implemented Round 4 review fix (Cleanup unused member).
 
