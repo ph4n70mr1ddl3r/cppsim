@@ -12,6 +12,15 @@ namespace protocol {
 // Protocol version constant
 constexpr const char* PROTOCOL_VERSION = "v1.0";
 
+// Error Codes
+namespace error_codes {
+constexpr const char* INCOMPATIBLE_VERSION = "INCOMPATIBLE_VERSION";
+constexpr const char* PROTOCOL_VERSION_MISMATCH = "PROTOCOL_VERSION_MISMATCH"; // Use this or INCOMPATIBLE_VERSION? Kept INCOMPATIBLE_VERSION per story
+constexpr const char* PROTOCOL_ERROR = "PROTOCOL_ERROR";
+constexpr const char* MALFORMED_HANDSHAKE = "MALFORMED_HANDSHAKE";
+constexpr const char* MALFORMED_MESSAGE = "MALFORMED_MESSAGE";
+}
+
 // Player stack information for state updates
 struct player_stack {
   int seat;

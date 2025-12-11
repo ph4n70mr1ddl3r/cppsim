@@ -121,7 +121,7 @@ TEST_F(HandshakeTest, IncompatibleVersion) {
         auto resp_env = resp_json.get<cppsim::protocol::message_envelope>();
         
         EXPECT_EQ(resp_env.message_type, "ERROR");
-        EXPECT_EQ(resp_env.payload["error_code"], "INCOMPATIBLE_VERSION");
+        EXPECT_EQ(resp_env.payload["error_code"], cppsim::protocol::error_codes::INCOMPATIBLE_VERSION);
     } catch (const beast::system_error& se) {
         // It might close immediately
         if (se.code() != websocket::error::closed) {
@@ -160,7 +160,7 @@ TEST_F(HandshakeTest, MalformedData) {
         // If we get here, it should be an error message
         auto resp_env = resp_json.get<cppsim::protocol::message_envelope>();
         EXPECT_EQ(resp_env.message_type, "ERROR");
-        EXPECT_EQ(resp_env.payload["error_code"], "MALFORMED_HANDSHAKE");
+        EXPECT_EQ(resp_env.payload["error_code"], cppsim::protocol::error_codes::MALFORMED_HANDSHAKE);
     } catch (...) {
         // Closing is also acceptable
     }
@@ -195,7 +195,7 @@ TEST_F(HandshakeTest, ProtocolError) {
     auto resp_env = resp_json.get<cppsim::protocol::message_envelope>();
 
     EXPECT_EQ(resp_env.message_type, "ERROR");
-    EXPECT_EQ(resp_env.payload["error_code"], "PROTOCOL_ERROR");
+    EXPECT_EQ(resp_env.payload["error_code"], cppsim::protocol::error_codes::PROTOCOL_ERROR);
 }
 
 // Test 5: Handshake Timeout

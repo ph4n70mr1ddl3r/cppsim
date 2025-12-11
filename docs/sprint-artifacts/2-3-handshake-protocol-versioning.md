@@ -103,6 +103,10 @@ So that **the server validates my client version**.
 ### Review Follow-ups (AI)
 - [x] [AI-Review][Medium] Update File List in `Dev Agent Record` with all implemented files
 - [x] [AI-Review][Medium] Implement missing HandshakeTimeout test case (Scenario 4) `tests/integration/handshake_test.cpp`
+- [x] [AI-Review][Critical] Implement session registration with connection manager `src/server/websocket_session.cpp`
+- [x] [AI-Review][Critical] Fix missing session ID in HANDSHAKE_RESPONSE by retrieving it after registration
+- [x] [AI-Review][Low] Use defined constants for error codes in `src/server/websocket_session.cpp`
+- [x] [AI-Review][Low] Implement thread-safe logging or mutex for console output
 
 ---
 
@@ -149,8 +153,11 @@ Gemini 2.0 Flash
 - Implemented `HandshakeTimeout` test in `tests/integration/handshake_test.cpp`.
 - Verified all Handshake scenarios pass (Success, Incompatible, Malformed, ProtocolError, Timeout).
 - Address all review follow-ups.
+- Added AI Review action items for session registration and thread safety.
+- Implemented session registration, error codes, and thread-safe logging (Review Follow-ups).
 
 ### File List
+- src/common/protocol.hpp
 - src/server/websocket_session.hpp
 - src/server/websocket_session.cpp
 - tests/integration/handshake_test.cpp
