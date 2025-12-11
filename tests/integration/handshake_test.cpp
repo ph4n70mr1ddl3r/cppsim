@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "../../src/server/boost_wrapper.hpp"
 #include "../../src/server/websocket_server.hpp"
+#include "../../src/server/config.hpp"
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <chrono>
@@ -18,11 +19,12 @@ protected:
     net::io_context server_ioc;
     std::thread server_thread;
     std::shared_ptr<cppsim::server::websocket_server> server;
+    static constexpr unsigned short TEST_PORT = cppsim::server::config::DEFAULT_TEST_PORT;
 
     void SetUp() override {
-        // Start server on 8080
+        // Start server on test port
         try {
-            server = std::make_shared<cppsim::server::websocket_server>(server_ioc, 8080);
+            server = std::make_shared<cppsim::server::websocket_server>(server_ioc, TEST_PORT);
             server->run();
             
             server_thread = std::thread([this]{ 
@@ -38,7 +40,7 @@ protected:
                     net::io_context ioc;
                     tcp::socket s(ioc);
                     tcp::resolver resolver(ioc);
-                    auto const results = resolver.resolve("localhost", "8080");
+                    auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
                     net::connect(s, results.begin(), results.end());
                     connected = true;
                     break;
@@ -72,7 +74,7 @@ TEST_F(HandshakeTest, SuccessfulHandshake) {
     tcp::resolver resolver(ioc);
     websocket::stream<tcp::socket> ws(ioc);
 
-    auto const results = resolver.resolve("localhost", "8080");
+    auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
     net::connect(ws.next_layer(), results.begin(), results.end());
     perform_handshake(ws);
 
@@ -114,7 +116,7 @@ TEST_F(HandshakeTest, IncompatibleVersion) {
     tcp::resolver resolver(ioc);
     websocket::stream<tcp::socket> ws(ioc);
 
-    auto const results = resolver.resolve("localhost", "8080");
+    auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
     net::connect(ws.next_layer(), results.begin(), results.end());
     perform_handshake(ws);
 
@@ -161,7 +163,7 @@ TEST_F(HandshakeTest, MalformedData) {
     tcp::resolver resolver(ioc);
     websocket::stream<tcp::socket> ws(ioc);
 
-    auto const results = resolver.resolve("localhost", "8080");
+    auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
     net::connect(ws.next_layer(), results.begin(), results.end());
     perform_handshake(ws);
 
@@ -189,7 +191,7 @@ TEST_F(HandshakeTest, ProtocolError) {
     tcp::resolver resolver(ioc);
     websocket::stream<tcp::socket> ws(ioc);
 
-    auto const results = resolver.resolve("localhost", "8080");
+    auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
     net::connect(ws.next_layer(), results.begin(), results.end());
     perform_handshake(ws);
 
@@ -221,7 +223,7 @@ TEST_F(HandshakeTest, HandshakeTimeout) {
     tcp::resolver resolver(ioc);
     websocket::stream<tcp::socket> ws(ioc);
 
-    auto const results = resolver.resolve("localhost", "8080");
+    auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
     net::connect(ws.next_layer(), results.begin(), results.end());
     perform_handshake(ws);
 

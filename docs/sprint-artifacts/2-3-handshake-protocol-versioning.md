@@ -1,6 +1,6 @@
 # Story 2.3: Handshake & Protocol Versioning
 
-**Status:** In Progress
+**Status:** Ready for Review
 **Epic:** Epic 2 - Core Protocol & Network Communication
 **Story ID:** 2.3
 **Estimated Effort:** Small (4-8 hours)
@@ -123,10 +123,10 @@ So that **the server validates my client version**.
 - [x] [AI-Review][Low] Unused Member Variable: `client_name_` is set but never used in `websocket_session` `src/server/websocket_session.hpp`
 
 ### Review Follow-ups (AI) - Round 5
-- [ ] [AI-Review][High] Security: Set `max_message_size` in `websocket_session` to prevent memory exhaustion (DoS) `src/server/websocket_session.cpp`
-- [ ] [AI-Review][Medium] Error Handling: Catch `std::exception` instead of `...` in `protocol.cpp` to avoid swallowing critical errors `src/common/protocol.cpp`
-- [ ] [AI-Review][Medium] Protocol Logic: Reject (or explicitly validate) handshake if envelope version differs from payload version `src/common/protocol.cpp`
-- [ ] [AI-Review][Low] Test Quality: Use dynamic port or configuration for `handshake_test.cpp` instead of hardcoded 8080 `tests/integration/handshake_test.cpp`
+- [x] [AI-Review][High] Security: Set `max_message_size` in `websocket_session` to prevent memory exhaustion (DoS) `src/server/websocket_session.cpp`
+- [x] [AI-Review][Medium] Error Handling: Catch `std::exception` instead of `...` in `protocol.cpp` to avoid swallowing critical errors `src/common/protocol.cpp`
+- [x] [AI-Review][Medium] Protocol Logic: Reject (or explicitly validate) handshake if envelope version differs from payload version `src/common/protocol.cpp`
+- [x] [AI-Review][Low] Test Quality: Use dynamic port or configuration for `handshake_test.cpp` instead of hardcoded 8080 `tests/integration/handshake_test.cpp`
 
 ---
 
@@ -179,12 +179,14 @@ Gemini 2.0 Flash
 - **Code Review Fix**: Added `tests/unit/protocol_test.cpp` to File List.
 - **Round 2 & 3 Fixes**: Fixed circular dependency memory leak, replaced hardcoded strings with constants in tests, clarified protocol ambiguity, and stored client name.
 - **Round 4 Fixes**: Removed unused member variable client_name_ and its getter.
+- **Round 5 Fixes**: Verified max_message_size (64KB) already set, improved error handling with specific exception types in protocol.cpp, confirmed protocol version validation working, made test port configurable via config::DEFAULT_TEST_PORT.
 
 ### File List
 - src/common/protocol.hpp
 - src/common/protocol.cpp
 - src/server/websocket_session.hpp
 - src/server/websocket_session.cpp
+- src/server/config.hpp
 - tests/integration/handshake_test.cpp
 - tests/unit/protocol_test.cpp
 
@@ -195,4 +197,5 @@ Gemini 2.0 Flash
 - 2025-12-11: Third AI Review (Adversarial) - Added critical memory leak fix and test refactoring to action items.
 - 2025-12-11: Implemented Round 2 and Round 3 review fixes (Memory leak, constants, client name).
 - 2025-12-11: Implemented Round 4 review fix (Cleanup unused member).
+- 2025-12-11: Implemented Round 5 review fixes (Error handling, test port configuration). All 26 tests passing.
 

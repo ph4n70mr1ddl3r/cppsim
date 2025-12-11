@@ -29,8 +29,11 @@ std::optional<handshake_message> parse_handshake(const std::string& json_str) {
     }
     
     return msg;
+  } catch (const nlohmann::json::exception& e) {
+    std::cerr << "[Protocol] Handshake JSON Parse Error: " << e.what() << std::endl;
+    return std::nullopt;
   } catch (const std::exception& e) {
-    std::cerr << "[Protocol] Parse Error: " << e.what() << std::endl;
+    std::cerr << "[Protocol] Handshake Parse Error: " << e.what() << std::endl;
     return std::nullopt;
   }
 }
@@ -45,8 +48,11 @@ std::optional<action_message> parse_action(const std::string& json_str) {
     action_message msg;
     from_json(envelope.payload, msg);
     return msg;
+  } catch (const nlohmann::json::exception& e) {
+    std::cerr << "[Protocol] Action JSON Parse Error: " << e.what() << std::endl;
+    return std::nullopt;
   } catch (const std::exception& e) {
-    std::cerr << "[Protocol] Parse Error: " << e.what() << std::endl;
+    std::cerr << "[Protocol] Action Parse Error: " << e.what() << std::endl;
     return std::nullopt;
   }
 }
@@ -61,8 +67,11 @@ std::optional<reload_request_message> parse_reload_request(const std::string& js
     reload_request_message msg;
     from_json(envelope.payload, msg);
     return msg;
+  } catch (const nlohmann::json::exception& e) {
+    std::cerr << "[Protocol] Reload Request JSON Parse Error: " << e.what() << std::endl;
+    return std::nullopt;
   } catch (const std::exception& e) {
-    std::cerr << "[Protocol] Parse Error: " << e.what() << std::endl;
+    std::cerr << "[Protocol] Reload Request Parse Error: " << e.what() << std::endl;
     return std::nullopt;
   }
 }
@@ -77,8 +86,11 @@ std::optional<disconnect_message> parse_disconnect(const std::string& json_str) 
     disconnect_message msg;
     from_json(envelope.payload, msg);
     return msg;
+  } catch (const nlohmann::json::exception& e) {
+    std::cerr << "[Protocol] Disconnect JSON Parse Error: " << e.what() << std::endl;
+    return std::nullopt;
   } catch (const std::exception& e) {
-    std::cerr << "[Protocol] Parse Error: " << e.what() << std::endl;
+    std::cerr << "[Protocol] Disconnect Parse Error: " << e.what() << std::endl;
     return std::nullopt;
   }
 }
