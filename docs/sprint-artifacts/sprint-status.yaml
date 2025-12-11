@@ -52,7 +52,7 @@ development_status:
   epic-2: in-progress
   2-1-protocol-message-definitions: done
   2-2-websocket-server-with-connection-management: done
-  2-3-handshake-protocol-versioning: backlog
+  2-3-handshake-protocol-versioning: ready-for-dev
   2-4-bidirectional-json-messaging: backlog
   2-5-disconnection-detection: backlog
   2-6-reconnection-with-grace-period: backlog
