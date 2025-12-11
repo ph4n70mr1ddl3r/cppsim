@@ -5,6 +5,10 @@ target_sources(poker_tests
   PRIVATE
     placeholder_test.cpp
     unit/protocol_test.cpp
+    integration/websocket_server_test.cpp
+    ../src/server/websocket_server.cpp
+    ../src/server/websocket_session.cpp
+    ../src/server/connection_manager.cpp
 )
 
 # Link dependencies
@@ -13,10 +17,15 @@ target_link_libraries(poker_tests
     poker_common
     GTest::gtest
     GTest::gtest_main
+    Boost::beast
+    Boost::asio
+    Boost::system
 )
 
 # Set compile features
 target_compile_features(poker_tests PRIVATE cxx_std_17)
+
+target_include_directories(poker_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Enable testing - ALREADY ENABLED IN ROOT
 include(GoogleTest)

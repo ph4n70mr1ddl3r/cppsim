@@ -4,6 +4,9 @@ add_executable(poker_server)
 target_sources(poker_server
   PRIVATE
     main.cpp
+    websocket_server.cpp
+    websocket_session.cpp
+    connection_manager.cpp
 )
 
 # Link dependencies
