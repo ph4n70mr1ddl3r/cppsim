@@ -45,6 +45,13 @@ So that **the server validates my client version**.
 - **When** client sends invalid JSON or non-handshake message as first message
 - **Then** server closes connection immediately
 - **And** logs "Handshake failed: Malformed message"
+- **Error Code:** `MALFORMED_HANDSHAKE` or `PROTOCOL_ERROR`
+
+#### Scenario 4: Handshake Timeout
+- **Given** a new connection is established
+- **When** the client sends *nothing* for 10 seconds
+- **Then** server closes the connection automatically
+- **And** logs "Handshake timeout"
 
 ---
 
