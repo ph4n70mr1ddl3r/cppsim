@@ -45,6 +45,9 @@ void websocket_session::run() {
       boost::beast::websocket::stream_base::timeout::suggested(
           boost::beast::role_type::server));
 
+  // Limit message size to prevent DoS (64KB)
+  ws_.read_message_max(64 * 1024);
+
   // Start the deadline timer for authentication
   deadline_.expires_after(HANDSHAKE_TIMEOUT);
   check_deadline();
@@ -259,9 +262,11 @@ void websocket_session::check_deadline() {
         if (self->state_ == state::unauthenticated) {
            // Timeout occurred
            std::stringstream ss;
-           ss << "[WebSocketSession] Handshake timeout for session " << self->session_id_;
+           ss << "[WebSocketSession] Handshake timeout";
            log_error(ss.str());
-           self->close();
+           
+           // Close socket directly as handshake is not complete
+           self->ws_.next_layer().socket().close(ec);
         } else {
            // Idle timeout
            std::stringstream ss;

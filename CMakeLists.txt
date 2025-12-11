@@ -30,10 +30,16 @@ set(BOOST_VERSION_UNDERSCORE "1_83_0")
 message(STATUS "Fetching Boost ${BOOST_VERSION}...")
 FetchContent_Declare(
   Boost
-  URL https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}.tar.gz
-  URL_HASH SHA256=0c6049764e80aa32754acd7d4f179fd5551d8172a83b71532ae093e7384e98da
+  URL https://archives.boost.io/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_UNDERSCORE}.tar.gz
+  URL_HASH SHA256=c0685b68dd44cc46574cce86c4e17c0f611b15e195be9848dfd0769a0a207628
 )
 FetchContent_MakeAvailable(Boost)
+
+if(NOT TARGET Boost::headers)
+  add_library(boost_headers_interface INTERFACE)
+  target_include_directories(boost_headers_interface INTERFACE ${boost_SOURCE_DIR})
+  add_library(Boost::headers ALIAS boost_headers_interface)
+endif()
 
 # nlohmann/json
 message(STATUS "Fetching nlohmann/json...")
@@ -74,7 +80,7 @@ target_link_libraries(poker_server PRIVATE project_options project_warnings)
 target_link_libraries(poker_client PRIVATE project_options project_warnings)
 # poker_common is a STATIC library
 # Consumers (server/client) already link project_warnings above, which is sufficient
-# Warnings propagate through poker_common automatically since it links publicly/interface
+# poker_common links project_warnings internally
 target_link_libraries(poker_tests PRIVATE project_options project_warnings)
 
 # =============================================================================

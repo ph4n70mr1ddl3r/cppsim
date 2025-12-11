@@ -3,14 +3,13 @@ add_library(poker_server_lib STATIC
   websocket_server.cpp
   websocket_session.cpp
   connection_manager.cpp
+  logger.cpp
 )
 
 target_link_libraries(poker_server_lib
   PUBLIC
     poker_common
-    Boost::beast
-    Boost::asio
-    Boost::system
+    Boost::headers
   PRIVATE
     project_options
     project_warnings

@@ -112,6 +112,14 @@ So that **I can build the project on any platform without manual dependency inst
 - Added error logging to src/common/protocol.cpp and removed catch-all
 - Simplified websocket_server::on_accept signature
 
+**Code Review Fixes Applied (2025-12-11 - Round 4):**
+- CRITICAL: Fixed double session registration bug in websocket_server
+- CRITICAL: Added read_message_max(64KB) to prevent DoS
+- CRITICAL: Fixed invalid async_close during handshake timeout (now closes socket directly)
+- LOW: Added missing "Hello from poker server!" output
+- LOW: Fixed misleading CMake warning propagation comment
+- LOW: Fixed Boost FetchContent 503 error by switching to archives.boost.io
+
 ---
 
 ## File List

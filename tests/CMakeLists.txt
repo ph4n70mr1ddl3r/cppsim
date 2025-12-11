@@ -16,9 +16,7 @@ target_link_libraries(poker_tests
     poker_server_lib
     GTest::gtest
     GTest::gtest_main
-    Boost::beast
-    Boost::asio
-    Boost::system
+    Boost::headers
 )
 
 # Set compile features

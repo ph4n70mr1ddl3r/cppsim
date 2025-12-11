@@ -1,16 +1,15 @@
 **🔥 CODE REVIEW FINDINGS, Riddler!**
 
 **Story:** 1-1-cmake-project-structure-dependencies.md
-**Git vs Story Discrepancies:** 0 found (All files accounted for, though some tests were not in git status because they were unmodified)
-**Issues Found:** 1 High, 2 Medium, 2 Low
+**Git vs Story Discrepancies:** 1 found (Uncommitted changes in `src/server`, `tests`, etc.)
+**Issues Found:** 1 High, 1 Medium, 2 Low
 
 ## 🔴 CRITICAL ISSUES
-- **[High] Broken Timeout Mechanism**: In `src/server/websocket_session.cpp`, the `check_deadline()` function waits on the timer. When `deadline_.expires_after()` is called (e.g., on activity), the wait is cancelled (`operation_aborted`). The callback simply returns `if (ec != operation_aborted)`. It **DOES NOT** reschedule the wait. This means after the first packet, the timeout logic is permanently disabled, allowing zombies to hang forever.
+- **[High] Inconsistent Logging & Thread Safety**: `websocket_session.cpp` uses `log_mutex` for thread safety, but `websocket_server.hpp` and `connection_manager.cpp` write directly to `std::cout`/`std::cerr` without locks. This creates a race condition for the output stream and violates the thread-safety strategy established in `websocket_session`.
 
 ## 🟡 MEDIUM ISSUES
-- **[Medium] Silent Error Swallowing**: `src/common/protocol.cpp` wraps all JSON parsing in `try-catch` blocks that just return `std::nullopt`. There is **NO** logging of the exception message. If a field is missing or type is wrong, it fails silently, making debugging protocol issues impossible.
-- **[Medium] Misleading Build Status**: The root `CMakeLists.txt` prints `poker_common (shared library)` but it is actually defined as `STATIC`. It also fails to list `poker_server_lib` in the summary, hiding the actual artifact structure.
+- **[Medium] Inefficient Message Parsing**: `websocket_session::on_read` converts the IO buffer to a `std::string` (`boost::beast::buffers_to_string`) before passing it to `protocol::parse_*`. This forces a heap allocation and copy for every message. `nlohmann::json::parse` supports parsing directly from iterators/buffers, which would avoid this overhead.
 
 ## 🟢 LOW ISSUES
-- **[Low] Hardcoded Port**: `src/server/main.cpp` defines `DEFAULT_PORT = 8080` as a local constant inside `main`. This prevents external configuration without recompilation.
-- **[Low] Logging Strategy**: `websocket_session.cpp` uses a local `std::mutex` and `std::cout` for logging. While a TODO exists, this decentralized logging is technical debt.
+- **[Low] Hardcoded Timeouts**: `websocket_session.cpp` defines `HANDSHAKE_TIMEOUT` (10s) and `IDLE_TIMEOUT` (60s) as `constexpr`. These should be configurable via the config system or `server_config` struct to allow tuning without recompilation.
+- **[Low] Protocol Error Ambiguity**: `protocol::parse_handshake` returns `std::nullopt` for both JSON parse errors AND version mismatches (inside the payload). This swallows the specific "Version Mismatch" error, making it harder to debug client compatibility issues.

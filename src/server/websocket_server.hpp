@@ -44,15 +44,10 @@ class websocket_server {
         auto session = std::make_shared<websocket_session>(
             std::move(socket), conn_mgr_);
 
-        // Register the session and get its ID
-        std::string session_id = conn_mgr_->register_session(session);
-        session->set_session_id(session_id);
-
         // Start the session (perform WebSocket handshake and begin reading)
         session->run();
 
-        std::cout << "[WebSocketServer] New connection accepted as " << session_id
-                  << std::endl;
+        std::cout << "[WebSocketServer] New connection accepted" << std::endl;
       }
 
       // Accept the next connection

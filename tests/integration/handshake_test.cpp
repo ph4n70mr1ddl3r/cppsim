@@ -238,6 +238,11 @@ TEST_F(HandshakeTest, HandshakeTimeout) {
         ws.read(buffer);
         FAIL() << "Should not have received any data, connection should close";
     } catch (const beast::system_error& se) {
-        EXPECT_EQ(se.code(), websocket::error::closed);
+        // We now close the socket directly, so we might get EOF or Connection Reset
+        // instead of a clean WebSocket close frame.
+        bool expected = (se.code() == websocket::error::closed) ||
+                        (se.code() == net::error::eof) ||
+                        (se.code() == net::error::connection_reset);
+        EXPECT_TRUE(expected) << "Unexpected error code: " << se.code().message() << " (" << se.code() << ")";
     }
 }

@@ -1,3 +1,13 @@
+# code-review Workflow Rule
+
+This rule defines the code-review workflow.
+
+## Workflow Description
+
+Perform an ADVERSARIAL Senior Developer code review that finds 3-10 specific problems in every story. Challenges everything: code quality, test coverage, architecture compliance, security, performance. NEVER accepts `looks good` - must find minimum issues and can auto-fix with user approval.
+
+## Workflow Definition
+
 # Review Story Workflow
 name: code-review
 description: "Perform an ADVERSARIAL Senior Developer code review that finds 3-10 specific problems in every story. Challenges everything: code quality, test coverage, architecture compliance, security, performance. NEVER accepts `looks good` - must find minimum issues and can auto-fix with user approval."
@@ -51,3 +61,11 @@ input_file_patterns:
     load_strategy: "INDEX_GUIDED"
 
 standalone: true
+
+## Usage
+
+Reference this workflow with `@workflow-code-review` to execute the guided workflow.
+
+## Module
+
+Part of the BMAD BMM module.
