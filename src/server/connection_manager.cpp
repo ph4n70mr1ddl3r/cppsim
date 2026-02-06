@@ -65,11 +65,20 @@ std::string connection_manager::generate_session_id() {
 }
 
 void connection_manager::stop_all() {
-  std::lock_guard<std::mutex> lock(sessions_mutex_);
-  for (auto& pair : sessions_) {
-    pair.second->close();
+  std::vector<std::shared_ptr<websocket_session>> sessions_to_stop;
+  {
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    sessions_to_stop.reserve(sessions_.size());
+    for (auto& pair : sessions_) {
+      sessions_to_stop.push_back(pair.second);
+    }
+    sessions_.clear();
   }
-  sessions_.clear();
+
+  for (auto& session : sessions_to_stop) {
+    session->close();
+  }
+
   using cppsim::server::log_message;
   log_message("[ConnectionManager] All sessions stopped.");
 }

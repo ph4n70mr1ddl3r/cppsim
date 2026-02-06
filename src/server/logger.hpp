@@ -1,13 +1,43 @@
 #pragma once
 
 #include <string>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 
 namespace cppsim {
 namespace server {
 
+enum class log_level { info, error };
+
+namespace {
+std::string get_timestamp() {
+  auto now = std::chrono::system_clock::now();
+  auto time_t = std::chrono::system_clock::to_time_t(now);
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now.time_since_epoch()) % 1000;
+
+  std::stringstream ss;
+  ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
+  ss << '.' << std::setfill('0') << std::setw(3) << ms.count();
+  return ss.str();
+}
+
+std::string level_to_string(log_level level) {
+  switch (level) {
+    case log_level::error:
+      return "[ERROR]";
+    case log_level::info:
+    default:
+      return "[INFO]";
+  }
+}
+}
+
 // Thread-safe logging helpers
 void log_message(const std::string& msg);
 void log_error(const std::string& msg);
+void log(log_level level, const std::string& msg);
 
 } // namespace server
 } // namespace cppsim

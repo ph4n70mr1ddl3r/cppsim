@@ -20,6 +20,11 @@ websocket_session::websocket_session(
       deadline_.expires_at(boost::asio::steady_timer::time_point::max());
     }
 
+websocket_session::~websocket_session() {
+  boost::beast::error_code ec;
+  deadline_.cancel(ec);
+}
+
 void websocket_session::run() {
   // Set suggested timeout settings for the websocket
   ws_.set_option(
@@ -229,6 +234,10 @@ void websocket_session::on_write(boost::beast::error_code ec,
     using cppsim::server::log_error;
     log_error(std::string("[WebSocketSession] Write error for ") + session_id_ + ": " + ec.message());
     writing_ = false;
+
+    if (auto mgr = conn_mgr_.lock()) {
+      mgr->unregister_session(session_id_);
+    }
     return;
   }
 
@@ -259,18 +268,31 @@ void websocket_session::check_deadline() {
               return;
            }
 
+           if (self->state_.load(std::memory_order_acquire) == state::closed) {
+              // Session is already closed, ignore timer errors
+              return;
+           }
+
            using cppsim::server::log_error;
            log_error(std::string("[WebSocketSession] Timer error: ") + ec.message());
            return;
         }
 
-         if (self->state_.load(std::memory_order_acquire) == state::unauthenticated) {
+        auto current_state = self->state_.load(std::memory_order_acquire);
+
+        if (current_state == state::closed) {
+          // Session is already closed, ignore timeout
+          return;
+        }
+
+        if (current_state == state::unauthenticated) {
             // Timeout occurred
             using cppsim::server::log_error;
             log_error("[WebSocketSession] Handshake timeout");
 
             // Close socket directly as handshake is not complete
-            self->ws_.next_layer().socket().close(ec);
+            boost::beast::error_code socket_ec;
+            self->ws_.next_layer().socket().close(socket_ec);
          } else {
             // Idle timeout
             using cppsim::server::log_error;

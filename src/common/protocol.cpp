@@ -9,6 +9,21 @@ void log_protocol_error(const std::string& msg) {
   std::cerr << msg << std::endl;
 }
 
+template <typename MessageType>
+std::string serialize_message(const MessageType& msg, const char* message_type) {
+  message_envelope env;
+  env.message_type = message_type;
+  env.protocol_version = PROTOCOL_VERSION;
+  nlohmann::json payload;
+  to_json(payload, msg);
+  env.payload = payload;
+
+  nlohmann::json j;
+  to_json(j, env);
+  return j.dump();
+}
+}
+
 template <typename T, typename MessageType>
 std::optional<T> parse_message(const std::string& json_str, MessageType expected_type,
                                const char* message_name) {
@@ -75,55 +90,19 @@ std::optional<disconnect_message> parse_disconnect(const std::string& json_str) 
 
 // Serialization functions
 std::string serialize_state_update(const state_update_message& msg) {
-  message_envelope env;
-  env.message_type = message_types::STATE_UPDATE;
-  env.protocol_version = PROTOCOL_VERSION;
-  nlohmann::json payload;
-  to_json(payload, msg);
-  env.payload = payload;
-  
-  nlohmann::json j;
-  to_json(j, env);
-  return j.dump();
+  return serialize_message(msg, message_types::STATE_UPDATE);
 }
 
 std::string serialize_error(const error_message& msg) {
-  message_envelope env;
-  env.message_type = message_types::ERROR;
-  env.protocol_version = PROTOCOL_VERSION;
-  nlohmann::json payload;
-  to_json(payload, msg);
-  env.payload = payload;
-  
-  nlohmann::json j;
-  to_json(j, env);
-  return j.dump();
+  return serialize_message(msg, message_types::ERROR);
 }
 
 std::string serialize_handshake_response(const handshake_response& msg) {
-  message_envelope env;
-  env.message_type = message_types::HANDSHAKE_RESPONSE;
-  env.protocol_version = PROTOCOL_VERSION;
-  nlohmann::json payload;
-  to_json(payload, msg);
-  env.payload = payload;
-  
-  nlohmann::json j;
-  to_json(j, env);
-  return j.dump();
+  return serialize_message(msg, message_types::HANDSHAKE_RESPONSE);
 }
 
 std::string serialize_reload_response(const reload_response_message& msg) {
-  message_envelope env;
-  env.message_type = message_types::RELOAD_RESPONSE;
-  env.protocol_version = PROTOCOL_VERSION;
-  nlohmann::json payload;
-  to_json(payload, msg);
-  env.payload = payload;
-  
-  nlohmann::json j;
-  to_json(j, env);
-  return j.dump();
+  return serialize_message(msg, message_types::RELOAD_RESPONSE);
 }
 
 }  // namespace protocol

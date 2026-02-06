@@ -20,6 +20,8 @@ class websocket_session
   websocket_session(boost::asio::ip::tcp::socket socket,
                     std::shared_ptr<connection_manager> mgr);
 
+  ~websocket_session();
+
   // Start the session (performs WebSocket handshake and begins reading)
   void run();
 
