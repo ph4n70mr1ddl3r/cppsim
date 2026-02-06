@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <mutex>
 #include <queue>
 #include <string>
 
@@ -29,12 +30,16 @@ class websocket_session
 
   // Send a message to the client (queued if write in progress)
   void send(const std::string& message);
+  void send(std::string&& message);
 
   // Gracefully close the WebSocket connection
   void close();
 
-  // Get the session ID
-  std::string session_id() const noexcept { return session_id_; }
+  // Get the session ID (thread-safe)
+  std::string session_id() const noexcept { 
+    std::lock_guard<std::mutex> lock(session_id_mutex_);
+    return session_id_;
+  }
 
   // Delete copy and move operations to prevent accidental copying
   // websocket_session manages async operations and should only be accessed via shared_ptr
@@ -59,8 +64,10 @@ class websocket_session
   boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;
   boost::beast::flat_buffer buffer_;
   std::string session_id_;
+  mutable std::mutex session_id_mutex_;
   std::weak_ptr<connection_manager> conn_mgr_;
   std::queue<std::string> write_queue_;
+  mutable std::mutex write_queue_mutex_;
   std::atomic<bool> writing_{false};
 
   // Session state
@@ -80,6 +87,7 @@ class websocket_session
   // Rate limiting for DoS prevention
   // Sliding window using timestamps of recent messages
   std::vector<std::chrono::steady_clock::time_point> message_timestamps_;
+  mutable std::mutex rate_limit_mutex_;
   static constexpr std::chrono::milliseconds RATE_LIMIT_WINDOW{1000};  // 1 second window
 };
 

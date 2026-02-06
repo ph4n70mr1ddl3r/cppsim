@@ -28,6 +28,7 @@ namespace server {
   std::shared_ptr<boost::asio::steady_timer> backoff_timer_;
   std::mutex timer_mutex_;
   bool initialized_{false};
+  std::atomic<bool> alive_{true};
 };
 
 }  // namespace server

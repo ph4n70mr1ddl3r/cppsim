@@ -1,6 +1,9 @@
 #include "connection_manager.hpp"
 
+#include <chrono>
 #include <limits>
+#include <random>
+#include <sstream>
 
 #include "logger.hpp"
 #include "websocket_session.hpp"
@@ -75,9 +78,21 @@ std::string connection_manager::generate_session_id() {
     cppsim::server::log_error("[ConnectionManager] Session counter overflow, wrapping around");
   }
 
-  std::string session_id = "session_" + std::to_string(id + 1);
+  // Use timestamp + counter + random for better uniqueness
+  auto now = std::chrono::system_clock::now();
+  auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+      now.time_since_epoch()).count();
+  
+  // Add some randomness
+  static thread_local std::random_device rd;
+  static thread_local std::mt19937 gen(rd());
+  std::uniform_int_distribution<uint32_t> dis(0, std::numeric_limits<uint32_t>::max());
+  uint32_t random_part = dis(gen);
 
-  return session_id;
+  std::ostringstream oss;
+  oss << "sess_" << timestamp << "_" << (id + 1) << "_" << random_part;
+
+  return oss.str();
 }
 
 void connection_manager::stop_all() {

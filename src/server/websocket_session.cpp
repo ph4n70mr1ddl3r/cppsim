@@ -28,9 +28,15 @@ websocket_session::~websocket_session() {
   boost::beast::error_code ec;
   deadline_.cancel(ec);
 
-  if (!session_id_.empty()) {
+  std::string session_id_copy;
+  {
+    std::lock_guard<std::mutex> lock(session_id_mutex_);
+    session_id_copy = session_id_;
+  }
+
+  if (!session_id_copy.empty()) {
     if (auto mgr = conn_mgr_.lock()) {
-      mgr->unregister_session(session_id_);
+      mgr->unregister_session(session_id_copy);
     }
   }
 }
@@ -79,24 +85,36 @@ void websocket_session::on_read(boost::beast::error_code ec,
                                  std::size_t bytes_transferred) {
   boost::ignore_unused(bytes_transferred);
 
+  auto current_state = state_.load(std::memory_order_acquire);
+  
   // Prevent processing if session is already closed
-  if (state_.load(std::memory_order_acquire) == state::closed) {
+  if (current_state == state::closed) {
     return;
   }
 
   // Handle disconnect
   if (ec == boost::beast::websocket::error::closed) {
-    cppsim::server::log_message(std::string("[WebSocketSession] Client disconnected: ") + session_id_);
+    std::string session_id_copy;
+    {
+      std::lock_guard<std::mutex> lock(session_id_mutex_);
+      session_id_copy = session_id_;
+    }
+    cppsim::server::log_message(std::string("[WebSocketSession] Client disconnected: ") + session_id_copy);
     if (auto mgr = conn_mgr_.lock()) {
-      mgr->unregister_session(session_id_);
+      mgr->unregister_session(session_id_copy);
     }
     return;
   }
 
   if (ec) {
-    cppsim::server::log_error(std::string("[WebSocketSession] Read error for ") + session_id_ + ": " + ec.message());
+    std::string session_id_copy;
+    {
+      std::lock_guard<std::mutex> lock(session_id_mutex_);
+      session_id_copy = session_id_;
+    }
+    cppsim::server::log_error(std::string("[WebSocketSession] Read error for ") + session_id_copy + ": " + ec.message());
     if (auto mgr = conn_mgr_.lock()) {
-      mgr->unregister_session(session_id_);
+      mgr->unregister_session(session_id_copy);
     }
     return;
   }
@@ -112,24 +130,31 @@ void websocket_session::on_read(boost::beast::error_code ec,
 
   auto now = std::chrono::steady_clock::now();
 
-  // Sliding window rate limiting
-  // Remove timestamps outside the window
-  auto window_start = now - RATE_LIMIT_WINDOW;
-  auto it = std::remove_if(message_timestamps_.begin(), message_timestamps_.end(),
-      [window_start](const auto& timestamp) { return timestamp < window_start; });
-  message_timestamps_.erase(it, message_timestamps_.end());
+  // Sliding window rate limiting (mutex-protected)
+  {
+    std::lock_guard<std::mutex> lock(rate_limit_mutex_);
+    auto window_start = now - RATE_LIMIT_WINDOW;
+    auto it = std::remove_if(message_timestamps_.begin(), message_timestamps_.end(),
+        [window_start](const auto& timestamp) { return timestamp < window_start; });
+    message_timestamps_.erase(it, message_timestamps_.end());
 
-  // Check if rate limit exceeded
-  if (message_timestamps_.size() >= static_cast<size_t>(MAX_MESSAGES_PER_SECOND)) {
-    cppsim::server::log_error("[WebSocketSession] Rate limit exceeded for session " + session_id_);
-    close();
-    return;
+    // Check if rate limit exceeded
+    if (message_timestamps_.size() >= static_cast<size_t>(MAX_MESSAGES_PER_SECOND)) {
+      std::string session_id_copy;
+      {
+        std::lock_guard<std::mutex> sid_lock(session_id_mutex_);
+        session_id_copy = session_id_;
+      }
+      cppsim::server::log_error("[WebSocketSession] Rate limit exceeded for session " + session_id_copy);
+      close();
+      return;
+    }
+
+    // Add current message timestamp
+    message_timestamps_.push_back(now);
   }
 
-  // Add current message timestamp
-  message_timestamps_.push_back(now);
-
-  if (state_.load(std::memory_order_acquire) == state::unauthenticated) {
+  if (current_state == state::unauthenticated) {
     auto handshake_opt = protocol::parse_handshake(message);
 
     if (!handshake_opt) {
@@ -168,9 +193,10 @@ void websocket_session::on_read(boost::beast::error_code ec,
     check_deadline();
 
     // Register with connection manager
+    std::string new_session_id;
     if (auto mgr = conn_mgr_.lock()) {
-      session_id_ = mgr->register_session(shared_from_this());
-      if (session_id_.empty()) {
+      new_session_id = mgr->register_session(shared_from_this());
+      if (new_session_id.empty()) {
         cppsim::server::log_error("[WebSocketSession] Failed to register session - ID collision");
         protocol::error_message err;
         err.error_code = protocol::error_codes::PROTOCOL_ERROR;
@@ -190,10 +216,15 @@ void websocket_session::on_read(boost::beast::error_code ec,
       return;
     }
 
-    cppsim::server::log_message(std::string("[WebSocketSession] Handshake successful for session: ") + session_id_);
+    {
+      std::lock_guard<std::mutex> lock(session_id_mutex_);
+      session_id_ = new_session_id;
+    }
+
+    cppsim::server::log_message(std::string("[WebSocketSession] Handshake successful for session: ") + new_session_id);
 
     protocol::handshake_response resp;
-    resp.session_id = session_id_;
+    resp.session_id = new_session_id;
     resp.seat_number = PLACEHOLDER_SEAT;      // Placeholder
     resp.starting_stack = PLACEHOLDER_STACK;  // Placeholder
 
@@ -208,7 +239,12 @@ void websocket_session::on_read(boost::beast::error_code ec,
 
     if (!message_parsed) {
       // Log unknown but authenticated messages
-      cppsim::server::log_message(std::string("[WebSocketSession] Unknown message from ") + session_id_ + ": " + message);
+      std::string session_id_copy;
+      {
+        std::lock_guard<std::mutex> lock(session_id_mutex_);
+        session_id_copy = session_id_;
+      }
+      cppsim::server::log_message(std::string("[WebSocketSession] Unknown message from ") + session_id_copy + ": " + message);
     } else {
       // Validate session_id in message
       if (action_opt && !validate_session_id(action_opt->session_id)) {
@@ -231,7 +267,6 @@ void websocket_session::on_read(boost::beast::error_code ec,
           protocol::error_message err;
           err.error_code = protocol::error_codes::PROTOCOL_ERROR;
           err.message = "Invalid sequence number - possible replay attack";
-          err.session_id = session_id_;
           send(protocol::serialize_error(err));
           return;
         }
@@ -239,7 +274,12 @@ void websocket_session::on_read(boost::beast::error_code ec,
       }
 
       // Log parsed authenticated messages
-      cppsim::server::log_message(std::string("[WebSocketSession] Validated message from ") + session_id_ + ": " + message);
+      std::string session_id_copy;
+      {
+        std::lock_guard<std::mutex> lock(session_id_mutex_);
+        session_id_copy = session_id_;
+      }
+      cppsim::server::log_message(std::string("[WebSocketSession] Validated message from ") + session_id_copy + ": " + message);
     }
 
     // Reset Idle Timeout on activity
@@ -255,11 +295,42 @@ void websocket_session::send(const std::string& message) {
   auto msg_copy = std::make_shared<std::string>(message);
   boost::asio::post(ws_.get_executor(),
                     [self = shared_from_this(), msg_copy]() {
-                      if (self->write_queue_.size() >= config::MAX_WRITE_QUEUE_SIZE) {
-                        cppsim::server::log_error(std::string("[WebSocketSession] Write queue full for session ") + self->session_id_ + ", dropping message");
-                        return;
+                      std::string session_id_copy;
+                      {
+                        std::lock_guard<std::mutex> lock(self->session_id_mutex_);
+                        session_id_copy = self->session_id_;
                       }
-                      self->write_queue_.push(*msg_copy);
+                      {
+                        std::lock_guard<std::mutex> lock(self->write_queue_mutex_);
+                        if (self->write_queue_.size() >= config::MAX_WRITE_QUEUE_SIZE) {
+                          cppsim::server::log_error(std::string("[WebSocketSession] Write queue full for session ") + session_id_copy + ", dropping message");
+                          return;
+                        }
+                        self->write_queue_.push(*msg_copy);
+                      }
+                      if (!self->writing_.load(std::memory_order_acquire)) {
+                        self->do_write();
+                      }
+                    });
+}
+
+void websocket_session::send(std::string&& message) {
+  auto msg_copy = std::make_shared<std::string>(std::move(message));
+  boost::asio::post(ws_.get_executor(),
+                    [self = shared_from_this(), msg_copy]() {
+                      std::string session_id_copy;
+                      {
+                        std::lock_guard<std::mutex> lock(self->session_id_mutex_);
+                        session_id_copy = self->session_id_;
+                      }
+                      {
+                        std::lock_guard<std::mutex> lock(self->write_queue_mutex_);
+                        if (self->write_queue_.size() >= config::MAX_WRITE_QUEUE_SIZE) {
+                          cppsim::server::log_error(std::string("[WebSocketSession] Write queue full for session ") + session_id_copy + ", dropping message");
+                          return;
+                        }
+                        self->write_queue_.push(std::move(*msg_copy));
+                      }
                       if (!self->writing_.load(std::memory_order_acquire)) {
                         self->do_write();
                       }
@@ -267,13 +338,17 @@ void websocket_session::send(const std::string& message) {
 }
 
 void websocket_session::do_write() {
-  if (write_queue_.empty()) {
-    writing_.store(false, std::memory_order_release);
-    return;
-  }
+  std::string message;
+  {
+    std::lock_guard<std::mutex> lock(write_queue_mutex_);
+    if (write_queue_.empty()) {
+      writing_.store(false, std::memory_order_release);
+      return;
+    }
 
-  writing_.store(true, std::memory_order_release);
-  const std::string& message = write_queue_.front();
+    writing_.store(true, std::memory_order_release);
+    message = write_queue_.front();
+  }
 
   // Write the message
   ws_.async_write(boost::asio::buffer(message),
@@ -286,23 +361,34 @@ void websocket_session::on_write(boost::beast::error_code ec,
   boost::ignore_unused(bytes_transferred);
 
   if (ec) {
-    cppsim::server::log_error(std::string("[WebSocketSession] Write error for ") + session_id_ + ": " + ec.message());
+    std::string session_id_copy;
+    {
+      std::lock_guard<std::mutex> lock(session_id_mutex_);
+      session_id_copy = session_id_;
+    }
+    cppsim::server::log_error(std::string("[WebSocketSession] Write error for ") + session_id_copy + ": " + ec.message());
     writing_.store(false, std::memory_order_release);
     std::queue<std::string> empty;
-    std::swap(write_queue_, empty);
+    {
+      std::lock_guard<std::mutex> lock(write_queue_mutex_);
+      std::swap(write_queue_, empty);
+    }
     do_close();
     return;
   }
 
   // Remove the sent message from queue
-  write_queue_.pop();
+  {
+    std::lock_guard<std::mutex> lock(write_queue_mutex_);
+    write_queue_.pop();
 
-  if (write_queue_.empty()) {
-    writing_.store(false, std::memory_order_release);
-    if (should_close_.load(std::memory_order_acquire)) {
-      do_close();
+    if (write_queue_.empty()) {
+      writing_.store(false, std::memory_order_release);
+      if (should_close_.load(std::memory_order_acquire)) {
+        do_close();
+      }
+      return;
     }
-    return;
   }
 
   // Continue writing if more messages queued
@@ -348,12 +434,17 @@ void websocket_session::check_deadline() {
             boost::beast::error_code socket_ec;
             self->ws_.next_layer().socket().close(socket_ec);
             self->state_.store(state::closed, std::memory_order_release);
-         } else {
-              // Idle timeout
-              cppsim::server::log_error(std::string("[WebSocketSession] Idle timeout for session ") + self->session_id_);
-              self->close();
-           }
-      });
+        } else {
+            // Idle timeout
+            std::string session_id_copy;
+            {
+              std::lock_guard<std::mutex> lock(self->session_id_mutex_);
+              session_id_copy = self->session_id_;
+            }
+            cppsim::server::log_error(std::string("[WebSocketSession] Idle timeout for session ") + session_id_copy);
+            self->close();
+        }
+  });
 }
 
 void websocket_session::close() {
@@ -372,13 +463,18 @@ void websocket_session::close() {
 }
 
 bool websocket_session::validate_session_id(const std::string& provided_session_id) {
-  if (provided_session_id != session_id_) {
-    cppsim::server::log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + session_id_ + ", got " +
+  std::string session_id_copy;
+  {
+    std::lock_guard<std::mutex> lock(session_id_mutex_);
+    session_id_copy = session_id_;
+  }
+  
+  if (provided_session_id != session_id_copy) {
+    cppsim::server::log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + session_id_copy + ", got " +
                provided_session_id);
     protocol::error_message err;
     err.error_code = protocol::error_codes::PROTOCOL_ERROR;
     err.message = "Session ID mismatch";
-    err.session_id = session_id_;
     send(protocol::serialize_error(err));
     return false;
   }
@@ -391,9 +487,15 @@ void websocket_session::do_close() {
       return;
     }
 
-    if (current_state == state::authenticated && !session_id_.empty()) {
+    std::string session_id_copy;
+    {
+      std::lock_guard<std::mutex> lock(session_id_mutex_);
+      session_id_copy = session_id_;
+    }
+
+    if (current_state == state::authenticated && !session_id_copy.empty()) {
       if (auto mgr = conn_mgr_.lock()) {
-        mgr->unregister_session(session_id_);
+        mgr->unregister_session(session_id_copy);
       }
     }
 

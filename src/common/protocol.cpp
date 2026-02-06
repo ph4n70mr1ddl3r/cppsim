@@ -82,6 +82,16 @@ std::optional<action_message> parse_action(const std::string& json_str) {
 
   const auto& msg = *result;
 
+  // Validate action_type is one of the allowed values
+  if (msg.action_type != action_types::FOLD && 
+      msg.action_type != action_types::CHECK &&
+      msg.action_type != action_types::CALL &&
+      msg.action_type != action_types::RAISE &&
+      msg.action_type != action_types::ALL_IN) {
+    log_protocol_error("[Protocol] Invalid action_type: " + msg.action_type);
+    return std::nullopt;
+  }
+
   if (msg.amount && (*msg.amount < 0 || !std::isfinite(*msg.amount))) {
     log_protocol_error("[Protocol] Invalid amount in action: must be non-negative and finite");
     return std::nullopt;

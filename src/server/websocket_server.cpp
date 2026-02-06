@@ -8,6 +8,11 @@
 namespace cppsim {
 namespace server {
 
+websocket_server::~websocket_server() {
+  alive_.store(false, std::memory_order_release);
+  stop();
+}
+
 websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port)
     : ioc_(ioc),
       acceptor_(boost::asio::make_strand(ioc)),
@@ -57,6 +62,8 @@ void websocket_server::run() noexcept {
 }
 
 void websocket_server::stop() noexcept {
+  alive_.store(false, std::memory_order_release);
+  
   // Cancel any pending backoff timer
   {
     std::lock_guard<std::mutex> lock(timer_mutex_);
@@ -105,11 +112,15 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
       std::lock_guard<std::mutex> lock(timer_mutex_);
       backoff_timer_ = std::make_shared<boost::asio::steady_timer>(ioc_);
       backoff_timer_->expires_after(std::chrono::seconds(1));
-      backoff_timer_->async_wait([this](boost::beast::error_code timer_ec) {
-        if (!timer_ec) {
+      backoff_timer_->async_wait([this, timer_ptr = backoff_timer_](boost::beast::error_code timer_ec) {
+        if (!timer_ec && alive_.load(std::memory_order_acquire)) {
           std::lock_guard<std::mutex> lock(timer_mutex_);
-          if (acceptor_.is_open() && backoff_timer_ != nullptr) {
+          if (acceptor_.is_open() && timer_ptr == backoff_timer_) {
             do_accept();
+          }
+        }
+      });
+    }
           }
         }
       });
