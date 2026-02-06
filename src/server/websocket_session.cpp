@@ -70,6 +70,11 @@ void websocket_session::on_read(boost::beast::error_code ec,
                                  std::size_t bytes_transferred) {
   boost::ignore_unused(bytes_transferred);
 
+  // Prevent processing if session is already closed
+  if (state_ == state::closed) {
+    return;
+  }
+
   // Handle disconnect
   if (ec == boost::beast::websocket::error::closed) {
     using cppsim::server::log_message;
@@ -165,34 +170,13 @@ void websocket_session::on_read(boost::beast::error_code ec,
       log_message(std::string("[WebSocketSession] Unknown message from ") + session_id_ + ": " + message);
     } else {
       // Validate session_id in message
-      if (action_opt && action_opt->session_id != session_id_) {
-        using cppsim::server::log_error;
-        log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + session_id_ + ", got " + action_opt->session_id);
-        protocol::error_message err;
-        err.error_code = protocol::error_codes::PROTOCOL_ERROR;
-        err.message = "Session ID mismatch";
-        err.session_id = session_id_;
-        send(protocol::serialize_error(err));
+      if (action_opt && !validate_session_id(action_opt->session_id)) {
         return;
       }
-      if (reload_opt && reload_opt->session_id != session_id_) {
-        using cppsim::server::log_error;
-        log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + session_id_ + ", got " + reload_opt->session_id);
-        protocol::error_message err;
-        err.error_code = protocol::error_codes::PROTOCOL_ERROR;
-        err.message = "Session ID mismatch";
-        err.session_id = session_id_;
-        send(protocol::serialize_error(err));
+      if (reload_opt && !validate_session_id(reload_opt->session_id)) {
         return;
       }
-      if (disconnect_opt && disconnect_opt->session_id != session_id_) {
-        using cppsim::server::log_error;
-        log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + session_id_ + ", got " + disconnect_opt->session_id);
-        protocol::error_message err;
-        err.error_code = protocol::error_codes::PROTOCOL_ERROR;
-        err.message = "Session ID mismatch";
-        err.session_id = session_id_;
-        send(protocol::serialize_error(err));
+      if (disconnect_opt && !validate_session_id(disconnect_opt->session_id)) {
         return;
       }
 
@@ -308,6 +292,21 @@ void websocket_session::close() {
          self->do_close();
      }
   });
+}
+
+bool websocket_session::validate_session_id(const std::string& provided_session_id) {
+  if (provided_session_id != session_id_) {
+    using cppsim::server::log_error;
+    log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + session_id_ + ", got " +
+               provided_session_id);
+    protocol::error_message err;
+    err.error_code = protocol::error_codes::PROTOCOL_ERROR;
+    err.message = "Session ID mismatch";
+    err.session_id = session_id_;
+    send(protocol::serialize_error(err));
+    return false;
+  }
+  return true;
 }
 
 void websocket_session::do_close() {

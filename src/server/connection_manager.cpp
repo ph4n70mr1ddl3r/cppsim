@@ -1,7 +1,5 @@
 #include "connection_manager.hpp"
 
-#include <iostream>
-
 #include "logger.hpp"
 #include "websocket_session.hpp"
 
@@ -30,7 +28,10 @@ void connection_manager::unregister_session(const std::string& session_id) {
   }
 
   using cppsim::server::log_message;
-  log_message("[ConnectionManager] Unregistered session: " + session_id + " (remaining: " + std::to_string(session_count()) + ")");
+  if (!session_id.empty()) {
+    log_message("[ConnectionManager] Unregistered session: " + session_id + " (remaining: " +
+                std::to_string(session_count()) + ")");
+  }
 }
 
 std::shared_ptr<websocket_session> connection_manager::get_session(

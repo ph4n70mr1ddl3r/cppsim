@@ -38,6 +38,7 @@ class websocket_session
   websocket_session& operator=(websocket_session&&) = delete;
 
  private:
+  bool validate_session_id(const std::string& provided_session_id);
   void do_accept();
   void on_accept(boost::beast::error_code ec);
 

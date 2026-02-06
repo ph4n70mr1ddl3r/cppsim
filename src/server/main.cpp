@@ -4,9 +4,7 @@
 #include <cstdlib>
 
 #include "websocket_server.hpp"
-
-// Configuration constants
-constexpr uint16_t DEFAULT_PORT = 8080;
+#include "config.hpp"
 
 int main() {
   try {
@@ -14,7 +12,7 @@ int main() {
     boost::asio::io_context ioc;
 
     // Create the WebSocket server
-    cppsim::server::websocket_server server(ioc, DEFAULT_PORT);
+    cppsim::server::websocket_server server(ioc, cppsim::server::config::DEFAULT_PORT);
 
     // Set up signal handling for graceful shutdown
     boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
