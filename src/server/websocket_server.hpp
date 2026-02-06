@@ -3,7 +3,6 @@
 #include "boost_wrapper.hpp"
 #include <cstdint>
 #include <memory>
-#include <iostream>
 
 #include "connection_manager.hpp"
 #include "websocket_session.hpp"
@@ -26,6 +25,8 @@ class websocket_server {
   boost::asio::io_context& ioc_;
   boost::asio::ip::tcp::acceptor acceptor_;
   std::shared_ptr<connection_manager> conn_mgr_;
+  std::shared_ptr<boost::asio::steady_timer> backoff_timer_;
+  bool initialized_{false};
 };
 
 }  // namespace server

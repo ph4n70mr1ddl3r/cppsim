@@ -1,17 +1,13 @@
 #include "websocket_session.hpp"
 
-#include <sstream>
-
+#include "config.hpp"
 #include "connection_manager.hpp"
 #include "logger.hpp"
 #include "protocol.hpp"
 
 namespace {
-constexpr auto HANDSHAKE_TIMEOUT = std::chrono::seconds(10);
-constexpr auto IDLE_TIMEOUT = std::chrono::seconds(60);
 constexpr int PLACEHOLDER_SEAT = -1;
 constexpr double PLACEHOLDER_STACK = 0.0;
-constexpr size_t MAX_WRITE_QUEUE_SIZE = 100;
 }  // namespace
 
 namespace cppsim {
@@ -30,11 +26,11 @@ void websocket_session::run() {
       boost::beast::websocket::stream_base::timeout::suggested(
           boost::beast::role_type::server));
 
-  // Limit message size to prevent DoS (64KB)
-  ws_.read_message_max(64 * 1024);
+  // Limit message size to prevent DoS
+  ws_.read_message_max(config::MAX_MESSAGE_SIZE);
 
   // Start the deadline timer for authentication
-  deadline_.expires_after(HANDSHAKE_TIMEOUT);
+  deadline_.expires_after(config::HANDSHAKE_TIMEOUT);
   check_deadline();
 
   // Accept the websocket handshake
@@ -71,7 +67,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
   boost::ignore_unused(bytes_transferred);
 
   // Prevent processing if session is already closed
-  if (state_ == state::closed) {
+  if (state_.load(std::memory_order_acquire) == state::closed) {
     return;
   }
 
@@ -97,7 +93,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
   std::string message = boost::beast::buffers_to_string(buffer_.data());
   buffer_.consume(buffer_.size());
 
-  if (state_ == state::unauthenticated) {
+  if (state_.load(std::memory_order_acquire) == state::unauthenticated) {
     auto handshake_opt = protocol::parse_handshake(message);
 
     if (!handshake_opt) {
@@ -126,16 +122,16 @@ void websocket_session::on_read(boost::beast::error_code ec,
     }
 
     // Valid Handshake
-    state_ = state::authenticated;
+    state_.store(state::authenticated, std::memory_order_release);
 
     // Store and Log Client Name if present
     if (handshake_msg.client_name) {
         using cppsim::server::log_message;
         log_message(std::string("[WebSocketSession] Client Name: ") + *handshake_msg.client_name);
     }
-    
+
     // Set Idle Timeout
-    deadline_.expires_after(IDLE_TIMEOUT);
+    deadline_.expires_after(config::IDLE_TIMEOUT);
     check_deadline();
 
     // Register with connection manager
@@ -186,7 +182,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     }
 
     // Reset Idle Timeout on activity
-    deadline_.expires_after(IDLE_TIMEOUT);
+    deadline_.expires_after(config::IDLE_TIMEOUT);
     check_deadline();
   }
 
@@ -198,7 +194,7 @@ void websocket_session::send(const std::string& message) {
   // Post to the websocket's executor to ensure thread safety
   boost::asio::post(ws_.get_executor(),
                     [self = shared_from_this(), message]() {
-                      if (self->write_queue_.size() >= MAX_WRITE_QUEUE_SIZE) {
+                      if (self->write_queue_.size() >= config::MAX_WRITE_QUEUE_SIZE) {
                         using cppsim::server::log_error;
                         log_error(std::string("[WebSocketSession] Write queue full for session ") + self->session_id_ + ", dropping message");
                         return;
@@ -268,7 +264,7 @@ void websocket_session::check_deadline() {
            return;
         }
 
-         if (self->state_ == state::unauthenticated) {
+         if (self->state_.load(std::memory_order_acquire) == state::unauthenticated) {
             // Timeout occurred
             using cppsim::server::log_error;
             log_error("[WebSocketSession] Handshake timeout");

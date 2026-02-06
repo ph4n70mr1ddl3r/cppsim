@@ -47,16 +47,28 @@ websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port)
     return;
   }
 
+  initialized_ = true;
   using cppsim::server::log_message;
   log_message(std::string("[WebSocketServer] Listening on port ") + std::to_string(port));
 }
 
 void websocket_server::run() {
+  if (!initialized_) {
+    using cppsim::server::log_error;
+    log_error("[WebSocketServer] Cannot run - initialization failed");
+    return;
+  }
   // Start accepting connections
   do_accept();
 }
 
 void websocket_server::stop() {
+  // Cancel any pending backoff timer
+  if (backoff_timer_) {
+    boost::beast::error_code ec;
+    backoff_timer_->cancel(ec);
+  }
+
   // Close the acceptor
   boost::beast::error_code ec;
   acceptor_.close(ec);
@@ -64,12 +76,12 @@ void websocket_server::stop() {
     using cppsim::server::log_error;
     log_error(std::string("[WebSocketServer] Error closing acceptor: ") + ec.message());
   }
-  
+
   // Stop all active sessions
   if (conn_mgr_) {
       conn_mgr_->stop_all();
   }
-  
+
   using cppsim::server::log_message;
   log_message("[WebSocketServer] Stopped accepting connections");
 }
@@ -89,15 +101,19 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
     log_error(std::string("[WebSocketServer] Accept failed: ") + ec.message());
 
     // Prevent infinite loop on persistent errors (e.g. EMFILE)
-    if (!acceptor_.is_open()) return;
+    if (!acceptor_.is_open()) {
+      backoff_timer_.reset();
+      return;
+    }
 
     // Backoff: Wait 1s before retrying
-    auto timer = std::make_shared<boost::asio::steady_timer>(ioc_);
-    timer->expires_after(std::chrono::seconds(1));
-    timer->async_wait([this, timer](boost::beast::error_code timer_ec) {
+    backoff_timer_ = std::make_shared<boost::asio::steady_timer>(ioc_);
+    backoff_timer_->expires_after(std::chrono::seconds(1));
+    backoff_timer_->async_wait([this](boost::beast::error_code timer_ec) {
       if (!timer_ec && acceptor_.is_open()) {
         do_accept();
       }
+      backoff_timer_.reset();
     });
     return;
   }

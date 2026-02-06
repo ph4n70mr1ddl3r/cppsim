@@ -1,6 +1,7 @@
 #pragma once
 
 #include "boost_wrapper.hpp"
+#include <atomic>
 #include <memory>
 #include <queue>
 #include <string>
@@ -59,7 +60,7 @@ class websocket_session
 
   // Session state
   enum class state { unauthenticated, authenticated, closed };
-  state state_{state::unauthenticated};
+  std::atomic<state> state_{state::unauthenticated};
 
   // Authentication timeout
   boost::asio::steady_timer deadline_;
