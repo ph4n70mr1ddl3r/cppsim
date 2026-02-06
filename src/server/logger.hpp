@@ -4,6 +4,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <mutex>
 
 namespace cppsim {
 namespace server {
@@ -11,7 +12,10 @@ namespace server {
 enum class log_level { info, error };
 
 namespace {
+std::mutex timestamp_mutex;
+
 std::string get_timestamp() {
+  std::lock_guard<std::mutex> lock(timestamp_mutex);
   auto now = std::chrono::system_clock::now();
   auto time_t = std::chrono::system_clock::to_time_t(now);
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(

@@ -26,18 +26,16 @@ class connection_manager {
   void unregister_session(const std::string& session_id);
 
   // Get session by ID (returns nullptr if not found)
-  std::shared_ptr<websocket_session> get_session(
-      const std::string& session_id);
+  std::shared_ptr<websocket_session> get_session(const std::string& session_id);
+
+  // Get session by ID (returns nullptr if not found)
+  std::shared_ptr<websocket_session> get_session(const std::string& session_id) const;
 
   // Get all active session IDs
   std::vector<std::string> active_session_ids() const;
 
    // Get count of active sessions
   size_t session_count() const noexcept;
-
-  // Get session by ID (returns nullptr if not found)
-  std::shared_ptr<websocket_session> get_session(
-      const std::string& session_id) const;
 
   // Stop all active sessions
   void stop_all();

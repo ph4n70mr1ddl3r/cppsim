@@ -23,6 +23,12 @@ websocket_session::websocket_session(
 websocket_session::~websocket_session() {
   boost::beast::error_code ec;
   deadline_.cancel(ec);
+
+  if (!session_id_.empty()) {
+    if (auto mgr = conn_mgr_.lock()) {
+      mgr->unregister_session(session_id_);
+    }
+  }
 }
 
 void websocket_session::run() {
@@ -234,10 +240,7 @@ void websocket_session::on_write(boost::beast::error_code ec,
     using cppsim::server::log_error;
     log_error(std::string("[WebSocketSession] Write error for ") + session_id_ + ": " + ec.message());
     writing_.store(false, std::memory_order_release);
-
-    if (auto mgr = conn_mgr_.lock()) {
-      mgr->unregister_session(session_id_);
-    }
+    do_close();
     return;
   }
 
@@ -307,6 +310,11 @@ void websocket_session::check_deadline() {
 }
 
 void websocket_session::close() {
+  auto current_state = state_.load(std::memory_order_acquire);
+  if (current_state == state::closed) {
+    return;
+  }
+
   boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
      if (self->writing_.load(std::memory_order_acquire)) {
          self->should_close_.store(true, std::memory_order_release);
@@ -332,17 +340,25 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
 }
 
 void websocket_session::do_close() {
-    auto expected_state = state::authenticated;
-    if (state_.compare_exchange_strong(expected_state, state::closed,
-                                        std::memory_order_acq_rel)) {
-        ws_.async_close(boost::beast::websocket::close_code::normal,
-                        [self = shared_from_this()](boost::beast::error_code ec) {
-                          if (ec) {
-                            using cppsim::server::log_error;
-                            log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
-                          }
-                        });
+    auto current_state = state_.load(std::memory_order_acquire);
+    if (current_state == state::closed) {
+      return;
     }
+
+    if (current_state == state::authenticated && !session_id_.empty()) {
+      if (auto mgr = conn_mgr_.lock()) {
+        mgr->unregister_session(session_id_);
+      }
+    }
+
+    state_.store(state::closed, std::memory_order_release);
+    ws_.async_close(boost::beast::websocket::close_code::normal,
+                    [self = shared_from_this()](boost::beast::error_code ec) {
+                      if (ec) {
+                        using cppsim::server::log_error;
+                        log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
+                      }
+                    });
 }
 
 }  // namespace server
