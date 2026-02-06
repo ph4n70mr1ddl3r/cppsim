@@ -10,6 +10,9 @@ namespace cppsim {
 namespace protocol {
 
 // Protocol version constant
+// Version format: v{major}.{minor}
+// Major version changes are incompatible (require new handshake)
+// Minor version changes are backward compatible
 constexpr const char* PROTOCOL_VERSION = "v1.0";
 
 // Error Codes

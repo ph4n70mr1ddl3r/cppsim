@@ -12,29 +12,38 @@ std::string connection_manager::register_session(
     std::shared_ptr<websocket_session> session) {
   std::string session_id = generate_session_id();
 
+  size_t count;
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
-    sessions_[session_id] = session;
-    active_sessions_.store(sessions_.size(), std::memory_order_relaxed);
+    auto result = sessions_.emplace(session_id, session);
+    if (!result.second) {
+      using cppsim::server::log_error;
+      log_error("[ConnectionManager] Session ID collision: " + session_id);
+      return "";
+    }
+    count = sessions_.size();
+    active_sessions_.store(count, std::memory_order_relaxed);
   }
 
   using cppsim::server::log_message;
-  log_message("[ConnectionManager] Registered session: " + session_id + " (total: " + std::to_string(session_count()) + ")");
+  log_message("[ConnectionManager] Registered session: " + session_id + " (total: " + std::to_string(count) + ")");
 
   return session_id;
 }
 
 void connection_manager::unregister_session(const std::string& session_id) {
+  size_t count;
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
     sessions_.erase(session_id);
-    active_sessions_.store(sessions_.size(), std::memory_order_relaxed);
+    count = sessions_.size();
+    active_sessions_.store(count, std::memory_order_relaxed);
   }
 
   using cppsim::server::log_message;
   if (!session_id.empty()) {
     log_message("[ConnectionManager] Unregistered session: " + session_id + " (remaining: " +
-                std::to_string(session_count()) + ")");
+                std::to_string(count) + ")");
   }
 }
 

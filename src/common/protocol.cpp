@@ -75,12 +75,47 @@ std::optional<handshake_message> parse_handshake(const std::string& json_str) {
 }
 
 std::optional<action_message> parse_action(const std::string& json_str) {
-  return parse_message<action_message>(json_str, message_types::ACTION, "Action");
+  auto result = parse_message<action_message>(json_str, message_types::ACTION, "Action");
+  if (!result) {
+    return result;
+  }
+
+  const auto& msg = *result;
+
+  if (msg.amount && (*msg.amount < 0 || !std::isfinite(*msg.amount))) {
+    log_protocol_error("[Protocol] Invalid amount in action: must be non-negative and finite");
+    return std::nullopt;
+  }
+
+  if ((msg.action_type == action_types::RAISE || msg.action_type == action_types::ALL_IN) && !msg.amount) {
+    log_protocol_error("[Protocol] " + msg.action_type + " action requires amount field");
+    return std::nullopt;
+  }
+
+  if ((msg.action_type == action_types::FOLD || msg.action_type == action_types::CHECK ||
+       msg.action_type == action_types::CALL) && msg.amount) {
+    log_protocol_error("[Protocol] " + msg.action_type + " action should not have amount field");
+    return std::nullopt;
+  }
+
+  return result;
 }
 
 std::optional<reload_request_message> parse_reload_request(const std::string& json_str) {
-  return parse_message<reload_request_message>(json_str, message_types::RELOAD_REQUEST,
-                                               "Reload Request");
+  auto result = parse_message<reload_request_message>(json_str, message_types::RELOAD_REQUEST,
+                                                "Reload Request");
+  if (!result) {
+    return result;
+  }
+
+  const auto& msg = *result;
+
+  if (msg.requested_amount < 0 || !std::isfinite(msg.requested_amount)) {
+    log_protocol_error("[Protocol] Invalid reload amount: must be non-negative and finite");
+    return std::nullopt;
+  }
+
+  return result;
 }
 
 std::optional<disconnect_message> parse_disconnect(const std::string& json_str) {

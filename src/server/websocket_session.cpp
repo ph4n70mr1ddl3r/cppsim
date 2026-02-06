@@ -1,5 +1,7 @@
 #include "websocket_session.hpp"
 
+#include <cmath>
+
 #include "config.hpp"
 #include "connection_manager.hpp"
 #include "logger.hpp"
@@ -8,6 +10,8 @@
 namespace {
 constexpr int PLACEHOLDER_SEAT = -1;
 constexpr double PLACEHOLDER_STACK = 0.0;
+constexpr int MAX_MESSAGES_PER_SECOND = 10;
+constexpr int RATE_LIMIT_WINDOW_SECONDS = 1;
 }  // namespace
 
 namespace cppsim {
@@ -104,6 +108,34 @@ void websocket_session::on_read(boost::beast::error_code ec,
   std::string message = boost::beast::buffers_to_string(buffer_.data());
   buffer_.consume(buffer_.size());
 
+  if (message.size() > config::MAX_MESSAGE_SIZE) {
+    using cppsim::server::log_error;
+    log_error("[WebSocketSession] Message too large: " + std::to_string(message.size()));
+    close();
+    return;
+  }
+
+  auto now = std::chrono::steady_clock::now();
+  if (last_message_time_ != std::chrono::steady_clock::time_point{}) {
+    auto time_since_last = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now - last_message_time_).count();
+
+    if (time_since_last < (RATE_LIMIT_WINDOW_SECONDS * 1000)) {
+      message_count_in_window_++;
+      if (message_count_in_window_ > MAX_MESSAGES_PER_SECOND) {
+        using cppsim::server::log_error;
+        log_error("[WebSocketSession] Rate limit exceeded for session " + session_id_);
+        close();
+        return;
+      }
+    } else {
+      message_count_in_window_ = 1;
+    }
+  } else {
+    message_count_in_window_ = 1;
+  }
+  last_message_time_ = now;
+
   if (state_.load(std::memory_order_acquire) == state::unauthenticated) {
     auto handshake_opt = protocol::parse_handshake(message);
 
@@ -187,6 +219,24 @@ void websocket_session::on_read(boost::beast::error_code ec,
         return;
       }
 
+      // Validate sequence number for action messages (replay attack prevention)
+      if (action_opt) {
+        int last_seq = last_sequence_number_.load(std::memory_order_acquire);
+        if (action_opt->sequence_number <= last_seq) {
+          using cppsim::server::log_error;
+          log_error("[WebSocketSession] Invalid sequence number " +
+                    std::to_string(action_opt->sequence_number) + " (expected > " +
+                    std::to_string(last_seq) + ")");
+          protocol::error_message err;
+          err.error_code = protocol::error_codes::PROTOCOL_ERROR;
+          err.message = "Invalid sequence number - possible replay attack";
+          err.session_id = session_id_;
+          send(protocol::serialize_error(err));
+          return;
+        }
+        last_sequence_number_.store(action_opt->sequence_number, std::memory_order_release);
+      }
+
       // Log parsed authenticated messages
       using cppsim::server::log_message;
       log_message(std::string("[WebSocketSession] Validated message from ") + session_id_ + ": " + message);
@@ -240,6 +290,8 @@ void websocket_session::on_write(boost::beast::error_code ec,
     using cppsim::server::log_error;
     log_error(std::string("[WebSocketSession] Write error for ") + session_id_ + ": " + ec.message());
     writing_.store(false, std::memory_order_release);
+    std::queue<std::string> empty;
+    std::swap(write_queue_, empty);
     do_close();
     return;
   }

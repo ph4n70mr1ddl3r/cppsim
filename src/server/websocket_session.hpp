@@ -2,6 +2,7 @@
 
 #include "boost_wrapper.hpp"
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <queue>
 #include <string>
@@ -14,6 +15,7 @@ class connection_manager;
 
 // Represents a single WebSocket client connection
 // Handles async read/write operations and session lifecycle
+// Thread-safe for all public methods
 class websocket_session
     : public std::enable_shared_from_this<websocket_session> {
  public:
@@ -35,6 +37,7 @@ class websocket_session
   std::string session_id() const noexcept { return session_id_; }
 
   // Delete copy and move operations to prevent accidental copying
+  // websocket_session manages async operations and should only be accessed via shared_ptr
   websocket_session(const websocket_session&) = delete;
   websocket_session& operator=(const websocket_session&) = delete;
   websocket_session(websocket_session&&) = delete;
@@ -70,6 +73,13 @@ class websocket_session
   // Graceful closure support
   std::atomic<bool> should_close_{false};
   void do_close();
+
+  // Sequence number tracking for replay attack prevention
+  std::atomic<int> last_sequence_number_{-1};
+
+  // Rate limiting for DoS prevention
+  std::chrono::steady_clock::time_point last_message_time_{std::chrono::steady_clock::time_point{}};
+  int message_count_in_window_{0};
 };
 
 }  // namespace server
