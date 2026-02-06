@@ -78,8 +78,9 @@ class websocket_session
   std::atomic<int> last_sequence_number_{-1};
 
   // Rate limiting for DoS prevention
-  std::chrono::steady_clock::time_point last_message_time_{std::chrono::steady_clock::time_point{}};
-  int message_count_in_window_{0};
+  // Sliding window using timestamps of recent messages
+  std::vector<std::chrono::steady_clock::time_point> message_timestamps_;
+  static constexpr std::chrono::milliseconds RATE_LIMIT_WINDOW{1000};  // 1 second window
 };
 
 }  // namespace server

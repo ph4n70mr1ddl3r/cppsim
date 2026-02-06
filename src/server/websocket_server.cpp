@@ -18,44 +18,38 @@ websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port)
   boost::asio::ip::tcp::endpoint endpoint{boost::asio::ip::tcp::v4(), port};
   acceptor_.open(endpoint.protocol(), ec);
   if (ec) {
-    using cppsim::server::log_error;
-    log_error(std::string("[WebSocketServer] Failed to open acceptor: ") + ec.message());
+    cppsim::server::log_error(std::string("[WebSocketServer] Failed to open acceptor: ") + ec.message());
     return;
   }
 
   // Allow address reuse
   acceptor_.set_option(boost::asio::socket_base::reuse_address(true), ec);
   if (ec) {
-    using cppsim::server::log_error;
-    log_error(std::string("[WebSocketServer] Failed to set reuse_address: ") + ec.message());
+    cppsim::server::log_error(std::string("[WebSocketServer] Failed to set reuse_address: ") + ec.message());
     return;
   }
 
   // Bind to the server address
   acceptor_.bind(endpoint, ec);
   if (ec) {
-    using cppsim::server::log_error;
-    log_error(std::string("[WebSocketServer] Failed to bind to port ") + std::to_string(port) + ": " + ec.message());
+    cppsim::server::log_error(std::string("[WebSocketServer] Failed to bind to port ") + std::to_string(port) + ": " + ec.message());
     return;
   }
 
   // Start listening for connections
   acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
   if (ec) {
-    using cppsim::server::log_error;
-    log_error(std::string("[WebSocketServer] Failed to listen: ") + ec.message());
+    cppsim::server::log_error(std::string("[WebSocketServer] Failed to listen: ") + ec.message());
     return;
   }
 
   initialized_ = true;
-  using cppsim::server::log_message;
-  log_message(std::string("[WebSocketServer] Listening on port ") + std::to_string(port));
+  cppsim::server::log_message(std::string("[WebSocketServer] Listening on port ") + std::to_string(port));
 }
 
 void websocket_server::run() noexcept {
   if (!initialized_) {
-    using cppsim::server::log_error;
-    log_error("[WebSocketServer] Cannot run - initialization failed");
+    cppsim::server::log_error("[WebSocketServer] Cannot run - initialization failed");
     return;
   }
   // Start accepting connections
@@ -77,8 +71,7 @@ void websocket_server::stop() noexcept {
   boost::beast::error_code ec;
   acceptor_.close(ec);
   if (ec) {
-    using cppsim::server::log_error;
-    log_error(std::string("[WebSocketServer] Error closing acceptor: ") + ec.message());
+    cppsim::server::log_error(std::string("[WebSocketServer] Error closing acceptor: ") + ec.message());
   }
 
   // Stop all active sessions
@@ -86,8 +79,7 @@ void websocket_server::stop() noexcept {
       conn_mgr_->stop_all();
   }
 
-  using cppsim::server::log_message;
-  log_message("[WebSocketServer] Stopped accepting connections");
+  cppsim::server::log_message("[WebSocketServer] Stopped accepting connections");
 }
 
 void websocket_server::do_accept() {
@@ -101,8 +93,7 @@ void websocket_server::do_accept() {
 
 void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::tcp::socket socket) {
   if (ec) {
-    using cppsim::server::log_error;
-    log_error(std::string("[WebSocketServer] Accept failed: ") + ec.message());
+    cppsim::server::log_error(std::string("[WebSocketServer] Accept failed: ") + ec.message());
 
     // Prevent infinite loop on persistent errors (e.g. EMFILE)
     if (!acceptor_.is_open()) {
@@ -132,8 +123,7 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
   // Start the session (perform WebSocket handshake and begin reading)
   session->run();
 
-  using cppsim::server::log_message;
-  log_message("[WebSocketServer] New connection accepted");
+  cppsim::server::log_message("[WebSocketServer] New connection accepted");
 
   // Accept the next connection
   do_accept();

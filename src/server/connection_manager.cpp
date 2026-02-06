@@ -17,16 +17,14 @@ std::string connection_manager::register_session(
     std::lock_guard<std::mutex> lock(sessions_mutex_);
     auto result = sessions_.emplace(session_id, session);
     if (!result.second) {
-      using cppsim::server::log_error;
-      log_error("[ConnectionManager] Session ID collision: " + session_id);
+      cppsim::server::log_error("[ConnectionManager] Session ID collision: " + session_id);
       return "";
     }
     count = sessions_.size();
     active_sessions_.store(count, std::memory_order_relaxed);
   }
 
-  using cppsim::server::log_message;
-  log_message("[ConnectionManager] Registered session: " + session_id + " (total: " + std::to_string(count) + ")");
+  cppsim::server::log_message("[ConnectionManager] Registered session: " + session_id + " (total: " + std::to_string(count) + ")");
 
   return session_id;
 }
@@ -40,9 +38,8 @@ void connection_manager::unregister_session(const std::string& session_id) {
     active_sessions_.store(count, std::memory_order_relaxed);
   }
 
-  using cppsim::server::log_message;
   if (!session_id.empty()) {
-    log_message("[ConnectionManager] Unregistered session: " + session_id + " (remaining: " +
+    cppsim::server::log_message("[ConnectionManager] Unregistered session: " + session_id + " (remaining: " +
                 std::to_string(count) + ")");
   }
 }
@@ -73,11 +70,14 @@ size_t connection_manager::session_count() const noexcept {
 
 std::string connection_manager::generate_session_id() {
   uint64_t id = session_counter_.fetch_add(1, std::memory_order_relaxed);
+
   if (id == std::numeric_limits<uint64_t>::max()) {
-    using cppsim::server::log_error;
-    log_error("[ConnectionManager] Session counter overflow, wrapping around");
+    cppsim::server::log_error("[ConnectionManager] Session counter overflow, wrapping around");
   }
-  return "session_" + std::to_string(id + 1);
+
+  std::string session_id = "session_" + std::to_string(id + 1);
+
+  return session_id;
 }
 
 void connection_manager::stop_all() {
@@ -96,8 +96,7 @@ void connection_manager::stop_all() {
     session->close();
   }
 
-  using cppsim::server::log_message;
-  log_message("[ConnectionManager] All sessions stopped.");
+  cppsim::server::log_message("[ConnectionManager] All sessions stopped.");
 }
 
 }  // namespace server
