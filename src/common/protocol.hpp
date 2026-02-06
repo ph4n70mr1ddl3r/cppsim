@@ -33,6 +33,15 @@ constexpr const char* RELOAD_RESPONSE = "RELOAD_RESPONSE";
 constexpr const char* DISCONNECT = "DISCONNECT";
 }
 
+// Action Types
+namespace action_types {
+constexpr const char* FOLD = "FOLD";
+constexpr const char* CHECK = "CHECK";
+constexpr const char* CALL = "CALL";
+constexpr const char* RAISE = "RAISE";
+constexpr const char* ALL_IN = "ALL_IN";
+}
+
 // Player stack information for state updates
 struct player_stack {
   int seat;

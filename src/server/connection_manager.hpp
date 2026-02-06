@@ -33,7 +33,7 @@ class connection_manager {
   std::vector<std::string> active_session_ids() const;
 
   // Get count of active sessions
-  size_t session_count() const;
+  size_t session_count() const noexcept;
 
   // Stop all active sessions
   void stop_all();

@@ -31,8 +31,11 @@ class websocket_session
   // Get the session ID
   std::string session_id() const { return session_id_; }
 
-  // Set the session ID (called by connection_manager after registration)
-  void set_session_id(const std::string& id) { session_id_ = id; }
+  // Delete copy and move operations to prevent accidental copying
+  websocket_session(const websocket_session&) = delete;
+  websocket_session& operator=(const websocket_session&) = delete;
+  websocket_session(websocket_session&&) = delete;
+  websocket_session& operator=(websocket_session&&) = delete;
 
  private:
   void do_accept();

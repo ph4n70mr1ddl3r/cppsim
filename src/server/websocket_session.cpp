@@ -11,6 +11,7 @@ constexpr auto HANDSHAKE_TIMEOUT = std::chrono::seconds(10);
 constexpr auto IDLE_TIMEOUT = std::chrono::seconds(60);
 constexpr int PLACEHOLDER_SEAT = -1;
 constexpr double PLACEHOLDER_STACK = 0.0;
+constexpr size_t MAX_WRITE_QUEUE_SIZE = 100;
 }  // namespace
 
 namespace cppsim {
@@ -151,9 +152,54 @@ void websocket_session::on_read(boost::beast::error_code ec,
 
     send(protocol::serialize_handshake_response(resp));
   } else {
-    // Authenticated - just log for now
-    using cppsim::server::log_message;
-    log_message(std::string("[WebSocketSession] Received from ") + session_id_ + ": " + message);
+    // Authenticated - parse and validate messages
+    auto action_opt = protocol::parse_action(message);
+    auto reload_opt = protocol::parse_reload_request(message);
+    auto disconnect_opt = protocol::parse_disconnect(message);
+
+    bool message_parsed = action_opt || reload_opt || disconnect_opt;
+
+    if (!message_parsed) {
+      // Log unknown but authenticated messages
+      using cppsim::server::log_message;
+      log_message(std::string("[WebSocketSession] Unknown message from ") + session_id_ + ": " + message);
+    } else {
+      // Validate session_id in message
+      if (action_opt && action_opt->session_id != session_id_) {
+        using cppsim::server::log_error;
+        log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + session_id_ + ", got " + action_opt->session_id);
+        protocol::error_message err;
+        err.error_code = protocol::error_codes::PROTOCOL_ERROR;
+        err.message = "Session ID mismatch";
+        err.session_id = session_id_;
+        send(protocol::serialize_error(err));
+        return;
+      }
+      if (reload_opt && reload_opt->session_id != session_id_) {
+        using cppsim::server::log_error;
+        log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + session_id_ + ", got " + reload_opt->session_id);
+        protocol::error_message err;
+        err.error_code = protocol::error_codes::PROTOCOL_ERROR;
+        err.message = "Session ID mismatch";
+        err.session_id = session_id_;
+        send(protocol::serialize_error(err));
+        return;
+      }
+      if (disconnect_opt && disconnect_opt->session_id != session_id_) {
+        using cppsim::server::log_error;
+        log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + session_id_ + ", got " + disconnect_opt->session_id);
+        protocol::error_message err;
+        err.error_code = protocol::error_codes::PROTOCOL_ERROR;
+        err.message = "Session ID mismatch";
+        err.session_id = session_id_;
+        send(protocol::serialize_error(err));
+        return;
+      }
+
+      // Log parsed authenticated messages
+      using cppsim::server::log_message;
+      log_message(std::string("[WebSocketSession] Validated message from ") + session_id_ + ": " + message);
+    }
 
     // Reset Idle Timeout on activity
     deadline_.expires_after(IDLE_TIMEOUT);
@@ -168,6 +214,11 @@ void websocket_session::send(const std::string& message) {
   // Post to the websocket's executor to ensure thread safety
   boost::asio::post(ws_.get_executor(),
                     [self = shared_from_this(), message]() {
+                      if (self->write_queue_.size() >= MAX_WRITE_QUEUE_SIZE) {
+                        using cppsim::server::log_error;
+                        log_error(std::string("[WebSocketSession] Write queue full for session ") + self->session_id_ + ", dropping message");
+                        return;
+                      }
                       self->write_queue_.push(message);
                       if (!self->writing_) {
                         self->do_write();

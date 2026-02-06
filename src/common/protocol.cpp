@@ -4,6 +4,12 @@
 namespace cppsim {
 namespace protocol {
 
+namespace {
+void log_protocol_error(const std::string& msg) {
+  std::cerr << msg << std::endl;
+}
+}
+
 // Parsing functions
 std::optional<handshake_message> parse_handshake(const std::string& json_str) {
   try {
@@ -17,7 +23,7 @@ std::optional<handshake_message> parse_handshake(const std::string& json_str) {
     try {
       from_json(envelope.payload, msg);
     } catch (const std::exception& e) {
-       std::cerr << "[Protocol] Handshake Payload Error: " << e.what() << std::endl;
+       log_protocol_error(std::string("[Protocol] Handshake Payload Error: ") + e.what());
        return std::nullopt;
     }
     
@@ -30,10 +36,10 @@ std::optional<handshake_message> parse_handshake(const std::string& json_str) {
     
     return msg;
   } catch (const nlohmann::json::exception& e) {
-    std::cerr << "[Protocol] Handshake JSON Parse Error: " << e.what() << std::endl;
+    log_protocol_error(std::string("[Protocol] Handshake JSON Parse Error: ") + e.what());
     return std::nullopt;
   } catch (const std::exception& e) {
-    std::cerr << "[Protocol] Handshake Parse Error: " << e.what() << std::endl;
+    log_protocol_error(std::string("[Protocol] Handshake Parse Error: ") + e.what());
     return std::nullopt;
   }
 }
@@ -49,10 +55,10 @@ std::optional<action_message> parse_action(const std::string& json_str) {
     from_json(envelope.payload, msg);
     return msg;
   } catch (const nlohmann::json::exception& e) {
-    std::cerr << "[Protocol] Action JSON Parse Error: " << e.what() << std::endl;
+    log_protocol_error(std::string("[Protocol] Action JSON Parse Error: ") + e.what());
     return std::nullopt;
   } catch (const std::exception& e) {
-    std::cerr << "[Protocol] Action Parse Error: " << e.what() << std::endl;
+    log_protocol_error(std::string("[Protocol] Action Parse Error: ") + e.what());
     return std::nullopt;
   }
 }
@@ -68,10 +74,10 @@ std::optional<reload_request_message> parse_reload_request(const std::string& js
     from_json(envelope.payload, msg);
     return msg;
   } catch (const nlohmann::json::exception& e) {
-    std::cerr << "[Protocol] Reload Request JSON Parse Error: " << e.what() << std::endl;
+    log_protocol_error(std::string("[Protocol] Reload Request JSON Parse Error: ") + e.what());
     return std::nullopt;
   } catch (const std::exception& e) {
-    std::cerr << "[Protocol] Reload Request Parse Error: " << e.what() << std::endl;
+    log_protocol_error(std::string("[Protocol] Reload Request Parse Error: ") + e.what());
     return std::nullopt;
   }
 }
@@ -87,10 +93,10 @@ std::optional<disconnect_message> parse_disconnect(const std::string& json_str) 
     from_json(envelope.payload, msg);
     return msg;
   } catch (const nlohmann::json::exception& e) {
-    std::cerr << "[Protocol] Disconnect JSON Parse Error: " << e.what() << std::endl;
+    log_protocol_error(std::string("[Protocol] Disconnect JSON Parse Error: ") + e.what());
     return std::nullopt;
   } catch (const std::exception& e) {
-    std::cerr << "[Protocol] Disconnect Parse Error: " << e.what() << std::endl;
+    log_protocol_error(std::string("[Protocol] Disconnect Parse Error: ") + e.what());
     return std::nullopt;
   }
 }

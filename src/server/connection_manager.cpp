@@ -53,7 +53,7 @@ std::vector<std::string> connection_manager::active_session_ids() const {
   return ids;
 }
 
-size_t connection_manager::session_count() const {
+size_t connection_manager::session_count() const noexcept {
   std::lock_guard<std::mutex> lock(sessions_mutex_);
   return sessions_.size();
 }
