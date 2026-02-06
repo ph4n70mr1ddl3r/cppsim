@@ -1,28 +1,12 @@
 #include "websocket_session.hpp"
 
-#include <iostream>
-#include <mutex>
 #include <sstream>
 
 #include "connection_manager.hpp"
+#include "logger.hpp"
 #include "protocol.hpp"
 
 namespace {
-std::mutex log_mutex;
-
-void log_message(const std::string& msg) {
-  // TODO(Epic 7): Replace with centralized event bus logging (server_logger)
-  std::lock_guard<std::mutex> lock(log_mutex);
-  std::cout << msg << std::endl;
-}
-
-
-void log_error(const std::string& msg) {
-  // TODO(Epic 7): Replace with centralized event bus logging (server_logger)
-  std::lock_guard<std::mutex> lock(log_mutex);
-  std::cerr << msg << std::endl;
-}
-
 constexpr auto HANDSHAKE_TIMEOUT = std::chrono::seconds(10);
 constexpr auto IDLE_TIMEOUT = std::chrono::seconds(60);
 constexpr int PLACEHOLDER_SEAT = -1;
@@ -63,12 +47,12 @@ void websocket_session::do_accept() {
 
 void websocket_session::on_accept(boost::beast::error_code ec) {
   if (ec) {
-    std::stringstream ss;
-    ss << "[WebSocketSession] Accept failed: " << ec.message();
-    log_error(ss.str());
+    using cppsim::server::log_error;
+    log_error(std::string("[WebSocketSession] Accept failed: ") + ec.message());
     return;
   }
 
+  using cppsim::server::log_message;
   log_message("[WebSocketSession] Connection accepted. Waiting for handshake...");
 
   // Start reading messages
@@ -87,9 +71,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
 
   // Handle disconnect
   if (ec == boost::beast::websocket::error::closed) {
-    std::stringstream ss;
-    ss << "[WebSocketSession] Client disconnected: " << session_id_;
-    log_message(ss.str());
+    using cppsim::server::log_message;
+    log_message(std::string("[WebSocketSession] Client disconnected: ") + session_id_);
     if (auto mgr = conn_mgr_.lock()) {
       mgr->unregister_session(session_id_);
     }
@@ -97,9 +80,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
   }
 
   if (ec) {
-    std::stringstream ss;
-    ss << "[WebSocketSession] Read error for " << session_id_ << ": " << ec.message();
-    log_error(ss.str());
+    using cppsim::server::log_error;
+    log_error(std::string("[WebSocketSession] Read error for ") + session_id_ + ": " + ec.message());
     if (auto mgr = conn_mgr_.lock()) {
       mgr->unregister_session(session_id_);
     }
@@ -113,8 +95,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
     auto handshake_opt = protocol::parse_handshake(message);
 
     if (!handshake_opt) {
+      using cppsim::server::log_error;
       log_error("[WebSocketSession] Handshake error: Protocol error (Not HANDSHAKE)");
-      // Send Error
       protocol::error_message err;
       err.error_code = protocol::error_codes::PROTOCOL_ERROR;
       err.message = "Expected HANDSHAKE message";
@@ -127,10 +109,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
 
     // Check Protocol Version
     if (handshake_msg.protocol_version != protocol::PROTOCOL_VERSION) {
-      std::stringstream ss;
-      ss << "[WebSocketSession] Handshake error: Incompatible version "
-         << handshake_msg.protocol_version;
-      log_error(ss.str());
+      using cppsim::server::log_error;
+      log_error(std::string("[WebSocketSession] Handshake error: Incompatible version ") + handshake_msg.protocol_version);
       protocol::error_message err;
       err.error_code = protocol::error_codes::INCOMPATIBLE_VERSION;
       err.message = "Expected " + std::string(protocol::PROTOCOL_VERSION);
@@ -140,12 +120,12 @@ void websocket_session::on_read(boost::beast::error_code ec,
     }
 
     // Valid Handshake
-    // Valid Handshake
     state_ = state::authenticated;
-    
+
     // Store and Log Client Name if present
     if (handshake_msg.client_name) {
-        log_message("[WebSocketSession] Client Name: " + *handshake_msg.client_name);
+        using cppsim::server::log_message;
+        log_message(std::string("[WebSocketSession] Client Name: ") + *handshake_msg.client_name);
     }
     
     // Set Idle Timeout
@@ -157,14 +137,12 @@ void websocket_session::on_read(boost::beast::error_code ec,
       session_id_ = mgr->register_session(shared_from_this());
     } else {
       // Fallback if no manager - though constructor requires it
-      log_error(
-          "[WebSocketSession] Warning: No connection manager, session ID "
-          "invalid");
+      using cppsim::server::log_error;
+      log_error("[WebSocketSession] Warning: No connection manager, session ID invalid");
     }
 
-    std::stringstream ss;
-    ss << "[WebSocketSession] Handshake successful for session: " << session_id_;
-    log_message(ss.str());
+    using cppsim::server::log_message;
+    log_message(std::string("[WebSocketSession] Handshake successful for session: ") + session_id_);
 
     protocol::handshake_response resp;
     resp.session_id = session_id_;
@@ -174,9 +152,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
     send(protocol::serialize_handshake_response(resp));
   } else {
     // Authenticated - just log for now
-    std::stringstream ss;
-    ss << "[WebSocketSession] Received from " << session_id_ << ": " << message;
-    log_message(ss.str());
+    using cppsim::server::log_message;
+    log_message(std::string("[WebSocketSession] Received from ") + session_id_ + ": " + message);
 
     // Reset Idle Timeout on activity
     deadline_.expires_after(IDLE_TIMEOUT);
@@ -218,9 +195,8 @@ void websocket_session::on_write(boost::beast::error_code ec,
   boost::ignore_unused(bytes_transferred);
 
   if (ec) {
-    std::stringstream ss;
-    ss << "[WebSocketSession] Write error for " << session_id_ << ": " << ec.message();
-    log_error(ss.str());
+    using cppsim::server::log_error;
+    log_error(std::string("[WebSocketSession] Write error for ") + session_id_ + ": " + ec.message());
     writing_ = false;
     return;
   }
@@ -246,34 +222,30 @@ void websocket_session::check_deadline() {
   deadline_.async_wait(
       [self](boost::beast::error_code ec) {
         if (ec) {
-          if (ec == boost::asio::error::operation_aborted) {
-             // Timer was updated (expires_after called), wait again
-             self->check_deadline();
-             return;
-          }
-          if (ec != boost::asio::error::operation_aborted) {
-             std::stringstream ss;
-             ss << "[WebSocketSession] Timer error: " << ec.message();
-             log_error(ss.str());
-          }
-          return;
+           if (ec == boost::asio::error::operation_aborted) {
+              // Timer was updated (expires_after called), wait again
+              self->check_deadline();
+              return;
+           }
+
+           using cppsim::server::log_error;
+           log_error(std::string("[WebSocketSession] Timer error: ") + ec.message());
+           return;
         }
 
-        if (self->state_ == state::unauthenticated) {
-           // Timeout occurred
-           std::stringstream ss;
-           ss << "[WebSocketSession] Handshake timeout";
-           log_error(ss.str());
-           
-           // Close socket directly as handshake is not complete
-           self->ws_.next_layer().socket().close(ec);
-        } else {
-           // Idle timeout
-           std::stringstream ss;
-           ss << "[WebSocketSession] Idle timeout for session " << self->session_id_;
-           log_error(ss.str());
-           self->close();
-        }
+         if (self->state_ == state::unauthenticated) {
+            // Timeout occurred
+            using cppsim::server::log_error;
+            log_error("[WebSocketSession] Handshake timeout");
+
+            // Close socket directly as handshake is not complete
+            self->ws_.next_layer().socket().close(ec);
+         } else {
+            // Idle timeout
+            using cppsim::server::log_error;
+            log_error(std::string("[WebSocketSession] Idle timeout for session ") + self->session_id_);
+            self->close();
+         }
       });
 }
 
@@ -290,13 +262,12 @@ void websocket_session::close() {
 void websocket_session::do_close() {
     // Close the websocket gracefully
   ws_.async_close(boost::beast::websocket::close_code::normal,
-                  [self = shared_from_this()](boost::beast::error_code ec) {
-                    if (ec) {
-                      std::stringstream ss;
-                      ss << "[WebSocketSession] Close error: " << ec.message();
-                      log_error(ss.str());
-                    }
-                  });
+                   [self = shared_from_this()](boost::beast::error_code ec) {
+                     if (ec) {
+                       using cppsim::server::log_error;
+                       log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
+                     }
+                   });
 }
 
 }  // namespace server

@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include "logger.hpp"
 #include "websocket_session.hpp"
 
 namespace cppsim {
@@ -16,8 +17,8 @@ std::string connection_manager::register_session(
     sessions_[session_id] = session;
   }
 
-  std::cout << "[ConnectionManager] Registered session: " << session_id
-            << " (total: " << session_count() << ")" << std::endl;
+  using cppsim::server::log_message;
+  log_message("[ConnectionManager] Registered session: " + session_id + " (total: " + std::to_string(session_count()) + ")");
 
   return session_id;
 }
@@ -28,8 +29,8 @@ void connection_manager::unregister_session(const std::string& session_id) {
     sessions_.erase(session_id);
   }
 
-  std::cout << "[ConnectionManager] Unregistered session: " << session_id
-            << " (remaining: " << session_count() << ")" << std::endl;
+  using cppsim::server::log_message;
+  log_message("[ConnectionManager] Unregistered session: " + session_id + " (remaining: " + std::to_string(session_count()) + ")");
 }
 
 std::shared_ptr<websocket_session> connection_manager::get_session(
@@ -68,7 +69,8 @@ void connection_manager::stop_all() {
     pair.second->close();
   }
   sessions_.clear();
-  std::cout << "[ConnectionManager] All sessions stopped." << std::endl;
+  using cppsim::server::log_message;
+  log_message("[ConnectionManager] All sessions stopped.");
 }
 
 }  // namespace server
