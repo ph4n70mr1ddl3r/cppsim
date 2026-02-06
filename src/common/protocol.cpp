@@ -44,7 +44,6 @@ std::optional<T> parse_message(const std::string& json_str, MessageType expected
     return std::nullopt;
   }
 }
-}
 
 std::optional<handshake_message> parse_handshake(const std::string& json_str) {
   try {

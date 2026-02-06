@@ -77,11 +77,7 @@ TEST(ProtocolTest, HandshakeMessageOptionalAbsent) {
 TEST(ProtocolTest, ActionMessageFold) {
   action_message msg;
   msg.session_id = "session123";
-  msg.action_type = "FOLD"; // Action types are not yet constants in protocol.hpp, or are they? Wait action_type is inside payload. message_types are for envelope.
-  // msg.action_type check: protocol.hpp VALID_ACTIONS? No. "FOLD" is correct in payload.
-  // env.message_type is not used here.
-  // Wait, line 87: EXPECT_NE(json_str.find("\"action_type\":\"FOLD\""), ...);
-  // I will leave action_type strings alone as they are values in the protocol, not message types.
+  msg.action_type = "FOLD";
   msg.sequence_number = 1;
 
   nlohmann::json j;

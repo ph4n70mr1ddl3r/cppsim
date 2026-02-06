@@ -23,9 +23,9 @@ int main() {
     });
 
     // Start the server
+    std::cout << "[Main] Server running. Press Ctrl+C to stop." << std::endl;
     std::cout << "Hello from poker server!" << std::endl;
     server.run();
-    std::cout << "[Main] Server running. Press Ctrl+C to stop." << std::endl;
 
     // Run the io_context (blocks until stopped)
     ioc.run();

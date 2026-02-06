@@ -32,7 +32,7 @@ class websocket_session
   void close();
 
   // Get the session ID
-  std::string session_id() const { return session_id_; }
+  std::string session_id() const noexcept { return session_id_; }
 
   // Delete copy and move operations to prevent accidental copying
   websocket_session(const websocket_session&) = delete;
