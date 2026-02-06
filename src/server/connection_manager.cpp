@@ -1,5 +1,7 @@
 #include "connection_manager.hpp"
 
+#include <limits>
+
 #include "logger.hpp"
 #include "websocket_session.hpp"
 
@@ -13,6 +15,7 @@ std::string connection_manager::register_session(
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
     sessions_[session_id] = session;
+    active_sessions_.store(sessions_.size(), std::memory_order_relaxed);
   }
 
   using cppsim::server::log_message;
@@ -25,6 +28,7 @@ void connection_manager::unregister_session(const std::string& session_id) {
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
     sessions_.erase(session_id);
+    active_sessions_.store(sessions_.size(), std::memory_order_relaxed);
   }
 
   using cppsim::server::log_message;
@@ -35,7 +39,7 @@ void connection_manager::unregister_session(const std::string& session_id) {
 }
 
 std::shared_ptr<websocket_session> connection_manager::get_session(
-    const std::string& session_id) {
+    const std::string& session_id) const {
   std::lock_guard<std::mutex> lock(sessions_mutex_);
   auto it = sessions_.find(session_id);
   if (it != sessions_.end()) {
@@ -55,13 +59,16 @@ std::vector<std::string> connection_manager::active_session_ids() const {
 }
 
 size_t connection_manager::session_count() const noexcept {
-  std::lock_guard<std::mutex> lock(sessions_mutex_);
-  return sessions_.size();
+  return active_sessions_.load(std::memory_order_relaxed);
 }
 
 std::string connection_manager::generate_session_id() {
   uint64_t id = session_counter_.fetch_add(1, std::memory_order_relaxed);
-  return "session_" + std::to_string(id + 1);  // Start from session_1
+  if (id == std::numeric_limits<uint64_t>::max()) {
+    using cppsim::server::log_error;
+    log_error("[ConnectionManager] Session counter overflow, wrapping around");
+  }
+  return "session_" + std::to_string(id + 1);
 }
 
 void connection_manager::stop_all() {
@@ -73,6 +80,7 @@ void connection_manager::stop_all() {
       sessions_to_stop.push_back(pair.second);
     }
     sessions_.clear();
+    active_sessions_.store(0, std::memory_order_relaxed);
   }
 
   for (auto& session : sessions_to_stop) {

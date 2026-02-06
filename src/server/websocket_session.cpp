@@ -196,16 +196,16 @@ void websocket_session::on_read(boost::beast::error_code ec,
 }
 
 void websocket_session::send(const std::string& message) {
-  // Post to the websocket's executor to ensure thread safety
+  auto msg_copy = std::make_shared<std::string>(message);
   boost::asio::post(ws_.get_executor(),
-                    [self = shared_from_this(), message]() {
+                    [self = shared_from_this(), msg_copy]() {
                       if (self->write_queue_.size() >= config::MAX_WRITE_QUEUE_SIZE) {
                         using cppsim::server::log_error;
                         log_error(std::string("[WebSocketSession] Write queue full for session ") + self->session_id_ + ", dropping message");
                         return;
                       }
-                      self->write_queue_.push(message);
-                      if (!self->writing_) {
+                      self->write_queue_.push(*msg_copy);
+                      if (!self->writing_.load(std::memory_order_acquire)) {
                         self->do_write();
                       }
                     });
@@ -213,11 +213,11 @@ void websocket_session::send(const std::string& message) {
 
 void websocket_session::do_write() {
   if (write_queue_.empty()) {
-    writing_ = false;
+    writing_.store(false, std::memory_order_release);
     return;
   }
 
-  writing_ = true;
+  writing_.store(true, std::memory_order_release);
   const std::string& message = write_queue_.front();
 
   // Write the message
@@ -233,7 +233,7 @@ void websocket_session::on_write(boost::beast::error_code ec,
   if (ec) {
     using cppsim::server::log_error;
     log_error(std::string("[WebSocketSession] Write error for ") + session_id_ + ": " + ec.message());
-    writing_ = false;
+    writing_.store(false, std::memory_order_release);
 
     if (auto mgr = conn_mgr_.lock()) {
       mgr->unregister_session(session_id_);
@@ -245,8 +245,8 @@ void websocket_session::on_write(boost::beast::error_code ec,
   write_queue_.pop();
 
   if (write_queue_.empty()) {
-    writing_ = false;
-    if (should_close_) {
+    writing_.store(false, std::memory_order_release);
+    if (should_close_.load(std::memory_order_acquire)) {
       do_close();
     }
     return;
@@ -261,13 +261,16 @@ void websocket_session::check_deadline() {
 
   deadline_.async_wait(
       [self](boost::beast::error_code ec) {
-        if (ec) {
-           if (ec == boost::asio::error::operation_aborted) {
-              // Timer was updated (expires_after called), wait again
-              self->check_deadline();
-              return;
+        if (ec == boost::asio::error::operation_aborted) {
+           auto current_state = self->state_.load(std::memory_order_acquire);
+           if (current_state != state::closed) {
+               // Timer was updated (expires_after called), wait again
+               self->check_deadline();
            }
+           return;
+        }
 
+        if (ec) {
            if (self->state_.load(std::memory_order_acquire) == state::closed) {
               // Session is already closed, ignore timer errors
               return;
@@ -293,19 +296,20 @@ void websocket_session::check_deadline() {
             // Close socket directly as handshake is not complete
             boost::beast::error_code socket_ec;
             self->ws_.next_layer().socket().close(socket_ec);
+            self->state_.store(state::closed, std::memory_order_release);
          } else {
-            // Idle timeout
-            using cppsim::server::log_error;
-            log_error(std::string("[WebSocketSession] Idle timeout for session ") + self->session_id_);
-            self->close();
-         }
+             // Idle timeout
+             using cppsim::server::log_error;
+             log_error(std::string("[WebSocketSession] Idle timeout for session ") + self->session_id_);
+             self->close();
+          }
       });
 }
 
 void websocket_session::close() {
   boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
-     if (self->writing_) {
-         self->should_close_ = true;
+     if (self->writing_.load(std::memory_order_acquire)) {
+         self->should_close_.store(true, std::memory_order_release);
      } else {
          self->do_close();
      }
@@ -328,14 +332,17 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
 }
 
 void websocket_session::do_close() {
-    // Close the websocket gracefully
-  ws_.async_close(boost::beast::websocket::close_code::normal,
-                   [self = shared_from_this()](boost::beast::error_code ec) {
-                     if (ec) {
-                       using cppsim::server::log_error;
-                       log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
-                     }
-                   });
+    auto expected_state = state::authenticated;
+    if (state_.compare_exchange_strong(expected_state, state::closed,
+                                        std::memory_order_acq_rel)) {
+        ws_.async_close(boost::beast::websocket::close_code::normal,
+                        [self = shared_from_this()](boost::beast::error_code ec) {
+                          if (ec) {
+                            using cppsim::server::log_error;
+                            log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
+                          }
+                        });
+    }
 }
 
 }  // namespace server

@@ -52,7 +52,7 @@ websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port)
   log_message(std::string("[WebSocketServer] Listening on port ") + std::to_string(port));
 }
 
-void websocket_server::run() {
+void websocket_server::run() noexcept {
   if (!initialized_) {
     using cppsim::server::log_error;
     log_error("[WebSocketServer] Cannot run - initialization failed");
@@ -62,11 +62,15 @@ void websocket_server::run() {
   do_accept();
 }
 
-void websocket_server::stop() {
+void websocket_server::stop() noexcept {
   // Cancel any pending backoff timer
-  if (backoff_timer_) {
-    boost::beast::error_code ec;
-    backoff_timer_->cancel(ec);
+  {
+    std::lock_guard<std::mutex> lock(timer_mutex_);
+    if (backoff_timer_) {
+      boost::beast::error_code ec;
+      backoff_timer_->cancel(ec);
+      backoff_timer_.reset();
+    }
   }
 
   // Close the acceptor
@@ -102,19 +106,23 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
 
     // Prevent infinite loop on persistent errors (e.g. EMFILE)
     if (!acceptor_.is_open()) {
-      backoff_timer_.reset();
       return;
     }
 
     // Backoff: Wait 1s before retrying
-    backoff_timer_ = std::make_shared<boost::asio::steady_timer>(ioc_);
-    backoff_timer_->expires_after(std::chrono::seconds(1));
-    backoff_timer_->async_wait([this](boost::beast::error_code timer_ec) {
-      if (!timer_ec && acceptor_.is_open()) {
-        do_accept();
-      }
-      backoff_timer_.reset();
-    });
+    {
+      std::lock_guard<std::mutex> lock(timer_mutex_);
+      backoff_timer_ = std::make_shared<boost::asio::steady_timer>(ioc_);
+      backoff_timer_->expires_after(std::chrono::seconds(1));
+      backoff_timer_->async_wait([this](boost::beast::error_code timer_ec) {
+        if (!timer_ec) {
+          std::lock_guard<std::mutex> lock(timer_mutex_);
+          if (acceptor_.is_open() && backoff_timer_ != nullptr) {
+            do_accept();
+          }
+        }
+      });
+    }
     return;
   }
 

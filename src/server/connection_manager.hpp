@@ -32,8 +32,12 @@ class connection_manager {
   // Get all active session IDs
   std::vector<std::string> active_session_ids() const;
 
-  // Get count of active sessions
+   // Get count of active sessions
   size_t session_count() const noexcept;
+
+  // Get session by ID (returns nullptr if not found)
+  std::shared_ptr<websocket_session> get_session(
+      const std::string& session_id) const;
 
   // Stop all active sessions
   void stop_all();
@@ -46,6 +50,7 @@ class connection_manager {
   std::unordered_map<std::string, std::shared_ptr<websocket_session>>
       sessions_;
   std::atomic<uint64_t> session_counter_{0};
+  std::atomic<size_t> active_sessions_{0};
 };
 
 }  // namespace server

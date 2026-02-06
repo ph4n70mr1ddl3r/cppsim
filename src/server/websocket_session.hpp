@@ -58,7 +58,7 @@ class websocket_session
   std::string session_id_;
   std::weak_ptr<connection_manager> conn_mgr_;
   std::queue<std::string> write_queue_;
-  bool writing_{false};
+  std::atomic<bool> writing_{false};
 
   // Session state
   enum class state { unauthenticated, authenticated, closed };
@@ -66,9 +66,9 @@ class websocket_session
 
   // Authentication timeout
   boost::asio::steady_timer deadline_;
-  
+
   // Graceful closure support
-  bool should_close_{false};
+  std::atomic<bool> should_close_{false};
   void do_close();
 };
 
