@@ -81,6 +81,9 @@ class websocket_session
   std::atomic<bool> should_close_{false};
   void do_close();
 
+  // Private helper for queuing messages
+  void queue_message(std::string&& message);
+
   // Sequence number tracking for replay attack prevention
   std::atomic<int> last_sequence_number_{-1};
 

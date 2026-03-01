@@ -288,10 +288,9 @@ void websocket_session::on_read(boost::beast::error_code ec,
   do_read();
 }
 
-void websocket_session::send(const std::string& message) {
-  auto msg_copy = std::make_shared<std::string>(message);
+void websocket_session::queue_message(std::string&& message) {
   boost::asio::post(ws_.get_executor(),
-                    [self = shared_from_this(), msg_copy]() {
+                    [self = shared_from_this(), msg = std::move(message)]() mutable {
                       std::string session_id_copy;
                       {
                         std::lock_guard<std::mutex> lock(self->session_id_mutex_);
@@ -303,7 +302,7 @@ void websocket_session::send(const std::string& message) {
                           cppsim::server::log_error(std::string("[WebSocketSession] Write queue full for session ") + session_id_copy + ", dropping message");
                           return;
                         }
-                        self->write_queue_.push(*msg_copy);
+                        self->write_queue_.push(std::move(msg));
                       }
                       if (!self->writing_.load(std::memory_order_acquire)) {
                         self->do_write();
@@ -311,27 +310,12 @@ void websocket_session::send(const std::string& message) {
                     });
 }
 
+void websocket_session::send(const std::string& message) {
+  queue_message(std::string(message));
+}
+
 void websocket_session::send(std::string&& message) {
-  auto msg_copy = std::make_shared<std::string>(std::move(message));
-  boost::asio::post(ws_.get_executor(),
-                    [self = shared_from_this(), msg_copy]() {
-                      std::string session_id_copy;
-                      {
-                        std::lock_guard<std::mutex> lock(self->session_id_mutex_);
-                        session_id_copy = self->session_id_;
-                      }
-                      {
-                        std::lock_guard<std::mutex> lock(self->write_queue_mutex_);
-                        if (self->write_queue_.size() >= config::MAX_WRITE_QUEUE_SIZE) {
-                          cppsim::server::log_error(std::string("[WebSocketSession] Write queue full for session ") + session_id_copy + ", dropping message");
-                          return;
-                        }
-                        self->write_queue_.push(std::move(*msg_copy));
-                      }
-                      if (!self->writing_.load(std::memory_order_acquire)) {
-                        self->do_write();
-                      }
-                    });
+  queue_message(std::move(message));
 }
 
 void websocket_session::do_write() {
