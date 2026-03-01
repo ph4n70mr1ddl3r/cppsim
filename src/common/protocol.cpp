@@ -1,13 +1,13 @@
 #include "protocol.hpp"
+#include "../server/logger.hpp"
 #include <cmath>
-#include <iostream>
 
 namespace cppsim {
 namespace protocol {
 
 namespace {
 void log_protocol_error(const std::string& msg) {
-  std::cerr << msg << std::endl;
+  cppsim::server::log_error(msg);
 }
 
 template <typename MessageType>

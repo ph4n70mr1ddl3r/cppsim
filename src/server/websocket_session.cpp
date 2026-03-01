@@ -106,7 +106,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     message_timestamps_.erase(it, message_timestamps_.end());
 
     // Check if rate limit exceeded
-    if (message_timestamps_.size() >= static_cast<size_t>(config::MAX_MESSAGES_PER_SECOND)) {
+    if (message_timestamps_.size() > static_cast<size_t>(config::MAX_MESSAGES_PER_SECOND)) {
       cppsim::server::log_error("[WebSocketSession] Rate limit exceeded for session " + get_session_id_safe());
       close();
       return;
@@ -239,7 +239,6 @@ void websocket_session::on_read(boost::beast::error_code ec,
 
     // Reset Idle Timeout on activity
     deadline_.expires_after(config::IDLE_TIMEOUT);
-    check_deadline();
   }
 
   // Continue reading
@@ -377,7 +376,7 @@ void websocket_session::close() {
   });
 }
 
-std::string websocket_session::get_session_id_safe() const {
+std::string websocket_session::get_session_id_safe() const noexcept {
   std::lock_guard<std::mutex> lock(session_id_mutex_);
   return session_id_;
 }

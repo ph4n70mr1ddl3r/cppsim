@@ -92,7 +92,7 @@ class websocket_session final
   mutable std::mutex rate_limit_mutex_;
   static constexpr std::chrono::milliseconds RATE_LIMIT_WINDOW{1000};  // 1 second window
 
-  std::string get_session_id_safe() const;
+  std::string get_session_id_safe() const noexcept;
 };
 
 }  // namespace server
