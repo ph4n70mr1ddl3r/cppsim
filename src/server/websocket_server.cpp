@@ -14,43 +14,49 @@ websocket_server::~websocket_server() {
 }
 
 websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port)
-    : ioc_(ioc),
-      acceptor_(boost::asio::make_strand(ioc)),
-      conn_mgr_(std::make_shared<connection_manager>()) {
-  boost::beast::error_code ec;
+     : ioc_(ioc),
+       acceptor_(boost::asio::make_strand(ioc)),
+       conn_mgr_(std::make_shared<connection_manager>()) {
+   boost::beast::error_code ec;
 
-  // Open the acceptor
-  boost::asio::ip::tcp::endpoint endpoint{boost::asio::ip::tcp::v4(), port};
-  acceptor_.open(endpoint.protocol(), ec);
-  if (ec) {
-    cppsim::server::log_error(std::string("[WebSocketServer] Failed to open acceptor: ") + ec.message());
-    return;
-  }
+   // Open the acceptor
+   boost::asio::ip::tcp::endpoint endpoint{boost::asio::ip::tcp::v4(), port};
+   acceptor_.open(endpoint.protocol(), ec);
+   if (ec) {
+     cppsim::server::log_error(std::string("[WebSocketServer] Failed to open acceptor: ") + ec.message());
+     return;
+   }
 
-  // Allow address reuse
-  acceptor_.set_option(boost::asio::socket_base::reuse_address(true), ec);
-  if (ec) {
-    cppsim::server::log_error(std::string("[WebSocketServer] Failed to set reuse_address: ") + ec.message());
-    return;
-  }
+   // Allow address reuse
+   acceptor_.set_option(boost::asio::socket_base::reuse_address(true), ec);
+   if (ec) {
+     cppsim::server::log_error(std::string("[WebSocketServer] Failed to set reuse_address: ") + ec.message());
+     boost::beast::error_code close_ec;
+     acceptor_.close(close_ec);
+     return;
+   }
 
-  // Bind to the server address
-  acceptor_.bind(endpoint, ec);
-  if (ec) {
-    cppsim::server::log_error(std::string("[WebSocketServer] Failed to bind to port ") + std::to_string(port) + ": " + ec.message());
-    return;
-  }
+   // Bind to the server address
+   acceptor_.bind(endpoint, ec);
+   if (ec) {
+     cppsim::server::log_error(std::string("[WebSocketServer] Failed to bind to port ") + std::to_string(port) + ": " + ec.message());
+     boost::beast::error_code close_ec;
+     acceptor_.close(close_ec);
+     return;
+   }
 
-  // Start listening for connections
-  acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
-  if (ec) {
-    cppsim::server::log_error(std::string("[WebSocketServer] Failed to listen: ") + ec.message());
-    return;
-  }
+   // Start listening for connections
+   acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
+   if (ec) {
+     cppsim::server::log_error(std::string("[WebSocketServer] Failed to listen: ") + ec.message());
+     boost::beast::error_code close_ec;
+     acceptor_.close(close_ec);
+     return;
+   }
 
-  initialized_.store(true, std::memory_order_release);
-  cppsim::server::log_message(std::string("[WebSocketServer] Listening on port ") + std::to_string(port));
-}
+   initialized_.store(true, std::memory_order_release);
+   cppsim::server::log_message(std::string("[WebSocketServer] Listening on port ") + std::to_string(port));
+ }
 
 void websocket_server::run() noexcept {
   if (!initialized_.load(std::memory_order_acquire)) {
@@ -107,12 +113,13 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
       return;
     }
 
-    // Backoff: Wait 1s before retrying
+    // Exponential backoff: Wait before retrying
+    int backoff = backoff_seconds_.load(std::memory_order_acquire);
     {
       std::lock_guard<std::mutex> lock(timer_mutex_);
       backoff_timer_ = std::make_shared<boost::asio::steady_timer>(ioc_);
-      backoff_timer_->expires_after(std::chrono::seconds(1));
-      backoff_timer_->async_wait([this, timer_ptr = backoff_timer_](boost::beast::error_code timer_ec) {
+      backoff_timer_->expires_after(std::chrono::seconds(backoff));
+      backoff_timer_->async_wait([this, timer_ptr = backoff_timer_, backoff](boost::beast::error_code timer_ec) {
         if (!timer_ec && alive_.load(std::memory_order_acquire)) {
           std::lock_guard<std::mutex> timer_lock(timer_mutex_);
           if (acceptor_.is_open() && timer_ptr == backoff_timer_) {
@@ -121,8 +128,14 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
         }
       });
     }
+    // Increase backoff for next attempt, cap at 30s
+    int new_backoff = std::min(backoff * 2, 30);
+    backoff_seconds_.store(new_backoff, std::memory_order_release);
     return;
   }
+
+  // Reset backoff on successful accept
+  backoff_seconds_.store(1, std::memory_order_release);
 
   // Create a new session for this connection
   auto session = std::make_shared<websocket_session>(std::move(socket), conn_mgr_);

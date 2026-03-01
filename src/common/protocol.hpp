@@ -18,7 +18,6 @@ constexpr const char* PROTOCOL_VERSION = "v1.0";
 // Error Codes
 namespace error_codes {
 constexpr const char* INCOMPATIBLE_VERSION = "INCOMPATIBLE_VERSION";
-// constexpr const char* PROTOCOL_VERSION_MISMATCH = "PROTOCOL_VERSION_MISMATCH"; // Removed per code review
 constexpr const char* PROTOCOL_ERROR = "PROTOCOL_ERROR";
 constexpr const char* MALFORMED_HANDSHAKE = "MALFORMED_HANDSHAKE";
 constexpr const char* MALFORMED_MESSAGE = "MALFORMED_MESSAGE";
@@ -119,10 +118,10 @@ struct message_envelope {
 };
 
 // Parsing functions - return std::optional for safe error handling
-std::optional<handshake_message> parse_handshake(const std::string& json_str);
-std::optional<action_message> parse_action(const std::string& json_str);
-std::optional<reload_request_message> parse_reload_request(const std::string& json_str);
-std::optional<disconnect_message> parse_disconnect(const std::string& json_str);
+[[nodiscard]] std::optional<handshake_message> parse_handshake(const std::string& json_str);
+[[nodiscard]] std::optional<action_message> parse_action(const std::string& json_str);
+[[nodiscard]] std::optional<reload_request_message> parse_reload_request(const std::string& json_str);
+[[nodiscard]] std::optional<disconnect_message> parse_disconnect(const std::string& json_str);
 
 // Serialization functions - convert messages to JSON strings
 std::string serialize_state_update(const state_update_message& msg);

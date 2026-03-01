@@ -15,7 +15,7 @@ class websocket_session;
 
 // Manages all active WebSocket sessions
 // Thread-safe: All public methods are thread-safe and can be called from any thread
-class connection_manager {
+class connection_manager final {
  public:
   connection_manager() = default;
 

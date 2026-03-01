@@ -5,6 +5,7 @@
 #include <random>
 #include <sstream>
 
+#include "config.hpp"
 #include "logger.hpp"
 #include "websocket_session.hpp"
 
@@ -18,6 +19,11 @@ std::string connection_manager::register_session(
   size_t count;
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
+    if (sessions_.size() >= config::MAX_CONNECTIONS) {
+      cppsim::server::log_error("[ConnectionManager] Maximum connections reached (" + 
+          std::to_string(config::MAX_CONNECTIONS) + ")");
+      return "";
+    }
     auto result = sessions_.emplace(session_id, session);
     if (!result.second) {
       cppsim::server::log_error("[ConnectionManager] Session ID collision: " + session_id);

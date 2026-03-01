@@ -11,7 +11,7 @@ namespace cppsim {
 namespace server {
 
 // WebSocket server - accepts connections and creates sessions
-  class websocket_server {
+  class websocket_server final {
    public:
   websocket_server(boost::asio::io_context& ioc, uint16_t port);
   ~websocket_server();
@@ -30,6 +30,7 @@ namespace server {
   std::mutex timer_mutex_;
   std::atomic<bool> initialized_{false};
   std::atomic<bool> alive_{true};
+  std::atomic<int> backoff_seconds_{1};
 };
 
 }  // namespace server

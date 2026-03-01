@@ -17,7 +17,7 @@ class connection_manager;
 // Represents a single WebSocket client connection
 // Handles async read/write operations and session lifecycle
 // Thread-safe for all public methods
-class websocket_session
+class websocket_session final
     : public std::enable_shared_from_this<websocket_session> {
  public:
   websocket_session(boost::asio::ip::tcp::socket socket,
@@ -92,6 +92,8 @@ class websocket_session
   std::vector<std::chrono::steady_clock::time_point> message_timestamps_;
   mutable std::mutex rate_limit_mutex_;
   static constexpr std::chrono::milliseconds RATE_LIMIT_WINDOW{1000};  // 1 second window
+
+  std::string get_session_id_safe() const;
 };
 
 }  // namespace server
