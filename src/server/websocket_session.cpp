@@ -11,7 +11,6 @@ namespace {
 constexpr int PLACEHOLDER_SEAT = -1;
 constexpr double PLACEHOLDER_STACK = 0.0;
 constexpr int MAX_MESSAGES_PER_SECOND = 10;
-constexpr int RATE_LIMIT_WINDOW_SECONDS = 1;
 }  // namespace
 
 namespace cppsim {

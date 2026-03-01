@@ -114,13 +114,9 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
       backoff_timer_->expires_after(std::chrono::seconds(1));
       backoff_timer_->async_wait([this, timer_ptr = backoff_timer_](boost::beast::error_code timer_ec) {
         if (!timer_ec && alive_.load(std::memory_order_acquire)) {
-          std::lock_guard<std::mutex> lock(timer_mutex_);
+          std::lock_guard<std::mutex> timer_lock(timer_mutex_);
           if (acceptor_.is_open() && timer_ptr == backoff_timer_) {
             do_accept();
-          }
-        }
-      });
-    }
           }
         }
       });
