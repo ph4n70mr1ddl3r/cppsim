@@ -28,7 +28,7 @@ namespace server {
   std::shared_ptr<connection_manager> conn_mgr_;
   std::shared_ptr<boost::asio::steady_timer> backoff_timer_;
   std::mutex timer_mutex_;
-  bool initialized_{false};
+  std::atomic<bool> initialized_{false};
   std::atomic<bool> alive_{true};
 };
 

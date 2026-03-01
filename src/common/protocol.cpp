@@ -93,8 +93,8 @@ std::optional<action_message> parse_action(const std::string& json_str) {
     return std::nullopt;
   }
 
-  if (msg.amount && (*msg.amount < 0 || !std::isfinite(*msg.amount))) {
-    log_protocol_error("[Protocol] Invalid amount in action: must be non-negative and finite");
+  if (msg.amount && (*msg.amount <= 0 || !std::isfinite(*msg.amount))) {
+    log_protocol_error("[Protocol] Invalid amount in action: must be positive and finite");
     return std::nullopt;
   }
 

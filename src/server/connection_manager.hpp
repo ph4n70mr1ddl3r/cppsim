@@ -30,10 +30,6 @@ class connection_manager {
 
   // Get session by ID (returns nullptr if not found)
   // No-throw guarantee
-  std::shared_ptr<websocket_session> get_session(const std::string& session_id);
-
-  // Get session by ID (returns nullptr if not found) - const version
-  // No-throw guarantee
   std::shared_ptr<websocket_session> get_session(const std::string& session_id) const;
 
   // Get all active session IDs

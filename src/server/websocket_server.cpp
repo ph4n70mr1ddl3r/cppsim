@@ -48,12 +48,12 @@ websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port)
     return;
   }
 
-  initialized_ = true;
+  initialized_.store(true, std::memory_order_release);
   cppsim::server::log_message(std::string("[WebSocketServer] Listening on port ") + std::to_string(port));
 }
 
 void websocket_server::run() noexcept {
-  if (!initialized_) {
+  if (!initialized_.load(std::memory_order_acquire)) {
     cppsim::server::log_error("[WebSocketServer] Cannot run - initialization failed");
     return;
   }

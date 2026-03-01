@@ -1,7 +1,5 @@
 #include "websocket_session.hpp"
 
-#include <cmath>
-
 #include "config.hpp"
 #include "connection_manager.hpp"
 #include "logger.hpp"
