@@ -331,17 +331,11 @@ void websocket_session::check_deadline() {
   deadline_.async_wait(
       [self](boost::beast::error_code ec) {
         if (ec == boost::asio::error::operation_aborted) {
-           auto current_state = self->state_.load(std::memory_order_acquire);
-           if (current_state != state::closed) {
-               // Timer was updated (expires_after called), wait again
-               self->check_deadline();
-           }
            return;
         }
 
         if (ec) {
            if (self->state_.load(std::memory_order_acquire) == state::closed) {
-              // Session is already closed, ignore timer errors
               return;
            }
 
@@ -352,20 +346,16 @@ void websocket_session::check_deadline() {
         auto current_state = self->state_.load(std::memory_order_acquire);
 
         if (current_state == state::closed) {
-          // Session is already closed, ignore timeout
           return;
         }
 
         if (current_state == state::unauthenticated) {
-            // Timeout occurred
             cppsim::server::log_error("[WebSocketSession] Handshake timeout");
 
-            // Close socket directly as handshake is not complete
             boost::beast::error_code socket_ec;
             self->ws_.next_layer().socket().close(socket_ec);
             self->state_.store(state::closed, std::memory_order_release);
          } else {
-             // Idle timeout
              cppsim::server::log_error(std::string("[WebSocketSession] Idle timeout for session ") + self->get_session_id_safe());
              self->close();
          }
@@ -393,6 +383,26 @@ std::string websocket_session::get_session_id_safe() const {
 }
 
 bool websocket_session::validate_session_id(const std::string& provided_session_id) {
+  if (provided_session_id.empty()) {
+    cppsim::server::log_error("[WebSocketSession] Empty session ID provided");
+    protocol::error_message err;
+    err.error_code = protocol::error_codes::PROTOCOL_ERROR;
+    err.message = "Session ID is required";
+    send(protocol::serialize_error(err));
+    return false;
+  }
+
+  if (provided_session_id.length() > config::MAX_SESSION_ID_LENGTH) {
+    cppsim::server::log_error(std::string("[WebSocketSession] Session ID too long: ") + 
+               std::to_string(provided_session_id.length()) + " > " + 
+               std::to_string(config::MAX_SESSION_ID_LENGTH));
+    protocol::error_message err;
+    err.error_code = protocol::error_codes::PROTOCOL_ERROR;
+    err.message = "Session ID exceeds maximum length";
+    send(protocol::serialize_error(err));
+    return false;
+  }
+
   std::string session_id_copy = get_session_id_safe();
   
   if (provided_session_id != session_id_copy) {

@@ -35,8 +35,7 @@ class websocket_session final
   // Gracefully close the WebSocket connection
   void close();
 
-  // Get the session ID (thread-safe)
-  std::string session_id() const noexcept { 
+  [[nodiscard]] std::string session_id() const noexcept { 
     std::lock_guard<std::mutex> lock(session_id_mutex_);
     return session_id_;
   }

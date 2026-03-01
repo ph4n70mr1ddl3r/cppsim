@@ -4,6 +4,7 @@
 #include <limits>
 #include <random>
 #include <sstream>
+#include <thread>
 
 #include "config.hpp"
 #include "logger.hpp"
@@ -84,16 +85,20 @@ std::string connection_manager::generate_session_id() {
     cppsim::server::log_error("[ConnectionManager] Session counter overflow, wrapping around");
   }
 
-  // Use timestamp + counter + random for better uniqueness
   auto now = std::chrono::system_clock::now();
   auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
       now.time_since_epoch()).count();
   
-  // Add some randomness
-  static thread_local std::random_device rd;
-  static thread_local std::mt19937 gen(rd());
-  std::uniform_int_distribution<uint32_t> dis(0, std::numeric_limits<uint32_t>::max());
-  uint32_t random_part = dis(gen);
+  uint32_t random_part;
+  try {
+    static thread_local std::random_device rd;
+    static thread_local std::mt19937 gen(rd());
+    std::uniform_int_distribution<uint32_t> dis(0, std::numeric_limits<uint32_t>::max());
+    random_part = dis(gen);
+  } catch (...) {
+    auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
+    random_part = static_cast<uint32_t>(static_cast<uint64_t>(timestamp) ^ (id >> 32) ^ thread_hash);
+  }
 
   std::ostringstream oss;
   oss << "sess_" << timestamp << "_" << (id + 1) << "_" << random_part;
