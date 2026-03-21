@@ -32,13 +32,9 @@ class connection_manager final {
 
   [[nodiscard]] size_t session_count() const noexcept;
 
-  // Stop all active sessions
-  // No-throw guarantee
   void stop_all();
 
  private:
-  // Generate unique session ID
-  // No-throw guarantee
   std::string generate_session_id();
 
   mutable std::mutex sessions_mutex_;

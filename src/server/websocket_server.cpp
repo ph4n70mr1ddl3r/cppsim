@@ -12,7 +12,6 @@ namespace cppsim {
 namespace server {
 
 websocket_server::~websocket_server() {
-  alive_.store(false, std::memory_order_release);
   stop();
 }
 

@@ -248,12 +248,12 @@ void websocket_session::on_read(boost::beast::error_code ec,
   do_read();
 }
 
-void websocket_session::queue_message(std::string&& message) {
+bool websocket_session::queue_message(std::string&& message) {
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
     if (write_queue_.size() >= config::MAX_WRITE_QUEUE_SIZE) {
       cppsim::server::log_error(std::string("[WebSocketSession] Write queue full for session ") + get_session_id_safe() + ", dropping message");
-      return;
+      return false;
     }
     write_queue_.push(std::move(message));
   }
@@ -264,14 +264,15 @@ void websocket_session::queue_message(std::string&& message) {
                          self->do_write();
                        }
                     });
+  return true;
 }
 
-void websocket_session::send(const std::string& message) {
-  queue_message(std::string(message));
+bool websocket_session::send(const std::string& message) {
+  return queue_message(std::string(message));
 }
 
-void websocket_session::send(std::string&& message) {
-  queue_message(std::move(message));
+bool websocket_session::send(std::string&& message) {
+  return queue_message(std::move(message));
 }
 
 void websocket_session::do_write() {
@@ -351,13 +352,13 @@ void websocket_session::check_deadline() {
           return;
         }
 
-        if (current_state == state::unauthenticated) {
-            cppsim::server::log_error("[WebSocketSession] Handshake timeout");
+         if (current_state == state::unauthenticated) {
+             cppsim::server::log_error("[WebSocketSession] Handshake timeout");
 
-            boost::beast::error_code socket_ec;
-            self->ws_.next_layer().socket().close(socket_ec);
-            self->state_.store(state::closed, std::memory_order_release);
-         } else {
+             self->state_.store(state::closed, std::memory_order_release);
+             self->ws_.async_close(boost::beast::websocket::close_code::policy_error,
+                 [](boost::beast::error_code) {});
+          } else {
              cppsim::server::log_error(std::string("[WebSocketSession] Idle timeout for session ") + self->get_session_id_safe());
              self->close();
          }

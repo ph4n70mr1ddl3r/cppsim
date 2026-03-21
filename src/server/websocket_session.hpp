@@ -29,11 +29,9 @@ class websocket_session final
   // Start the session (performs WebSocket handshake and begins reading)
   void run();
 
-  // Send a message to the client (queued if write in progress)
-  void send(const std::string& message);
-  void send(std::string&& message);
+  bool send(const std::string& message);
+  bool send(std::string&& message);
 
-  // Gracefully close the WebSocket connection
   void close();
 
   [[nodiscard]] std::string session_id() const noexcept { 
@@ -81,8 +79,7 @@ class websocket_session final
   std::atomic<bool> should_close_{false};
   void do_close();
 
-  // Private helper for queuing messages
-  void queue_message(std::string&& message);
+  [[nodiscard]] bool queue_message(std::string&& message);
 
   // Sequence number tracking for replay attack prevention
   std::atomic<int> last_sequence_number_{-1};

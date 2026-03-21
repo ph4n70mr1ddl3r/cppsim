@@ -45,6 +45,9 @@ void log(log_level level, const std::string& msg) {
     std::lock_guard<std::mutex> lock(log_mutex);
     std::ostream& stream = (level == log_level::error) ? std::cerr : std::cout;
     stream << get_timestamp() << " " << level_to_string(level) << " " << msg << '\n';
+    if (level == log_level::error) {
+        stream << std::flush;
+    }
 }
 
 void log_message(const std::string& msg) {

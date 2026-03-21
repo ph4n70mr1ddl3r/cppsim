@@ -15,13 +15,6 @@ using tcp = net::ip::tcp;
 // Test wrapper to access private members if needed, or just standard usage
 class WebSocketServerTest : public ::testing::Test {
  protected:
-  void SetUp() override {
-    //
-  }
-
-  void TearDown() override {
-    //
-  }
 };
 
 TEST(ConnectionManagerTest, BasicLifecycle) {
@@ -63,11 +56,8 @@ TEST_F(WebSocketServerTest, AcceptsConnection) {
   // If we got here, handshake succeeded!
   EXPECT_TRUE(ws.is_open());
 
-  // Send a message
-  std::string msg = "Hello Server";
-  ws.write(net::buffer(std::string(msg)));
+  ws.write(net::buffer("Hello Server"));
 
-  // Give server time to process
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   // Close nicely

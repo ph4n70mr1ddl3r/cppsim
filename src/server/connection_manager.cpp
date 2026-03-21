@@ -18,6 +18,11 @@ std::string connection_manager::register_session(
     std::shared_ptr<websocket_session> session) {
   std::string session_id = generate_session_id();
 
+  if (session_id.empty()) {
+    cppsim::server::log_error("[ConnectionManager] Failed to generate session ID");
+    return "";
+  }
+
   if (session_id.length() > config::MAX_SESSION_ID_LENGTH) {
     cppsim::server::log_error("[ConnectionManager] Generated session ID exceeds maximum length");
     return "";
@@ -88,7 +93,8 @@ std::string connection_manager::generate_session_id() {
   uint64_t id = session_counter_.fetch_add(1, std::memory_order_relaxed);
 
   if (id == std::numeric_limits<uint64_t>::max()) {
-    cppsim::server::log_error("[ConnectionManager] Session counter overflow, wrapping around");
+    cppsim::server::log_error("[ConnectionManager] Session counter overflow, rejecting new connections");
+    return "";
   }
 
   auto now = std::chrono::system_clock::now();

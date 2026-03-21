@@ -2,16 +2,21 @@
 #include <cmath>
 #include <cstdio>
 #include <functional>
+#include <mutex>
+#include <atomic>
 
 namespace cppsim {
 namespace protocol {
 
 namespace {
+std::atomic<bool> logger_initialized{false};
 std::function<void(const std::string&)> error_logger = [](const std::string& msg) {
     std::fprintf(stderr, "%s\n", msg.c_str());
 };
+std::mutex logger_mutex;
 
 void log_protocol_error(const std::string& msg) {
+  std::lock_guard<std::mutex> lock(logger_mutex);
   error_logger(msg);
 }
 
@@ -31,7 +36,9 @@ std::string serialize_message(const MessageType& msg, const char* message_type) 
 }
 
 void set_error_logger(std::function<void(const std::string&)> logger) {
+  std::lock_guard<std::mutex> lock(logger_mutex);
   error_logger = std::move(logger);
+  logger_initialized.store(true, std::memory_order_release);
 }
 
 template <typename T, typename MessageType>
@@ -56,25 +63,30 @@ std::optional<T> parse_message(const std::string& json_str, MessageType expected
 }
 
 std::optional<handshake_message> parse_handshake(const std::string& json_str) {
-  auto result = parse_message<handshake_message>(json_str, message_types::HANDSHAKE, "Handshake");
-  if (!result) {
-    return result;
-  }
-
-  nlohmann::json j;
   try {
-    j = nlohmann::json::parse(json_str);
+    auto j = nlohmann::json::parse(json_str);
     auto envelope = j.get<message_envelope>();
-    if (result->protocol_version != envelope.protocol_version) {
+    
+    if (envelope.message_type != message_types::HANDSHAKE) {
+      return std::nullopt;
+    }
+    
+    handshake_message msg;
+    from_json(envelope.payload, msg);
+    
+    if (msg.protocol_version != envelope.protocol_version) {
       log_protocol_error("[Protocol] Handshake version mismatch between payload and envelope");
       return std::nullopt;
     }
+    
+    return msg;
+  } catch (const nlohmann::json::exception& e) {
+    log_protocol_error(std::string("[Protocol] Handshake JSON Parse Error: ") + e.what());
+    return std::nullopt;
   } catch (const std::exception& e) {
-    log_protocol_error(std::string("[Protocol] Handshake envelope validation error: ") + e.what());
+    log_protocol_error(std::string("[Protocol] Handshake Parse Error: ") + e.what());
     return std::nullopt;
   }
-
-  return result;
 }
 
 std::optional<action_message> parse_action(const std::string& json_str) {
