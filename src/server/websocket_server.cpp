@@ -1,8 +1,10 @@
 #include "websocket_server.hpp"
 
+#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 
+#include "config.hpp"
 #include "logger.hpp"
 #include "websocket_session.hpp"
 
@@ -129,8 +131,8 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
         }
       });
     }
-    // Increase backoff for next attempt, cap at 30s
-    int new_backoff = std::min(backoff * 2, 30);
+    // Increase backoff for next attempt, cap at configured max
+    int new_backoff = std::min(backoff * 2, config::MAX_BACKOFF_SECONDS);
     backoff_seconds_.store(new_backoff, std::memory_order_release);
     return;
   }

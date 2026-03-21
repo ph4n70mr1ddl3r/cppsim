@@ -127,10 +127,10 @@ struct message_envelope {
 [[nodiscard]] std::optional<disconnect_message> parse_disconnect(const std::string& json_str);
 
 // Serialization functions - convert messages to JSON strings
-std::string serialize_state_update(const state_update_message& msg);
-std::string serialize_error(const error_message& msg);
-std::string serialize_handshake_response(const handshake_response& msg);
-std::string serialize_reload_response(const reload_response_message& msg);
+[[nodiscard]] std::string serialize_state_update(const state_update_message& msg);
+[[nodiscard]] std::string serialize_error(const error_message& msg);
+[[nodiscard]] std::string serialize_handshake_response(const handshake_response& msg);
+[[nodiscard]] std::string serialize_reload_response(const reload_response_message& msg);
 
 // Protocols definitions
 

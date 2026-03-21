@@ -19,6 +19,7 @@ struct config {
     static constexpr size_t MAX_CONNECTIONS = 1000;       // Maximum concurrent connections
     static constexpr size_t MAX_SESSION_ID_LENGTH = 256;  // Maximum length for generated session IDs
     static constexpr size_t MAX_TIMESTAMPS_TO_TRACK = 50; // 5x rate limit for sliding window precision
+    static constexpr int MAX_BACKOFF_SECONDS = 30;        // Maximum exponential backoff duration
 };
 
 } // namespace server
