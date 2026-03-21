@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -8,6 +9,8 @@
 
 namespace cppsim {
 namespace protocol {
+
+void set_error_logger(std::function<void(const std::string&)> logger);
 
 // Protocol version constant
 // Version format: v{major}.{minor}

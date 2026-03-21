@@ -1,6 +1,7 @@
 #include "websocket_server.hpp"
 
 #include <iostream>
+#include <stdexcept>
 
 #include "logger.hpp"
 #include "websocket_session.hpp"
@@ -23,35 +24,31 @@ websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port)
    boost::asio::ip::tcp::endpoint endpoint{boost::asio::ip::tcp::v4(), port};
    acceptor_.open(endpoint.protocol(), ec);
    if (ec) {
-     cppsim::server::log_error(std::string("[WebSocketServer] Failed to open acceptor: ") + ec.message());
-     return;
+     throw std::runtime_error(std::string("[WebSocketServer] Failed to open acceptor: ") + ec.message());
    }
 
    // Allow address reuse
    acceptor_.set_option(boost::asio::socket_base::reuse_address(true), ec);
    if (ec) {
-     cppsim::server::log_error(std::string("[WebSocketServer] Failed to set reuse_address: ") + ec.message());
      boost::beast::error_code close_ec;
      acceptor_.close(close_ec);
-     return;
+     throw std::runtime_error(std::string("[WebSocketServer] Failed to set reuse_address: ") + ec.message());
    }
 
    // Bind to the server address
    acceptor_.bind(endpoint, ec);
    if (ec) {
-     cppsim::server::log_error(std::string("[WebSocketServer] Failed to bind to port ") + std::to_string(port) + ": " + ec.message());
      boost::beast::error_code close_ec;
      acceptor_.close(close_ec);
-     return;
+     throw std::runtime_error(std::string("[WebSocketServer] Failed to bind to port ") + std::to_string(port) + ": " + ec.message());
    }
 
    // Start listening for connections
    acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
    if (ec) {
-     cppsim::server::log_error(std::string("[WebSocketServer] Failed to listen: ") + ec.message());
      boost::beast::error_code close_ec;
      acceptor_.close(close_ec);
-     return;
+     throw std::runtime_error(std::string("[WebSocketServer] Failed to listen: ") + ec.message());
    }
 
    initialized_.store(true, std::memory_order_release);
@@ -121,8 +118,12 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
       backoff_timer_->expires_after(std::chrono::seconds(backoff));
       backoff_timer_->async_wait([this, timer_ptr = backoff_timer_, backoff](boost::beast::error_code timer_ec) {
         if (!timer_ec && alive_.load(std::memory_order_acquire)) {
-          std::lock_guard<std::mutex> timer_lock(timer_mutex_);
-          if (acceptor_.is_open() && timer_ptr == backoff_timer_) {
+          bool should_retry = false;
+          {
+            std::lock_guard<std::mutex> timer_lock(timer_mutex_);
+            should_retry = acceptor_.is_open() && timer_ptr == backoff_timer_;
+          }
+          if (should_retry) {
             do_accept();
           }
         }

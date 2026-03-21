@@ -420,14 +420,11 @@ void websocket_session::do_close() {
     state expected = state::authenticated;
     if (!state_.compare_exchange_strong(expected, state::closed,
                                          std::memory_order_acq_rel)) {
-      if (state_.load(std::memory_order_acquire) == state::closed) {
-        return;
-      }
-      expected = state::unauthenticated;
-      if (!state_.compare_exchange_strong(expected, state::closed,
-                                           std::memory_order_acq_rel)) {
-        return;
-      }
+        expected = state::unauthenticated;
+        if (!state_.compare_exchange_strong(expected, state::closed,
+                                             std::memory_order_acq_rel)) {
+            return;
+        }
     }
 
     std::string session_id_copy = get_session_id_safe();

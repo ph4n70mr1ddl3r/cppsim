@@ -17,6 +17,11 @@ std::string connection_manager::register_session(
     std::shared_ptr<websocket_session> session) {
   std::string session_id = generate_session_id();
 
+  if (session_id.length() > config::MAX_SESSION_ID_LENGTH) {
+    cppsim::server::log_error("[ConnectionManager] Generated session ID exceeds maximum length");
+    return "";
+  }
+
   size_t count;
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);

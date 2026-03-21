@@ -1,13 +1,18 @@
 #include "protocol.hpp"
-#include "../server/logger.hpp"
 #include <cmath>
+#include <functional>
+#include <iostream>
 
 namespace cppsim {
 namespace protocol {
 
 namespace {
+std::function<void(const std::string&)> error_logger = [](const std::string& msg) {
+    std::cerr << msg << std::endl;
+};
+
 void log_protocol_error(const std::string& msg) {
-  cppsim::server::log_error(msg);
+  error_logger(msg);
 }
 
 template <typename MessageType>
@@ -23,6 +28,10 @@ std::string serialize_message(const MessageType& msg, const char* message_type) 
   to_json(j, env);
   return j.dump();
 }
+}
+
+void set_error_logger(std::function<void(const std::string&)> logger) {
+  error_logger = std::move(logger);
 }
 
 template <typename T, typename MessageType>
