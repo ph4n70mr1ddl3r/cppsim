@@ -24,20 +24,12 @@ class connection_manager final {
   // Returns empty string on session ID collision or max connections reached
   [[nodiscard]] std::string register_session(std::shared_ptr<websocket_session> session);
 
-  // Unregister a session by ID (called on disconnect)
-  // No-throw guarantee
   void unregister_session(const std::string& session_id);
 
-  // Get session by ID (returns nullptr if not found)
-  // No-throw guarantee
   [[nodiscard]] std::shared_ptr<websocket_session> get_session(const std::string& session_id) const;
 
-  // Get all active session IDs
-  // Strong exception guarantee
   [[nodiscard]] std::vector<std::string> active_session_ids() const;
 
-   // Get count of active sessions
-  // No-throw guarantee
   [[nodiscard]] size_t session_count() const noexcept;
 
   // Stop all active sessions

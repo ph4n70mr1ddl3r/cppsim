@@ -1,14 +1,14 @@
 #include "protocol.hpp"
 #include <cmath>
+#include <cstdio>
 #include <functional>
-#include <iostream>
 
 namespace cppsim {
 namespace protocol {
 
 namespace {
 std::function<void(const std::string&)> error_logger = [](const std::string& msg) {
-    std::cerr << msg << std::endl;
+    std::fprintf(stderr, "%s\n", msg.c_str());
 };
 
 void log_protocol_error(const std::string& msg) {
