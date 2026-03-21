@@ -43,6 +43,8 @@ protected:
                     auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
                     net::connect(s, results.begin(), results.end());
                     connected = true;
+                    boost::system::error_code ec;
+                    s.close(ec);
                     break;
                 } catch (...) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(10));

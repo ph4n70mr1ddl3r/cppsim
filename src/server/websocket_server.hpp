@@ -1,8 +1,10 @@
 #pragma once
 
 #include "boost_wrapper.hpp"
+#include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 
 #include "connection_manager.hpp"
 #include "websocket_session.hpp"
