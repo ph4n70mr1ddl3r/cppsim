@@ -158,7 +158,6 @@ void websocket_session::on_read(boost::beast::error_code ec,
 
     // Set Idle Timeout
     deadline_.expires_after(config::IDLE_TIMEOUT);
-    check_deadline();
 
     // Register with connection manager
     std::string new_session_id;
@@ -301,10 +300,9 @@ void websocket_session::on_write(boost::beast::error_code ec,
   if (ec) {
     cppsim::server::log_error(std::string("[WebSocketSession] Write error for ") + get_session_id_safe() + ": " + ec.message());
     writing_.store(false, std::memory_order_release);
-    std::queue<std::string> empty;
     {
       std::lock_guard<std::mutex> lock(write_queue_mutex_);
-      std::swap(write_queue_, empty);
+      write_queue_ = std::queue<std::string>();
     }
     do_close();
     return;
@@ -352,13 +350,13 @@ void websocket_session::check_deadline() {
           return;
         }
 
-         if (current_state == state::unauthenticated) {
-             cppsim::server::log_error("[WebSocketSession] Handshake timeout");
+          if (current_state == state::unauthenticated) {
+              cppsim::server::log_error("[WebSocketSession] Handshake timeout");
 
-             self->state_.store(state::closed, std::memory_order_release);
-             self->ws_.async_close(boost::beast::websocket::close_code::policy_error,
-                 [](boost::beast::error_code) {});
-          } else {
+              self->state_.store(state::closed, std::memory_order_release);
+              self->ws_.async_close(boost::beast::websocket::close_code::policy_error,
+                  [self](boost::beast::error_code) {});
+           } else {
              cppsim::server::log_error(std::string("[WebSocketSession] Idle timeout for session ") + self->get_session_id_safe());
              self->close();
          }

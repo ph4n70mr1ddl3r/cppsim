@@ -13,8 +13,8 @@ namespace cppsim {
 namespace server {
 
 // WebSocket server - accepts connections and creates sessions
-  class websocket_server final {
-   public:
+class websocket_server final {
+ public:
   websocket_server(boost::asio::io_context& ioc, uint16_t port);
   ~websocket_server();
 

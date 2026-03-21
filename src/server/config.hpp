@@ -11,17 +11,17 @@ namespace server {
 struct config {
     static inline constexpr auto HANDSHAKE_TIMEOUT = std::chrono::seconds(10);
     static inline constexpr auto IDLE_TIMEOUT = std::chrono::seconds(60);
-    static constexpr size_t MAX_MESSAGE_SIZE = 64 * 1024;
-    static constexpr size_t MAX_WRITE_QUEUE_SIZE = 100;
-    static constexpr unsigned short DEFAULT_PORT = 8080;
-    static constexpr unsigned short DEFAULT_TEST_PORT = 18080;
-    static constexpr int MAX_MESSAGES_PER_SECOND = 10;
-    static constexpr int PLACEHOLDER_SEAT = -1;
-    static constexpr double PLACEHOLDER_STACK = 0.0;
-    static constexpr size_t MAX_CONNECTIONS = 1000;
-    static constexpr size_t MAX_SESSION_ID_LENGTH = 256;
-    static constexpr size_t MAX_TIMESTAMPS_TO_TRACK = 50;
-    static constexpr int MAX_BACKOFF_SECONDS = 30;
+    static inline constexpr size_t MAX_MESSAGE_SIZE = 64 * 1024;
+    static inline constexpr size_t MAX_WRITE_QUEUE_SIZE = 100;
+    static inline constexpr unsigned short DEFAULT_PORT = 8080;
+    static inline constexpr unsigned short DEFAULT_TEST_PORT = 18080;
+    static inline constexpr int MAX_MESSAGES_PER_SECOND = 10;
+    static inline constexpr int PLACEHOLDER_SEAT = -1;
+    static inline constexpr double PLACEHOLDER_STACK = 0.0;
+    static inline constexpr size_t MAX_CONNECTIONS = 1000;
+    static inline constexpr size_t MAX_SESSION_ID_LENGTH = 256;
+    static inline constexpr size_t MAX_TIMESTAMPS_TO_TRACK = 50;
+    static inline constexpr int MAX_BACKOFF_SECONDS = 30;
 };
 
 } // namespace server
