@@ -1,6 +1,7 @@
 #include "connection_manager.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <limits>
 #include <random>
 #include <sstream>
@@ -102,9 +103,8 @@ std::string connection_manager::generate_session_id() {
     random_part = dis(gen);
   } catch (...) {
     auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
-    auto high_ts = static_cast<uint32_t>(static_cast<uint64_t>(timestamp) >> 32);
-    auto low_ts = static_cast<uint32_t>(timestamp);
-    random_part = static_cast<uint32_t>(high_ts ^ low_ts ^ (id & 0xFFFFFFFF) ^ thread_hash);
+    auto ts_unsigned = static_cast<uint64_t>(timestamp);
+    random_part = static_cast<uint32_t>(ts_unsigned ^ id ^ static_cast<uint64_t>(thread_hash));
   }
 
   std::ostringstream oss;

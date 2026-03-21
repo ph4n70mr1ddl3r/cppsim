@@ -56,32 +56,25 @@ std::optional<T> parse_message(const std::string& json_str, MessageType expected
 }
 
 std::optional<handshake_message> parse_handshake(const std::string& json_str) {
+  auto result = parse_message<handshake_message>(json_str, message_types::HANDSHAKE, "Handshake");
+  if (!result) {
+    return result;
+  }
+
+  nlohmann::json j;
   try {
-    auto j = nlohmann::json::parse(json_str);
+    j = nlohmann::json::parse(json_str);
     auto envelope = j.get<message_envelope>();
-    if (envelope.message_type != message_types::HANDSHAKE) {
+    if (result->protocol_version != envelope.protocol_version) {
+      log_protocol_error("[Protocol] Handshake version mismatch between payload and envelope");
       return std::nullopt;
     }
-    handshake_message msg;
-    try {
-      from_json(envelope.payload, msg);
-    } catch (const std::exception& e) {
-      log_protocol_error(std::string("[Protocol] Handshake Payload Error: ") + e.what());
-      return std::nullopt;
-    }
-
-    if (msg.protocol_version != envelope.protocol_version) {
-      return std::nullopt;
-    }
-
-    return msg;
-  } catch (const nlohmann::json::exception& e) {
-    log_protocol_error(std::string("[Protocol] Handshake JSON Parse Error: ") + e.what());
-    return std::nullopt;
   } catch (const std::exception& e) {
-    log_protocol_error(std::string("[Protocol] Handshake Parse Error: ") + e.what());
+    log_protocol_error(std::string("[Protocol] Handshake envelope validation error: ") + e.what());
     return std::nullopt;
   }
+
+  return result;
 }
 
 std::optional<action_message> parse_action(const std::string& json_str) {

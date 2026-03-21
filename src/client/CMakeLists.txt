@@ -9,6 +9,7 @@ target_sources(poker_client
 # Link dependencies
 target_link_libraries(poker_client
   PRIVATE
+    poker_common
     project_options
     project_warnings
 )

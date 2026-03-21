@@ -5,6 +5,7 @@
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <deque>
 #include <queue>
 #include <string>
 
@@ -88,7 +89,7 @@ class websocket_session final
 
   // Rate limiting for DoS prevention
   // Sliding window using timestamps of recent messages
-  std::vector<std::chrono::steady_clock::time_point> message_timestamps_;
+  std::deque<std::chrono::steady_clock::time_point> message_timestamps_;
   mutable std::mutex rate_limit_mutex_;
   static constexpr std::chrono::milliseconds RATE_LIMIT_WINDOW{1000};  // 1 second window
 
