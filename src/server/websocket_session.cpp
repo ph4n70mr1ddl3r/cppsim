@@ -5,8 +5,6 @@
 #include "logger.hpp"
 #include "protocol.hpp"
 
-
-
 namespace cppsim {
 namespace server {
 
@@ -103,7 +101,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
   // Sliding window rate limiting (mutex-protected)
   {
     std::lock_guard<std::mutex> lock(rate_limit_mutex_);
-    auto window_start = now - RATE_LIMIT_WINDOW;
+    auto window_start = now - config::RATE_LIMIT_WINDOW;
     auto it = std::remove_if(message_timestamps_.begin(), message_timestamps_.end(),
         [window_start](const auto& timestamp) { return timestamp < window_start; });
     message_timestamps_.erase(it, message_timestamps_.end());

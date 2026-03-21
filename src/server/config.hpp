@@ -22,6 +22,7 @@ struct config {
     static inline constexpr size_t MAX_SESSION_ID_LENGTH = 256;
     static inline constexpr size_t MAX_TIMESTAMPS_TO_TRACK = 50;
     static inline constexpr int MAX_BACKOFF_SECONDS = 30;
+    static inline constexpr std::chrono::milliseconds RATE_LIMIT_WINDOW{1000};
 };
 
 } // namespace server

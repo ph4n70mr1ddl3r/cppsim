@@ -9,6 +9,8 @@
 #include <queue>
 #include <string>
 
+#include "config.hpp"
+
 namespace cppsim {
 namespace server {
 
@@ -88,7 +90,6 @@ class websocket_session final
   // Sliding window using timestamps of recent messages
   std::deque<std::chrono::steady_clock::time_point> message_timestamps_;
   mutable std::mutex rate_limit_mutex_;
-  static inline constexpr std::chrono::milliseconds RATE_LIMIT_WINDOW{1000};  // 1 second window
 
   std::string get_session_id_safe() const noexcept;
 };

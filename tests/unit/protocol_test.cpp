@@ -286,3 +286,175 @@ TEST(ProtocolTest, MessageEnvelope) {
 TEST(ProtocolTest, ProtocolVersionConstant) {
   EXPECT_STREQ(PROTOCOL_VERSION, "v1.0");
 }
+
+// Test: Action validation - RAISE without amount should fail
+TEST(ProtocolTest, RaiseWithoutAmount) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"action_type", "RAISE"},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Action validation - CALL with amount should fail
+TEST(ProtocolTest, CallWithAmount) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"action_type", "CALL"},
+      {"amount", 10.0},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Action validation - Invalid action type should fail
+TEST(ProtocolTest, InvalidActionType) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"action_type", "INVALID_ACTION"},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Action validation - Negative amount should fail
+TEST(ProtocolTest, NegativeAmount) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"action_type", "RAISE"},
+      {"amount", -10.0},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Action validation - Zero amount should fail
+TEST(ProtocolTest, ZeroAmount) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"action_type", "RAISE"},
+      {"amount", 0.0},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Reload request - negative amount should fail
+TEST(ProtocolTest, NegativeReloadAmount) {
+  message_envelope env;
+  env.message_type = message_types::RELOAD_REQUEST;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"requested_amount", -100.0}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_reload_request(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Reload request - valid zero amount (edge case, should pass)
+TEST(ProtocolTest, ZeroReloadAmount) {
+  message_envelope env;
+  env.message_type = message_types::RELOAD_REQUEST;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"requested_amount", 0.0}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_reload_request(j.dump());
+
+  ASSERT_TRUE(result.has_value());
+  EXPECT_DOUBLE_EQ(result->requested_amount, 0.0);
+}
+
+// Test: Action validation - ALL_IN without amount should fail
+TEST(ProtocolTest, AllInWithoutAmount) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"action_type", "ALL_IN"},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Handshake response serialization
+TEST(ProtocolTest, HandshakeResponseSerialization) {
+  handshake_response resp;
+  resp.session_id = "sess_123";
+  resp.seat_number = 1;
+  resp.starting_stack = 1000.0;
+
+  std::string json_str = serialize_handshake_response(resp);
+
+  EXPECT_NE(json_str.find("\"session_id\":\"sess_123\""), std::string::npos);
+  EXPECT_NE(json_str.find("\"seat_number\":1"), std::string::npos);
+  EXPECT_NE(json_str.find("\"starting_stack\":1000"), std::string::npos);
+}
+
+// Test: Reload response serialization
+TEST(ProtocolTest, ReloadResponseSerialization) {
+  reload_response_message resp;
+  resp.granted = true;
+  resp.new_stack = 500.0;
+
+  std::string json_str = serialize_reload_response(resp);
+
+  EXPECT_NE(json_str.find("\"granted\":true"), std::string::npos);
+  EXPECT_NE(json_str.find("\"new_stack\":500"), std::string::npos);
+}
