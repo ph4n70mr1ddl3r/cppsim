@@ -103,7 +103,13 @@ std::string connection_manager::generate_session_id() {
     static thread_local std::mt19937 gen(rd());
     std::uniform_int_distribution<uint32_t> dis(0, std::numeric_limits<uint32_t>::max());
     random_part = dis(gen);
+  } catch (const std::exception& e) {
+    cppsim::server::log_error(std::string("[ConnectionManager] Random device failed, using fallback: ") + e.what());
+    auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
+    auto ts_unsigned = static_cast<uint64_t>(timestamp);
+    random_part = static_cast<uint32_t>(ts_unsigned ^ id ^ static_cast<uint64_t>(thread_hash));
   } catch (...) {
+    cppsim::server::log_error("[ConnectionManager] Random device failed with unknown exception, using fallback");
     auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
     auto ts_unsigned = static_cast<uint64_t>(timestamp);
     random_part = static_cast<uint32_t>(ts_unsigned ^ id ^ static_cast<uint64_t>(thread_hash));

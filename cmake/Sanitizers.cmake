@@ -1,0 +1,30 @@
+cmake_minimum_required(VERSION 3.15)
+
+function(enable_sanitizers target)
+  option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+  option(ENABLE_USAN "Enable UndefinedBehaviorSanitizer" OFF)
+  option(ENABLE_TSAN "Enable ThreadSanitizer" OFF)
+
+  if(ENABLE_ASAN AND ENABLE_TSAN)
+    message(WARNING "AddressSanitizer and ThreadSanitizer are mutually exclusive. Disabling TSan.")
+    set(ENABLE_TSAN OFF)
+  endif()
+
+  if(ENABLE_ASAN)
+    message(STATUS "Enabling AddressSanitizer for ${target}")
+    target_compile_options(${target} INTERFACE -fsanitize=address -fno-omit-frame-pointer)
+    target_link_options(${target} INTERFACE -fsanitize=address)
+  endif()
+
+  if(ENABLE_USAN)
+    message(STATUS "Enabling UndefinedBehaviorSanitizer for ${target}")
+    target_compile_options(${target} INTERFACE -fsanitize=undefined -fno-omit-frame-pointer)
+    target_link_options(${target} INTERFACE -fsanitize=undefined)
+  endif()
+
+  if(ENABLE_TSAN)
+    message(STATUS "Enabling ThreadSanitizer for ${target}")
+    target_compile_options(${target} INTERFACE -fsanitize=thread -fno-omit-frame-pointer)
+    target_link_options(${target} INTERFACE -fsanitize=thread)
+  endif()
+endfunction()

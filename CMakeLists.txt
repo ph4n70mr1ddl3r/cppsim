@@ -9,6 +9,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Include compiler warnings module
 include(cmake/CompilerWarnings.cmake)
 
+# Include sanitizers module
+include(cmake/Sanitizers.cmake)
+
 # Create interface library for project-wide settings
 add_library(project_options INTERFACE)
 target_compile_features(project_options INTERFACE cxx_std_17)
@@ -16,6 +19,11 @@ target_compile_features(project_options INTERFACE cxx_std_17)
 # Create interface library for compiler warnings
 add_library(project_warnings INTERFACE)
 set_project_warnings(project_warnings)
+
+# Enable sanitizers for debug builds (optional, enable with -DENABLE_ASAN=ON etc.)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  enable_sanitizers(project_options)
+endif()
 
 # Include FetchContent module  
 include(FetchContent)
