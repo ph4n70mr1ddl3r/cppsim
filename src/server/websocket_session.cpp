@@ -60,7 +60,9 @@ void websocket_session::on_accept(boost::beast::error_code ec) {
 }
 
 void websocket_session::do_read() {
-  // Read a message into our buffer
+  if (state_.load(std::memory_order_acquire) == state::closed) {
+    return;
+  }
   ws_.async_read(buffer_, boost::beast::bind_front_handler(
                               &websocket_session::on_read, shared_from_this()));
 }
@@ -108,7 +110,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     message_timestamps_.erase(it, message_timestamps_.end());
 
     // Check if rate limit exceeded
-    if (message_timestamps_.size() >= config::MAX_MESSAGES_PER_SECOND) {
+    if (message_timestamps_.size() >= config::MAX_MESSAGES_PER_WINDOW) {
       cppsim::server::log_error("[WebSocketSession] Rate limit exceeded for session " + get_session_id_safe());
       close();
       return;

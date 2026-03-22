@@ -15,13 +15,15 @@ struct config {
     static inline constexpr size_t MAX_WRITE_QUEUE_SIZE = 100;
     static inline constexpr unsigned short DEFAULT_PORT = 8080;
     static inline constexpr unsigned short DEFAULT_TEST_PORT = 18080;
-    static inline constexpr size_t MAX_MESSAGES_PER_SECOND = 10;
+    // Rate limiting: max messages within the rate limit window
+    static inline constexpr size_t MAX_MESSAGES_PER_WINDOW = 10;
     static inline constexpr int PLACEHOLDER_SEAT = -1;
     static inline constexpr double PLACEHOLDER_STACK = 0.0;
     static inline constexpr size_t MAX_CONNECTIONS = 1000;
     static inline constexpr size_t MAX_SESSION_ID_LENGTH = 256;
     static inline constexpr size_t MAX_TIMESTAMPS_TO_TRACK = 50;
     static inline constexpr int MAX_BACKOFF_SECONDS = 30;
+    // Rate limit window duration (1 second sliding window)
     static inline constexpr std::chrono::milliseconds RATE_LIMIT_WINDOW{1000};
 };
 

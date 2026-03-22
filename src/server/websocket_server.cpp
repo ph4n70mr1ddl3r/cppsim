@@ -28,29 +28,26 @@ websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port)
      throw std::runtime_error(std::string("[WebSocketServer] Failed to open acceptor: ") + ec.message());
    }
 
-   // Allow address reuse
-   acceptor_.set_option(boost::asio::socket_base::reuse_address(true), ec);
-   if (ec) {
-     boost::beast::error_code close_ec;
-     acceptor_.close(close_ec);
-     throw std::runtime_error(std::string("[WebSocketServer] Failed to set reuse_address: ") + ec.message());
-   }
+    // Allow address reuse
+    acceptor_.set_option(boost::asio::socket_base::reuse_address(true), ec);
+    if (ec) {
+      acceptor_.close(ec);
+      throw std::runtime_error(std::string("[WebSocketServer] Failed to set reuse_address: ") + ec.message());
+    }
 
-   // Bind to the server address
-   acceptor_.bind(endpoint, ec);
-   if (ec) {
-     boost::beast::error_code close_ec;
-     acceptor_.close(close_ec);
-     throw std::runtime_error(std::string("[WebSocketServer] Failed to bind to port ") + std::to_string(port) + ": " + ec.message());
-   }
+    // Bind to the server address
+    acceptor_.bind(endpoint, ec);
+    if (ec) {
+      acceptor_.close(ec);
+      throw std::runtime_error(std::string("[WebSocketServer] Failed to bind to port ") + std::to_string(port) + ": " + ec.message());
+    }
 
-   // Start listening for connections
-   acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
-   if (ec) {
-     boost::beast::error_code close_ec;
-     acceptor_.close(close_ec);
-     throw std::runtime_error(std::string("[WebSocketServer] Failed to listen: ") + ec.message());
-   }
+    // Start listening for connections
+    acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
+    if (ec) {
+      acceptor_.close(ec);
+      throw std::runtime_error(std::string("[WebSocketServer] Failed to listen: ") + ec.message());
+    }
 
    initialized_.store(true, std::memory_order_release);
    cppsim::server::log_message(std::string("[WebSocketServer] Listening on port ") + std::to_string(port));

@@ -51,6 +51,9 @@ std::string connection_manager::register_session(
 }
 
 void connection_manager::unregister_session(const std::string& session_id) {
+  if (session_id.empty()) {
+    return;
+  }
   size_t count;
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
@@ -59,10 +62,8 @@ void connection_manager::unregister_session(const std::string& session_id) {
     active_sessions_.store(count, std::memory_order_relaxed);
   }
 
-  if (!session_id.empty()) {
-    cppsim::server::log_message("[ConnectionManager] Unregistered session: " + session_id + " (remaining: " +
-                std::to_string(count) + ")");
-  }
+  cppsim::server::log_message("[ConnectionManager] Unregistered session: " + session_id + " (remaining: " +
+              std::to_string(count) + ")");
 }
 
 std::shared_ptr<websocket_session> connection_manager::get_session(
