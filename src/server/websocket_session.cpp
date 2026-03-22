@@ -17,7 +17,7 @@ websocket_session::websocket_session(
       deadline_.expires_at(boost::asio::steady_timer::time_point::max());
     }
 
-websocket_session::~websocket_session() {
+websocket_session::~websocket_session() noexcept {
   boost::beast::error_code ec;
   deadline_.cancel(ec);
 }

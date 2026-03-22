@@ -26,7 +26,7 @@ class websocket_session final
   websocket_session(boost::asio::ip::tcp::socket socket,
                     std::shared_ptr<connection_manager> mgr);
 
-  ~websocket_session();
+  ~websocket_session() noexcept;
 
   // Start the session (performs WebSocket handshake and begins reading)
   void run();

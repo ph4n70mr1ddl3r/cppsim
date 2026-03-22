@@ -11,7 +11,7 @@
 namespace cppsim {
 namespace server {
 
-websocket_server::~websocket_server() {
+websocket_server::~websocket_server() noexcept {
   stop();
 }
 

@@ -16,7 +16,7 @@ namespace server {
 class websocket_server final {
  public:
   websocket_server(boost::asio::io_context& ioc, uint16_t port);
-  ~websocket_server();
+  ~websocket_server() noexcept;
 
   void run() noexcept;
   void stop() noexcept;
