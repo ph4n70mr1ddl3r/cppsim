@@ -132,52 +132,51 @@ struct message_envelope {
 [[nodiscard]] std::string serialize_handshake_response(const handshake_response& msg);
 [[nodiscard]] std::string serialize_reload_response(const reload_response_message& msg);
 
-// Protocols definitions
-
-// nlohmann/json serialization functions are in the same namespace for ADL support
+// nlohmann/json serialization functions
 // Manual to_json/from_json for proper std::optional support
+// Placed inside namespace for proper ADL (Argument Dependent Lookup)
 
-inline void to_json(nlohmann::json& j, const cppsim::protocol::player_stack& p) {
+inline void to_json(nlohmann::json& j, const player_stack& p) {
   j = nlohmann::json{{"seat", p.seat}, {"stack", p.stack}};
 }
 
-inline void from_json(const nlohmann::json& j, cppsim::protocol::player_stack& p) {
+inline void from_json(const nlohmann::json& j, player_stack& p) {
   j.at("seat").get_to(p.seat);
   j.at("stack").get_to(p.stack);
 }
 
-inline void to_json(nlohmann::json& j, const cppsim::protocol::handshake_message& m) {
+inline void to_json(nlohmann::json& j, const handshake_message& m) {
   j = nlohmann::json{{"protocol_version", m.protocol_version}};
   if (m.client_name) j["client_name"] = *m.client_name;
 }
 
-inline void from_json(const nlohmann::json& j, cppsim::protocol::handshake_message& m) {
+inline void from_json(const nlohmann::json& j, handshake_message& m) {
   j.at("protocol_version").get_to(m.protocol_version);
   if (j.contains("client_name") && !j["client_name"].is_null()) {
     m.client_name = j["client_name"].get<std::string>();
   }
 }
 
-inline void to_json(nlohmann::json& j, const cppsim::protocol::handshake_response& m) {
+inline void to_json(nlohmann::json& j, const handshake_response& m) {
   j = nlohmann::json{{"session_id", m.session_id},
                      {"seat_number", m.seat_number},
                      {"starting_stack", m.starting_stack}};
 }
 
-inline void from_json(const nlohmann::json& j, cppsim::protocol::handshake_response& m) {
+inline void from_json(const nlohmann::json& j, handshake_response& m) {
   j.at("session_id").get_to(m.session_id);
   j.at("seat_number").get_to(m.seat_number);
   j.at("starting_stack").get_to(m.starting_stack);
 }
 
-inline void to_json(nlohmann::json& j, const cppsim::protocol::action_message& m) {
+inline void to_json(nlohmann::json& j, const action_message& m) {
   j = nlohmann::json{{"session_id", m.session_id},
                      {"action_type", m.action_type},
                      {"sequence_number", m.sequence_number}};
   if (m.amount) j["amount"] = *m.amount;
 }
 
-inline void from_json(const nlohmann::json& j, cppsim::protocol::action_message& m) {
+inline void from_json(const nlohmann::json& j, action_message& m) {
   j.at("session_id").get_to(m.session_id);
   j.at("action_type").get_to(m.action_type);
   j.at("sequence_number").get_to(m.sequence_number);
@@ -186,13 +185,12 @@ inline void from_json(const nlohmann::json& j, cppsim::protocol::action_message&
   }
 }
 
-inline void to_json(nlohmann::json& j, const cppsim::protocol::state_update_message& m) {
+inline void to_json(nlohmann::json& j, const state_update_message& m) {
   j = nlohmann::json::object();
   j["game_phase"] = m.game_phase;
   j["pot_size"] = m.pot_size;
   j["current_bet"] = m.current_bet;
-  
-  // Manually convert player_stacks vector to JSON array
+
   nlohmann::json stacks_array = nlohmann::json::array();
   for (const auto& ps : m.player_stacks) {
     nlohmann::json ps_json;
@@ -200,27 +198,26 @@ inline void to_json(nlohmann::json& j, const cppsim::protocol::state_update_mess
     stacks_array.push_back(ps_json);
   }
   j["player_stacks"] = stacks_array;
-  
+
   j["valid_actions"] = m.valid_actions;
   if (m.community_cards) j["community_cards"] = *m.community_cards;
   if (m.hole_cards) j["hole_cards"] = *m.hole_cards;
   if (m.acting_seat) j["acting_seat"] = *m.acting_seat;
 }
 
-inline void from_json(const nlohmann::json& j, cppsim::protocol::state_update_message& m) {
+inline void from_json(const nlohmann::json& j, state_update_message& m) {
   j.at("game_phase").get_to(m.game_phase);
   j.at("pot_size").get_to(m.pot_size);
   j.at("current_bet").get_to(m.current_bet);
-  
-  // Manually parse player_stacks array
+
   const auto& stacks_json = j.at("player_stacks");
   m.player_stacks.clear();
   for (const auto& stack_json : stacks_json) {
-    cppsim::protocol::player_stack ps;
+    player_stack ps;
     from_json(stack_json, ps);
     m.player_stacks.push_back(ps);
   }
-  
+
   j.at("valid_actions").get_to(m.valid_actions);
   if (j.contains("community_cards") && !j["community_cards"].is_null()) {
     m.community_cards = j["community_cards"].get<std::vector<std::string>>();
@@ -233,12 +230,12 @@ inline void from_json(const nlohmann::json& j, cppsim::protocol::state_update_me
   }
 }
 
-inline void to_json(nlohmann::json& j, const cppsim::protocol::error_message& m) {
+inline void to_json(nlohmann::json& j, const error_message& m) {
   j = nlohmann::json{{"error_code", m.error_code}, {"message", m.message}};
   if (m.session_id) j["session_id"] = *m.session_id;
 }
 
-inline void from_json(const nlohmann::json& j, cppsim::protocol::error_message& m) {
+inline void from_json(const nlohmann::json& j, error_message& m) {
   j.at("error_code").get_to(m.error_code);
   j.at("message").get_to(m.message);
   if (j.contains("session_id") && !j["session_id"].is_null()) {
@@ -246,42 +243,42 @@ inline void from_json(const nlohmann::json& j, cppsim::protocol::error_message& 
   }
 }
 
-inline void to_json(nlohmann::json& j, const cppsim::protocol::reload_request_message& m) {
+inline void to_json(nlohmann::json& j, const reload_request_message& m) {
   j = nlohmann::json{{"session_id", m.session_id}, {"requested_amount", m.requested_amount}};
 }
 
-inline void from_json(const nlohmann::json& j, cppsim::protocol::reload_request_message& m) {
+inline void from_json(const nlohmann::json& j, reload_request_message& m) {
   j.at("session_id").get_to(m.session_id);
   j.at("requested_amount").get_to(m.requested_amount);
 }
 
-inline void to_json(nlohmann::json& j, const cppsim::protocol::reload_response_message& m) {
+inline void to_json(nlohmann::json& j, const reload_response_message& m) {
   j = nlohmann::json{{"granted", m.granted}, {"new_stack", m.new_stack}};
 }
 
-inline void from_json(const nlohmann::json& j, cppsim::protocol::reload_response_message& m) {
+inline void from_json(const nlohmann::json& j, reload_response_message& m) {
   j.at("granted").get_to(m.granted);
   j.at("new_stack").get_to(m.new_stack);
 }
 
-inline void to_json(nlohmann::json& j, const cppsim::protocol::disconnect_message& m) {
+inline void to_json(nlohmann::json& j, const disconnect_message& m) {
   j = nlohmann::json{{"session_id", m.session_id}};
   if (m.reason) j["reason"] = *m.reason;
 }
 
-inline void from_json(const nlohmann::json& j, cppsim::protocol::disconnect_message& m) {
+inline void from_json(const nlohmann::json& j, disconnect_message& m) {
   j.at("session_id").get_to(m.session_id);
   if (j.contains("reason") && !j["reason"].is_null()) {
     m.reason = j["reason"].get<std::string>();
   }
 }
 
-inline void to_json(nlohmann::json& j, const cppsim::protocol::message_envelope& m) {
+inline void to_json(nlohmann::json& j, const message_envelope& m) {
   j = nlohmann::json{
       {"message_type", m.message_type}, {"protocol_version", m.protocol_version}, {"payload", m.payload}};
 }
 
-inline void from_json(const nlohmann::json& j, cppsim::protocol::message_envelope& m) {
+inline void from_json(const nlohmann::json& j, message_envelope& m) {
   j.at("message_type").get_to(m.message_type);
   j.at("protocol_version").get_to(m.protocol_version);
   j.at("payload").get_to(m.payload);

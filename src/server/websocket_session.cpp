@@ -64,8 +64,7 @@ void websocket_session::do_read() {
 }
 
 void websocket_session::on_read(boost::beast::error_code ec,
-                                 std::size_t bytes_transferred) {
-  boost::ignore_unused(bytes_transferred);
+                                 [[maybe_unused]] std::size_t bytes_transferred) {
 
   auto current_state = state_.load(std::memory_order_acquire);
   
@@ -292,8 +291,7 @@ void websocket_session::do_write() {
 }
 
 void websocket_session::on_write(boost::beast::error_code ec,
-                                   std::size_t bytes_transferred) {
-  boost::ignore_unused(bytes_transferred);
+                                   [[maybe_unused]] std::size_t bytes_transferred) {
 
   if (ec) {
     cppsim::server::log_error(std::string("[WebSocketSession] Write error for ") + get_session_id_safe() + ": " + ec.message());
