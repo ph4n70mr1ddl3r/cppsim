@@ -1,15 +1,15 @@
 #pragma once
 
-#include <string>
+#include <string_view>
 
 namespace cppsim {
 namespace server {
 
 enum class log_level { info, error };
 
-void log_message(const std::string& msg);
-void log_error(const std::string& msg);
-void log(log_level level, const std::string& msg);
+void log_message(std::string_view msg) noexcept;
+void log_error(std::string_view msg) noexcept;
+void log(log_level level, std::string_view msg) noexcept;
 
 }
 }

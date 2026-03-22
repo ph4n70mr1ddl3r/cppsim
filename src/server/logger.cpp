@@ -31,7 +31,7 @@ namespace {
       return ss.str();
     }
 
-    const char* level_to_string(log_level level) noexcept {
+    [[nodiscard]] const char* level_to_string(log_level level) noexcept {
       switch (level) {
         case log_level::error:
           return "[ERROR]";
@@ -42,20 +42,23 @@ namespace {
     }
 }
 
-void log(log_level level, const std::string& msg) {
-    std::lock_guard<std::mutex> lock(log_mutex);
-    std::ostream& stream = (level == log_level::error) ? std::cerr : std::cout;
-    stream << get_timestamp() << " " << level_to_string(level) << " " << msg << '\n';
-    stream.flush();
+void log(log_level level, std::string_view msg) noexcept {
+    try {
+      std::lock_guard<std::mutex> lock(log_mutex);
+      std::ostream& stream = (level == log_level::error) ? std::cerr : std::cout;
+      stream << get_timestamp() << " " << level_to_string(level) << " " << msg << '\n';
+      stream.flush();
+    } catch (...) {
+    }
 }
 
-void log_message(const std::string& msg) {
+void log_message(std::string_view msg) noexcept {
     log(log_level::info, msg);
 }
 
-void log_error(const std::string& msg) {
+void log_error(std::string_view msg) noexcept {
     log(log_level::error, msg);
 }
 
-} // namespace server
-} // namespace cppsim
+}
+}
