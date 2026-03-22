@@ -1,11 +1,11 @@
-#include "server/boost_wrapper.hpp"
 #include <gtest/gtest.h>
 #include <memory>
 #include <thread>
 #include <vector>
 
-#include "server/websocket_server.hpp"
-#include "server/connection_manager.hpp"
+#include "../../src/server/boost_wrapper.hpp"
+#include "../../src/server/websocket_server.hpp"
+#include "../../src/server/connection_manager.hpp"
 
 namespace net = boost::asio;
 namespace beast = boost::beast;

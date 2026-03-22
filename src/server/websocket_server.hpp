@@ -21,6 +21,8 @@ class websocket_server final {
   void run() noexcept;
   void stop() noexcept;
 
+  [[nodiscard]] std::shared_ptr<class connection_manager> get_connection_manager() const noexcept { return conn_mgr_; }
+
  private:
   void do_accept();
   void on_accept(boost::beast::error_code ec, boost::asio::ip::tcp::socket socket);

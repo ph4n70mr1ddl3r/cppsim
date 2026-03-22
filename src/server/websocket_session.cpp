@@ -1,5 +1,7 @@
 #include "websocket_session.hpp"
 
+#include <deque>
+
 #include "config.hpp"
 #include "connection_manager.hpp"
 #include "logger.hpp"
