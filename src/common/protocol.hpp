@@ -121,6 +121,7 @@ struct message_envelope {
 };
 
 // Parsing functions - return std::optional for safe error handling
+// These functions log errors internally and return std::nullopt on parse failure
 [[nodiscard]] std::optional<handshake_message> parse_handshake(std::string_view json_str);
 [[nodiscard]] std::optional<action_message> parse_action(std::string_view json_str);
 [[nodiscard]] std::optional<reload_request_message> parse_reload_request(std::string_view json_str);
