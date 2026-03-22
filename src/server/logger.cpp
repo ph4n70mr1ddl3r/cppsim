@@ -1,4 +1,5 @@
 #include "logger.hpp"
+#include <ctime>
 #include <iostream>
 #include <mutex>
 #include <chrono>
@@ -11,7 +12,7 @@ namespace server {
 namespace {
     std::mutex log_mutex;
 
-    std::string get_timestamp() {
+    std::string get_timestamp() noexcept(false) {
       auto now = std::chrono::system_clock::now();
       auto time_t = std::chrono::system_clock::to_time_t(now);
       auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -30,7 +31,7 @@ namespace {
       return ss.str();
     }
 
-    std::string level_to_string(log_level level) {
+    const char* level_to_string(log_level level) noexcept {
       switch (level) {
         case log_level::error:
           return "[ERROR]";
@@ -45,9 +46,7 @@ void log(log_level level, const std::string& msg) {
     std::lock_guard<std::mutex> lock(log_mutex);
     std::ostream& stream = (level == log_level::error) ? std::cerr : std::cout;
     stream << get_timestamp() << " " << level_to_string(level) << " " << msg << '\n';
-    if (level == log_level::error) {
-        stream << std::flush;
-    }
+    stream << std::flush;
 }
 
 void log_message(const std::string& msg) {

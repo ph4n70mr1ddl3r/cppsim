@@ -34,9 +34,9 @@ class websocket_session final
   [[nodiscard]] bool send(const std::string& message);
   [[nodiscard]] bool send(std::string&& message);
 
-  void close();
+  void close() noexcept;
 
-  [[nodiscard]] std::string session_id() const { 
+  [[nodiscard]] std::string session_id() const noexcept { 
     std::lock_guard<std::mutex> lock(session_id_mutex_);
     return session_id_;
   }

@@ -362,7 +362,7 @@ void websocket_session::check_deadline() {
   });
 }
 
-void websocket_session::close() {
+void websocket_session::close() noexcept {
   auto current_state = state_.load(std::memory_order_acquire);
   if (current_state == state::closed) {
     return;

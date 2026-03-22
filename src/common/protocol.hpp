@@ -136,7 +136,7 @@ struct message_envelope {
 // Manual to_json/from_json for proper std::optional support
 // Placed inside namespace for proper ADL (Argument Dependent Lookup)
 
-inline void to_json(nlohmann::json& j, const player_stack& p) {
+inline void to_json(nlohmann::json& j, const player_stack& p) noexcept {
   j = nlohmann::json{{"seat", p.seat}, {"stack", p.stack}};
 }
 
@@ -145,7 +145,7 @@ inline void from_json(const nlohmann::json& j, player_stack& p) {
   j.at("stack").get_to(p.stack);
 }
 
-inline void to_json(nlohmann::json& j, const handshake_message& m) {
+inline void to_json(nlohmann::json& j, const handshake_message& m) noexcept {
   j = nlohmann::json{{"protocol_version", m.protocol_version}};
   if (m.client_name) j["client_name"] = *m.client_name;
 }
@@ -157,7 +157,7 @@ inline void from_json(const nlohmann::json& j, handshake_message& m) {
   }
 }
 
-inline void to_json(nlohmann::json& j, const handshake_response& m) {
+inline void to_json(nlohmann::json& j, const handshake_response& m) noexcept {
   j = nlohmann::json{{"session_id", m.session_id},
                      {"seat_number", m.seat_number},
                      {"starting_stack", m.starting_stack}};
@@ -169,7 +169,7 @@ inline void from_json(const nlohmann::json& j, handshake_response& m) {
   j.at("starting_stack").get_to(m.starting_stack);
 }
 
-inline void to_json(nlohmann::json& j, const action_message& m) {
+inline void to_json(nlohmann::json& j, const action_message& m) noexcept {
   j = nlohmann::json{{"session_id", m.session_id},
                      {"action_type", m.action_type},
                      {"sequence_number", m.sequence_number}};
@@ -185,7 +185,7 @@ inline void from_json(const nlohmann::json& j, action_message& m) {
   }
 }
 
-inline void to_json(nlohmann::json& j, const state_update_message& m) {
+inline void to_json(nlohmann::json& j, const state_update_message& m) noexcept {
   j = nlohmann::json::object();
   j["game_phase"] = m.game_phase;
   j["pot_size"] = m.pot_size;
@@ -230,7 +230,7 @@ inline void from_json(const nlohmann::json& j, state_update_message& m) {
   }
 }
 
-inline void to_json(nlohmann::json& j, const error_message& m) {
+inline void to_json(nlohmann::json& j, const error_message& m) noexcept {
   j = nlohmann::json{{"error_code", m.error_code}, {"message", m.message}};
   if (m.session_id) j["session_id"] = *m.session_id;
 }
@@ -243,7 +243,7 @@ inline void from_json(const nlohmann::json& j, error_message& m) {
   }
 }
 
-inline void to_json(nlohmann::json& j, const reload_request_message& m) {
+inline void to_json(nlohmann::json& j, const reload_request_message& m) noexcept {
   j = nlohmann::json{{"session_id", m.session_id}, {"requested_amount", m.requested_amount}};
 }
 
@@ -252,7 +252,7 @@ inline void from_json(const nlohmann::json& j, reload_request_message& m) {
   j.at("requested_amount").get_to(m.requested_amount);
 }
 
-inline void to_json(nlohmann::json& j, const reload_response_message& m) {
+inline void to_json(nlohmann::json& j, const reload_response_message& m) noexcept {
   j = nlohmann::json{{"granted", m.granted}, {"new_stack", m.new_stack}};
 }
 
@@ -261,7 +261,7 @@ inline void from_json(const nlohmann::json& j, reload_response_message& m) {
   j.at("new_stack").get_to(m.new_stack);
 }
 
-inline void to_json(nlohmann::json& j, const disconnect_message& m) {
+inline void to_json(nlohmann::json& j, const disconnect_message& m) noexcept {
   j = nlohmann::json{{"session_id", m.session_id}};
   if (m.reason) j["reason"] = *m.reason;
 }
@@ -273,7 +273,7 @@ inline void from_json(const nlohmann::json& j, disconnect_message& m) {
   }
 }
 
-inline void to_json(nlohmann::json& j, const message_envelope& m) {
+inline void to_json(nlohmann::json& j, const message_envelope& m) noexcept {
   j = nlohmann::json{
       {"message_type", m.message_type}, {"protocol_version", m.protocol_version}, {"payload", m.payload}};
 }
