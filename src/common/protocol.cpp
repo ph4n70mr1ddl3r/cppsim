@@ -51,9 +51,6 @@ std::optional<T> parse_message(std::string_view json_str, std::string_view expec
     T msg;
     from_json(envelope.payload, msg);
     return msg;
-  } catch (const nlohmann::json::exception& e) {
-    log_protocol_error(std::string("[Protocol] ") + message_name + " JSON Parse Error: " + e.what());
-    return std::nullopt;
   } catch (const std::exception& e) {
     log_protocol_error(std::string("[Protocol] ") + message_name + " Parse Error: " + e.what());
     return std::nullopt;
@@ -78,9 +75,6 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
     }
     
     return msg;
-  } catch (const nlohmann::json::exception& e) {
-    log_protocol_error(std::string("[Protocol] Handshake JSON Parse Error: ") + e.what());
-    return std::nullopt;
   } catch (const std::exception& e) {
     log_protocol_error(std::string("[Protocol] Handshake Parse Error: ") + e.what());
     return std::nullopt;

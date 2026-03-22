@@ -13,9 +13,7 @@ namespace server {
 websocket_session::websocket_session(
     boost::asio::ip::tcp::socket socket,
     std::shared_ptr<connection_manager> mgr)
-    : ws_(std::move(socket)), conn_mgr_(mgr), deadline_(ws_.get_executor()) {
-      deadline_.expires_at(boost::asio::steady_timer::time_point::max());
-    }
+    : ws_(std::move(socket)), conn_mgr_(mgr), deadline_(ws_.get_executor()) {}
 
 websocket_session::~websocket_session() noexcept {
   boost::beast::error_code ec;
@@ -195,7 +193,9 @@ void websocket_session::on_read(boost::beast::error_code ec,
     resp.seat_number = config::PLACEHOLDER_SEAT;
     resp.starting_stack = config::PLACEHOLDER_STACK;
 
-    (void)send(protocol::serialize_handshake_response(resp));
+    if (!send(protocol::serialize_handshake_response(resp))) {
+      cppsim::server::log_error("[WebSocketSession] Failed to send handshake response for session: " + new_session_id);
+    }
   } else {
     // Authenticated - parse and validate messages
     auto action_opt = protocol::parse_action(message);
