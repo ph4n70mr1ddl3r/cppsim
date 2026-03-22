@@ -106,7 +106,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     message_timestamps_.erase(it, message_timestamps_.end());
 
     // Check if rate limit exceeded
-    if (message_timestamps_.size() >= static_cast<size_t>(config::MAX_MESSAGES_PER_SECOND)) {
+    if (message_timestamps_.size() >= config::MAX_MESSAGES_PER_SECOND) {
       cppsim::server::log_error("[WebSocketSession] Rate limit exceeded for session " + get_session_id_safe());
       close();
       return;
@@ -127,20 +127,19 @@ void websocket_session::on_read(boost::beast::error_code ec,
       protocol::error_message err;
       err.error_code = protocol::error_codes::PROTOCOL_ERROR;
       err.message = "Expected HANDSHAKE message";
-      send(protocol::serialize_error(err));
+      (void)send(protocol::serialize_error(err));
       close();
       return;
     }
 
     const auto& handshake_msg = *handshake_opt;
 
-    // Check Protocol Version
     if (handshake_msg.protocol_version != protocol::PROTOCOL_VERSION) {
       cppsim::server::log_error(std::string("[WebSocketSession] Handshake error: Incompatible version ") + handshake_msg.protocol_version);
       protocol::error_message err;
       err.error_code = protocol::error_codes::INCOMPATIBLE_VERSION;
       err.message = "Expected " + std::string(protocol::PROTOCOL_VERSION);
-      send(protocol::serialize_error(err));
+      (void)send(protocol::serialize_error(err));
       close();
       return;
     }
@@ -165,7 +164,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
         protocol::error_message err;
         err.error_code = protocol::error_codes::PROTOCOL_ERROR;
         err.message = "Failed to generate unique session ID";
-        send(protocol::serialize_error(err));
+        (void)send(protocol::serialize_error(err));
         close();
         return;
       }
@@ -175,7 +174,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
       protocol::error_message err;
       err.error_code = protocol::error_codes::PROTOCOL_ERROR;
       err.message = "Connection manager not available";
-      send(protocol::serialize_error(err));
+      (void)send(protocol::serialize_error(err));
       close();
       return;
     }
@@ -192,7 +191,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     resp.seat_number = config::PLACEHOLDER_SEAT;
     resp.starting_stack = config::PLACEHOLDER_STACK;
 
-    send(protocol::serialize_handshake_response(resp));
+    (void)send(protocol::serialize_handshake_response(resp));
   } else {
     // Authenticated - parse and validate messages
     auto action_opt = protocol::parse_action(message);
@@ -226,7 +225,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
           protocol::error_message err;
           err.error_code = protocol::error_codes::PROTOCOL_ERROR;
           err.message = "Invalid sequence number - possible replay attack";
-          send(protocol::serialize_error(err));
+          (void)send(protocol::serialize_error(err));
           return;
         }
         last_sequence_number_.store(action_opt->sequence_number, std::memory_order_release);
@@ -240,8 +239,10 @@ void websocket_session::on_read(boost::beast::error_code ec,
     deadline_.expires_after(config::IDLE_TIMEOUT);
   }
 
-  // Continue reading
-  do_read();
+  // Continue reading if not closed
+  if (state_.load(std::memory_order_acquire) != state::closed) {
+    do_read();
+  }
 }
 
 bool websocket_session::queue_message(std::string&& message) {
@@ -385,7 +386,7 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
     protocol::error_message err;
     err.error_code = protocol::error_codes::PROTOCOL_ERROR;
     err.message = "Session ID is required";
-    send(protocol::serialize_error(err));
+    (void)send(protocol::serialize_error(err));
     return false;
   }
 
@@ -396,7 +397,7 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
     protocol::error_message err;
     err.error_code = protocol::error_codes::PROTOCOL_ERROR;
     err.message = "Session ID exceeds maximum length";
-    send(protocol::serialize_error(err));
+    (void)send(protocol::serialize_error(err));
     return false;
   }
 
@@ -408,7 +409,7 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
     protocol::error_message err;
     err.error_code = protocol::error_codes::PROTOCOL_ERROR;
     err.message = "Session ID mismatch";
-    send(protocol::serialize_error(err));
+    (void)send(protocol::serialize_error(err));
     return false;
   }
   return true;

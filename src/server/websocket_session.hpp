@@ -31,12 +31,12 @@ class websocket_session final
   // Start the session (performs WebSocket handshake and begins reading)
   void run();
 
-  bool send(const std::string& message);
-  bool send(std::string&& message);
+  [[nodiscard]] bool send(const std::string& message);
+  [[nodiscard]] bool send(std::string&& message);
 
   void close();
 
-  [[nodiscard]] std::string session_id() const noexcept { 
+  [[nodiscard]] std::string session_id() const { 
     std::lock_guard<std::mutex> lock(session_id_mutex_);
     return session_id_;
   }

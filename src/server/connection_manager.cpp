@@ -2,7 +2,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <limits>
 #include <random>
 #include <sstream>
 #include <thread>
@@ -91,11 +90,6 @@ size_t connection_manager::session_count() const noexcept {
 
 std::string connection_manager::generate_session_id() {
   uint64_t id = session_counter_.fetch_add(1, std::memory_order_relaxed);
-
-  if (id >= std::numeric_limits<uint64_t>::max() - 1000) {
-    cppsim::server::log_error("[ConnectionManager] Session counter approaching overflow, rejecting new connections");
-    return "";
-  }
 
   auto now = std::chrono::system_clock::now();
   auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(

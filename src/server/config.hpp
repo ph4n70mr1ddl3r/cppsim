@@ -15,7 +15,7 @@ struct config {
     static inline constexpr size_t MAX_WRITE_QUEUE_SIZE = 100;
     static inline constexpr unsigned short DEFAULT_PORT = 8080;
     static inline constexpr unsigned short DEFAULT_TEST_PORT = 18080;
-    static inline constexpr int MAX_MESSAGES_PER_SECOND = 10;
+    static inline constexpr size_t MAX_MESSAGES_PER_SECOND = 10;
     static inline constexpr int PLACEHOLDER_SEAT = -1;
     static inline constexpr double PLACEHOLDER_STACK = 0.0;
     static inline constexpr size_t MAX_CONNECTIONS = 1000;
