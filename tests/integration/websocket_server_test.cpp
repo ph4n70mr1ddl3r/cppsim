@@ -6,6 +6,7 @@
 #include "../../src/server/boost_wrapper.hpp"
 #include "../../src/server/websocket_server.hpp"
 #include "../../src/server/connection_manager.hpp"
+#include "../../src/server/config.hpp"
 
 namespace net = boost::asio;
 namespace beast = boost::beast;
@@ -33,7 +34,7 @@ TEST_F(WebSocketServerTest, AcceptsConnection) {
   net::io_context ioc_server;
   net::io_context ioc_client;
   
-  uint16_t port = 8081; // Use a different port than main
+  uint16_t port = cppsim::server::config::DEFAULT_TEST_PORT + 1; // Use test port + 1 to avoid conflicts
   
   // Start server in a thread
   cppsim::server::websocket_server server(ioc_server, port);

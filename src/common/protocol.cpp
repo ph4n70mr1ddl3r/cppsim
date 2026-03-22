@@ -3,13 +3,11 @@
 #include <cstdio>
 #include <functional>
 #include <mutex>
-#include <atomic>
 
 namespace cppsim {
 namespace protocol {
 
 namespace {
-std::atomic<bool> logger_initialized{false};
 std::function<void(const std::string&)> error_logger = [](const std::string& msg) {
     std::fprintf(stderr, "%s\n", msg.c_str());
 };
@@ -38,7 +36,6 @@ std::string serialize_message(const MessageType& msg, const char* message_type) 
 void set_error_logger(std::function<void(const std::string&)> logger) {
   std::lock_guard<std::mutex> lock(logger_mutex);
   error_logger = std::move(logger);
-  logger_initialized.store(true, std::memory_order_release);
 }
 
 template <typename T, typename MessageType>
