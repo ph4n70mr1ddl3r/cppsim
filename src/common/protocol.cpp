@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <functional>
 #include <mutex>
+#include <string_view>
 
 namespace cppsim {
 namespace protocol {
@@ -38,9 +39,9 @@ void set_error_logger(std::function<void(const std::string&)> logger) {
   error_logger = std::move(logger);
 }
 
-template <typename T, typename MessageType>
-std::optional<T> parse_message(const std::string& json_str, MessageType expected_type,
-                               const char* message_name) {
+template <typename T>
+std::optional<T> parse_message(std::string_view json_str, std::string_view expected_type,
+                                const char* message_name) {
   try {
     auto j = nlohmann::json::parse(json_str);
     auto envelope = j.get<message_envelope>();
@@ -59,7 +60,7 @@ std::optional<T> parse_message(const std::string& json_str, MessageType expected
   }
 }
 
-std::optional<handshake_message> parse_handshake(const std::string& json_str) {
+std::optional<handshake_message> parse_handshake(std::string_view json_str) {
   try {
     auto j = nlohmann::json::parse(json_str);
     auto envelope = j.get<message_envelope>();
@@ -86,7 +87,7 @@ std::optional<handshake_message> parse_handshake(const std::string& json_str) {
   }
 }
 
-std::optional<action_message> parse_action(const std::string& json_str) {
+std::optional<action_message> parse_action(std::string_view json_str) {
   auto result = parse_message<action_message>(json_str, message_types::ACTION, "Action");
   if (!result) {
     return result;
@@ -123,7 +124,7 @@ std::optional<action_message> parse_action(const std::string& json_str) {
   return result;
 }
 
-std::optional<reload_request_message> parse_reload_request(const std::string& json_str) {
+std::optional<reload_request_message> parse_reload_request(std::string_view json_str) {
   auto result = parse_message<reload_request_message>(json_str, message_types::RELOAD_REQUEST,
                                                 "Reload Request");
   if (!result) {
@@ -140,7 +141,7 @@ std::optional<reload_request_message> parse_reload_request(const std::string& js
   return result;
 }
 
-std::optional<disconnect_message> parse_disconnect(const std::string& json_str) {
+std::optional<disconnect_message> parse_disconnect(std::string_view json_str) {
   return parse_message<disconnect_message>(json_str, message_types::DISCONNECT, "Disconnect");
 }
 

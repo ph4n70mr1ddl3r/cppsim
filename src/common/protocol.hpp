@@ -121,10 +121,10 @@ struct message_envelope {
 };
 
 // Parsing functions - return std::optional for safe error handling
-[[nodiscard]] std::optional<handshake_message> parse_handshake(const std::string& json_str);
-[[nodiscard]] std::optional<action_message> parse_action(const std::string& json_str);
-[[nodiscard]] std::optional<reload_request_message> parse_reload_request(const std::string& json_str);
-[[nodiscard]] std::optional<disconnect_message> parse_disconnect(const std::string& json_str);
+[[nodiscard]] std::optional<handshake_message> parse_handshake(std::string_view json_str);
+[[nodiscard]] std::optional<action_message> parse_action(std::string_view json_str);
+[[nodiscard]] std::optional<reload_request_message> parse_reload_request(std::string_view json_str);
+[[nodiscard]] std::optional<disconnect_message> parse_disconnect(std::string_view json_str);
 
 // Serialization functions - convert messages to JSON strings
 [[nodiscard]] std::string serialize_state_update(const state_update_message& msg);

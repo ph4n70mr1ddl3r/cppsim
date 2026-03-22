@@ -370,13 +370,17 @@ void websocket_session::close() noexcept {
     return;
   }
 
-  boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
-     if (self->writing_.load(std::memory_order_acquire)) {
-         self->should_close_.store(true, std::memory_order_release);
-     } else {
-         self->do_close();
-     }
-  });
+  try {
+    boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
+       if (self->writing_.load(std::memory_order_acquire)) {
+           self->should_close_.store(true, std::memory_order_release);
+       } else {
+           self->do_close();
+       }
+    });
+  } catch (...) {
+    state_.store(state::closed, std::memory_order_release);
+  }
 }
 
 std::string websocket_session::get_session_id_safe() const noexcept {
@@ -438,12 +442,16 @@ void websocket_session::do_close() {
       }
     }
 
-    ws_.async_close(boost::beast::websocket::close_code::normal,
-                    [self = shared_from_this()](boost::beast::error_code ec) {
-                      if (ec) {
-                        cppsim::server::log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
-                      }
-                    });
+    try {
+      ws_.async_close(boost::beast::websocket::close_code::normal,
+                      [self = shared_from_this()](boost::beast::error_code ec) {
+                        if (ec) {
+                          cppsim::server::log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
+                        }
+                      });
+    } catch (const std::exception& e) {
+      cppsim::server::log_error(std::string("[WebSocketSession] Exception in do_close: ") + e.what());
+    }
 }
 
 }  // namespace server
