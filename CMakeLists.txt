@@ -21,7 +21,7 @@ add_library(project_warnings INTERFACE)
 set_project_warnings(project_warnings)
 
 # Enable sanitizers for debug builds (optional, enable with -DENABLE_ASAN=ON etc.)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
   enable_sanitizers(project_options)
 endif()
 

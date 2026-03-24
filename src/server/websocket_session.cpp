@@ -106,6 +106,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     // Check if rate limit exceeded
     if (message_timestamps_.size() >= config::MAX_MESSAGES_PER_WINDOW) {
       cppsim::server::log_error("[WebSocketSession] Rate limit exceeded for session " + get_session_id_safe());
+      state_.store(state::closed, std::memory_order_release);
       close();
       return;
     }
@@ -241,6 +242,10 @@ void websocket_session::on_read(boost::beast::error_code ec,
       }
     } else {
       cppsim::server::log_message(std::string("[WebSocketSession] Unknown message type '") + msg_type + "' from " + get_session_id_safe());
+      protocol::error_message err;
+      err.error_code = protocol::error_codes::PROTOCOL_ERROR;
+      err.message = "Unknown message type: " + msg_type;
+      (void)send(protocol::serialize_error(err));
     }
 
     deadline_.expires_after(config::IDLE_TIMEOUT);
@@ -359,7 +364,7 @@ void websocket_session::check_deadline() {
 
            self->state_.store(state::closed, std::memory_order_release);
            self->ws_.async_close(boost::beast::websocket::close_code::policy_error,
-               [self]([[maybe_unused]] boost::beast::error_code) {});
+               [self](boost::beast::error_code) {});
            } else {
              cppsim::server::log_error(std::string("[WebSocketSession] Idle timeout for session ") + self->get_session_id_safe());
              self->close();
