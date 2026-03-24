@@ -8,20 +8,6 @@
 namespace cppsim {
 namespace server {
 
-namespace {
-std::optional<std::string> extract_message_type(std::string_view json_str) {
-  try {
-    auto j = nlohmann::json::parse(json_str);
-    if (j.contains("message_type") && j["message_type"].is_string()) {
-      return j["message_type"].get<std::string>();
-    }
-    return std::nullopt;
-  } catch (...) {
-    return std::nullopt;
-  }
-}
-}
-
 websocket_session::websocket_session(
     boost::asio::ip::tcp::socket socket,
     std::shared_ptr<connection_manager> mgr)
@@ -81,13 +67,11 @@ void websocket_session::on_read(boost::beast::error_code ec,
                                  [[maybe_unused]] std::size_t bytes_transferred) {
 
   auto current_state = state_.load(std::memory_order_acquire);
-  
-  // Prevent processing if session is already closed
+
   if (current_state == state::closed) {
     return;
   }
 
-  // Handle disconnect
   if (ec == boost::beast::websocket::error::closed) {
     std::string session_id_copy = get_session_id_safe();
     cppsim::server::log_message(std::string("[WebSocketSession] Client disconnected: ") + session_id_copy);
@@ -209,7 +193,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
       cppsim::server::log_error("[WebSocketSession] Failed to send handshake response for session: " + new_session_id);
     }
   } else {
-    auto msg_type_opt = extract_message_type(message);
+    auto msg_type_opt = protocol::extract_message_type(message);
     
     if (!msg_type_opt) {
       cppsim::server::log_message(std::string("[WebSocketSession] Invalid message format from ") + get_session_id_safe() + ": missing message_type");

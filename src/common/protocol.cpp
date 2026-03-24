@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string_view>
 #include <unordered_set>
 
@@ -47,6 +48,22 @@ void log_protocol_error(std::string_view msg) {
   std::lock_guard<std::mutex> lock(logger_mutex);
   error_logger(msg);
 }
+
+}  // namespace
+
+std::optional<std::string> extract_message_type(std::string_view json_str) noexcept {
+  try {
+    auto j = nlohmann::json::parse(json_str);
+    if (j.contains("message_type") && j["message_type"].is_string()) {
+      return j["message_type"].get<std::string>();
+    }
+    return std::nullopt;
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
+namespace {
 
 template <typename MessageType>
 std::string serialize_message(const MessageType& msg, const char* message_type) {

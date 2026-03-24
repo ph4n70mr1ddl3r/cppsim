@@ -127,6 +127,8 @@ struct message_envelope {
 [[nodiscard]] std::optional<reload_request_message> parse_reload_request(std::string_view json_str);
 [[nodiscard]] std::optional<disconnect_message> parse_disconnect(std::string_view json_str);
 
+[[nodiscard]] std::optional<std::string> extract_message_type(std::string_view json_str) noexcept;
+
 // Serialization functions - convert messages to JSON strings
 [[nodiscard]] std::string serialize_state_update(const state_update_message& msg);
 [[nodiscard]] std::string serialize_error(const error_message& msg);
