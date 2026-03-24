@@ -32,12 +32,6 @@ std::string serialize_message(const MessageType& msg, const char* message_type) 
   to_json(j, env);
   return j.dump();
 }
-}
-
-void set_error_logger(std::function<void(const std::string&)> logger) {
-  std::lock_guard<std::mutex> lock(logger_mutex);
-  error_logger = std::move(logger);
-}
 
 template <typename T>
 std::optional<T> parse_message(std::string_view json_str, std::string_view expected_type,
@@ -55,6 +49,12 @@ std::optional<T> parse_message(std::string_view json_str, std::string_view expec
     log_protocol_error(std::string("[Protocol] ") + message_name + " Parse Error: " + e.what());
     return std::nullopt;
   }
+}
+}
+
+void set_error_logger(std::function<void(const std::string&)> logger) {
+  std::lock_guard<std::mutex> lock(logger_mutex);
+  error_logger = std::move(logger);
 }
 
 std::optional<handshake_message> parse_handshake(std::string_view json_str) {

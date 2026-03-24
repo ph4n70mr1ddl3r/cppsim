@@ -98,6 +98,12 @@ std::string connection_manager::generate_session_id() {
       now.time_since_epoch()).count();
   
   uint32_t random_part = 0;
+  auto compute_fallback = [&]() -> uint32_t {
+    auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
+    auto ts_unsigned = static_cast<uint64_t>(timestamp);
+    return static_cast<uint32_t>(ts_unsigned ^ id ^ static_cast<uint64_t>(thread_hash));
+  };
+
   try {
     static thread_local std::random_device rd;
     static thread_local std::mt19937 gen(rd());
@@ -105,14 +111,10 @@ std::string connection_manager::generate_session_id() {
     random_part = dis(gen);
   } catch (const std::exception& e) {
     cppsim::server::log_error(std::string("[ConnectionManager] Random device failed: ") + e.what() + ", using fallback");
-    auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
-    auto ts_unsigned = static_cast<uint64_t>(timestamp);
-    random_part = static_cast<uint32_t>(ts_unsigned ^ id ^ static_cast<uint64_t>(thread_hash));
+    random_part = compute_fallback();
   } catch (...) {
     cppsim::server::log_error("[ConnectionManager] Random device failed with unknown error, using fallback");
-    auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
-    auto ts_unsigned = static_cast<uint64_t>(timestamp);
-    random_part = static_cast<uint32_t>(ts_unsigned ^ id ^ static_cast<uint64_t>(thread_hash));
+    random_part = compute_fallback();
   }
 
   std::ostringstream oss;
