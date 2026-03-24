@@ -377,6 +377,7 @@ void websocket_session::close() noexcept {
        }
     });
   } catch (...) {
+    cppsim::server::log_error("[WebSocketSession] Exception in close() - forcing state to closed");
     state_.store(state::closed, std::memory_order_release);
   }
 }

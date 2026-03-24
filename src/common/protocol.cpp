@@ -9,12 +9,12 @@ namespace cppsim {
 namespace protocol {
 
 namespace {
-std::function<void(const std::string&)> error_logger = [](const std::string& msg) {
-    std::fprintf(stderr, "%s\n", msg.c_str());
+std::function<void(std::string_view)> error_logger = [](std::string_view msg) {
+    std::fprintf(stderr, "%.*s\n", static_cast<int>(msg.size()), msg.data());
 };
 std::mutex logger_mutex;
 
-void log_protocol_error(const std::string& msg) {
+void log_protocol_error(std::string_view msg) {
   std::lock_guard<std::mutex> lock(logger_mutex);
   error_logger(msg);
 }
@@ -52,7 +52,7 @@ std::optional<T> parse_message(std::string_view json_str, std::string_view expec
 }
 }
 
-void set_error_logger(std::function<void(const std::string&)> logger) {
+void set_error_logger(std::function<void(std::string_view)> logger) {
   std::lock_guard<std::mutex> lock(logger_mutex);
   error_logger = std::move(logger);
 }

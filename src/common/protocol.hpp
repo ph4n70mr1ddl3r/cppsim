@@ -10,7 +10,7 @@
 namespace cppsim {
 namespace protocol {
 
-void set_error_logger(std::function<void(const std::string&)> logger);
+void set_error_logger(std::function<void(std::string_view)> logger);
 
 // Protocol version constant
 // Version format: v{major}.{minor}

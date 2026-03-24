@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <limits>
 #include <random>
-#include <sstream>
+#include <string>
 #include <thread>
 
 #include "config.hpp"
@@ -117,10 +117,7 @@ std::string connection_manager::generate_session_id() {
     random_part = compute_fallback();
   }
 
-  std::ostringstream oss;
-  oss << "sess_" << timestamp << "_" << (id + 1) << "_" << random_part;
-
-  return oss.str();
+  return "sess_" + std::to_string(timestamp) + "_" + std::to_string(id + 1) + "_" + std::to_string(random_part);
 }
 
 void connection_manager::stop_all() {
