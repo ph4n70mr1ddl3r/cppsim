@@ -24,7 +24,7 @@ class connection_manager final {
   // Returns empty string on session ID collision or max connections reached
   [[nodiscard]] std::string register_session(std::shared_ptr<websocket_session> session);
 
-  void unregister_session(const std::string& session_id);
+  void unregister_session(const std::string& session_id) noexcept;
 
   [[nodiscard]] std::shared_ptr<websocket_session> get_session(const std::string& session_id) const;
 
@@ -32,7 +32,7 @@ class connection_manager final {
 
   [[nodiscard]] size_t session_count() const noexcept;
 
-  void stop_all();
+  void stop_all() noexcept;
 
  private:
   [[nodiscard]] std::string generate_session_id();

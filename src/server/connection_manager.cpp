@@ -50,7 +50,7 @@ std::string connection_manager::register_session(
   return session_id;
 }
 
-void connection_manager::unregister_session(const std::string& session_id) {
+void connection_manager::unregister_session(const std::string& session_id) noexcept {
   if (session_id.empty()) {
     return;
   }
@@ -126,10 +126,11 @@ std::string connection_manager::generate_session_id() {
     random_part = compute_fallback();
   }
 
-  return "sess_" + std::to_string(timestamp) + "_" + std::to_string(id + 1) + "_" + std::to_string(random_part);
+  uint64_t safe_id = (id == std::numeric_limits<uint64_t>::max()) ? 0 : id + 1;
+  return "sess_" + std::to_string(timestamp) + "_" + std::to_string(safe_id) + "_" + std::to_string(random_part);
 }
 
-void connection_manager::stop_all() {
+void connection_manager::stop_all() noexcept {
   std::vector<std::shared_ptr<websocket_session>> sessions_to_stop;
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
