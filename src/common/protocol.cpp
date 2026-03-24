@@ -4,6 +4,7 @@
 #include <functional>
 #include <mutex>
 #include <string_view>
+#include <unordered_set>
 
 namespace cppsim {
 namespace protocol {
@@ -13,6 +14,34 @@ std::function<void(std::string_view)> error_logger = [](std::string_view msg) {
     std::fprintf(stderr, "%.*s\n", static_cast<int>(msg.size()), msg.data());
 };
 std::mutex logger_mutex;
+
+const std::unordered_set<std::string>& get_valid_action_types() {
+  static const std::unordered_set<std::string> valid_types = {
+    std::string(action_types::FOLD),
+    std::string(action_types::CHECK),
+    std::string(action_types::CALL),
+    std::string(action_types::RAISE),
+    std::string(action_types::ALL_IN)
+  };
+  return valid_types;
+}
+
+const std::unordered_set<std::string>& get_amount_required_types() {
+  static const std::unordered_set<std::string> amount_required = {
+    std::string(action_types::RAISE),
+    std::string(action_types::ALL_IN)
+  };
+  return amount_required;
+}
+
+const std::unordered_set<std::string>& get_amount_forbidden_types() {
+  static const std::unordered_set<std::string> amount_forbidden = {
+    std::string(action_types::FOLD),
+    std::string(action_types::CHECK),
+    std::string(action_types::CALL)
+  };
+  return amount_forbidden;
+}
 
 void log_protocol_error(std::string_view msg) {
   std::lock_guard<std::mutex> lock(logger_mutex);
@@ -89,12 +118,8 @@ std::optional<action_message> parse_action(std::string_view json_str) {
 
   const auto& msg = *result;
 
-  // Validate action_type is one of the allowed values
-  if (msg.action_type != action_types::FOLD && 
-      msg.action_type != action_types::CHECK &&
-      msg.action_type != action_types::CALL &&
-      msg.action_type != action_types::RAISE &&
-      msg.action_type != action_types::ALL_IN) {
+  const auto& valid_types = get_valid_action_types();
+  if (valid_types.find(msg.action_type) == valid_types.end()) {
     log_protocol_error("[Protocol] Invalid action_type: " + msg.action_type);
     return std::nullopt;
   }
@@ -104,13 +129,14 @@ std::optional<action_message> parse_action(std::string_view json_str) {
     return std::nullopt;
   }
 
-  if ((msg.action_type == action_types::RAISE || msg.action_type == action_types::ALL_IN) && !msg.amount) {
+  const auto& amount_required = get_amount_required_types();
+  if (amount_required.find(msg.action_type) != amount_required.end() && !msg.amount) {
     log_protocol_error("[Protocol] " + msg.action_type + " action requires amount field");
     return std::nullopt;
   }
 
-  if ((msg.action_type == action_types::FOLD || msg.action_type == action_types::CHECK ||
-       msg.action_type == action_types::CALL) && msg.amount) {
+  const auto& amount_forbidden = get_amount_forbidden_types();
+  if (amount_forbidden.find(msg.action_type) != amount_forbidden.end() && msg.amount) {
     log_protocol_error("[Protocol] " + msg.action_type + " action should not have amount field");
     return std::nullopt;
   }

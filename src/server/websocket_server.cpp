@@ -112,6 +112,10 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
     int backoff = backoff_seconds_.load(std::memory_order_acquire);
     {
       std::lock_guard<std::mutex> lock(timer_mutex_);
+      if (backoff_timer_) {
+        boost::beast::error_code cancel_ec;
+        backoff_timer_->cancel(cancel_ec);
+      }
       backoff_timer_ = std::make_shared<boost::asio::steady_timer>(ioc_);
       backoff_timer_->expires_after(std::chrono::seconds(backoff));
       backoff_timer_->async_wait([this, timer_ptr = backoff_timer_, backoff](boost::beast::error_code timer_ec) {

@@ -8,6 +8,20 @@
 namespace cppsim {
 namespace server {
 
+namespace {
+std::optional<std::string> extract_message_type(std::string_view json_str) {
+  try {
+    auto j = nlohmann::json::parse(json_str);
+    if (j.contains("message_type") && j["message_type"].is_string()) {
+      return j["message_type"].get<std::string>();
+    }
+    return std::nullopt;
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+}
+
 websocket_session::websocket_session(
     boost::asio::ip::tcp::socket socket,
     std::shared_ptr<connection_manager> mgr)
@@ -195,30 +209,24 @@ void websocket_session::on_read(boost::beast::error_code ec,
       cppsim::server::log_error("[WebSocketSession] Failed to send handshake response for session: " + new_session_id);
     }
   } else {
-    // Authenticated - parse and validate messages
-    auto action_opt = protocol::parse_action(message);
-    auto reload_opt = protocol::parse_reload_request(message);
-    auto disconnect_opt = protocol::parse_disconnect(message);
-
-    bool message_parsed = action_opt || reload_opt || disconnect_opt;
-
-    if (!message_parsed) {
-      // Log unknown but authenticated messages
-      cppsim::server::log_message(std::string("[WebSocketSession] Unknown message from ") + get_session_id_safe() + ": " + message);
-    } else {
-      // Validate session_id in message
-      if (action_opt && !validate_session_id(action_opt->session_id)) {
-        return;
+    auto msg_type_opt = extract_message_type(message);
+    
+    if (!msg_type_opt) {
+      cppsim::server::log_message(std::string("[WebSocketSession] Invalid message format from ") + get_session_id_safe() + ": missing message_type");
+      deadline_.expires_after(config::IDLE_TIMEOUT);
+      if (state_.load(std::memory_order_acquire) != state::closed) {
+        do_read();
       }
-      if (reload_opt && !validate_session_id(reload_opt->session_id)) {
-        return;
-      }
-      if (disconnect_opt && !validate_session_id(disconnect_opt->session_id)) {
-        return;
-      }
-
-      // Validate sequence number for action messages (replay attack prevention)
-      if (action_opt) {
+      return;
+    }
+    
+    const auto& msg_type = *msg_type_opt;
+    
+    if (msg_type == protocol::message_types::ACTION) {
+      auto action_opt = protocol::parse_action(message);
+      if (!action_opt) {
+        cppsim::server::log_error("[WebSocketSession] Failed to parse ACTION message from " + get_session_id_safe());
+      } else if (validate_session_id(action_opt->session_id)) {
         int last_seq = last_sequence_number_.load(std::memory_order_acquire);
         if (action_opt->sequence_number <= last_seq) {
           cppsim::server::log_error("[WebSocketSession] Invalid sequence number " +
@@ -228,16 +236,29 @@ void websocket_session::on_read(boost::beast::error_code ec,
           err.error_code = protocol::error_codes::PROTOCOL_ERROR;
           err.message = "Invalid sequence number - possible replay attack";
           (void)send(protocol::serialize_error(err));
-          return;
+        } else {
+          last_sequence_number_.store(action_opt->sequence_number, std::memory_order_release);
+          cppsim::server::log_message(std::string("[WebSocketSession] Validated ACTION from ") + get_session_id_safe() + ": " + message);
         }
-        last_sequence_number_.store(action_opt->sequence_number, std::memory_order_release);
       }
-
-      // Log parsed authenticated messages
-      cppsim::server::log_message(std::string("[WebSocketSession] Validated message from ") + get_session_id_safe() + ": " + message);
+    } else if (msg_type == protocol::message_types::RELOAD_REQUEST) {
+      auto reload_opt = protocol::parse_reload_request(message);
+      if (!reload_opt) {
+        cppsim::server::log_error("[WebSocketSession] Failed to parse RELOAD_REQUEST from " + get_session_id_safe());
+      } else if (validate_session_id(reload_opt->session_id)) {
+        cppsim::server::log_message(std::string("[WebSocketSession] Validated RELOAD_REQUEST from ") + get_session_id_safe());
+      }
+    } else if (msg_type == protocol::message_types::DISCONNECT) {
+      auto disconnect_opt = protocol::parse_disconnect(message);
+      if (!disconnect_opt) {
+        cppsim::server::log_error("[WebSocketSession] Failed to parse DISCONNECT from " + get_session_id_safe());
+      } else if (validate_session_id(disconnect_opt->session_id)) {
+        cppsim::server::log_message(std::string("[WebSocketSession] Validated DISCONNECT from ") + get_session_id_safe());
+      }
+    } else {
+      cppsim::server::log_message(std::string("[WebSocketSession] Unknown message type '") + msg_type + "' from " + get_session_id_safe());
     }
 
-    // Reset Idle Timeout on activity
     deadline_.expires_after(config::IDLE_TIMEOUT);
   }
 
@@ -423,15 +444,11 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
 }
 
 void websocket_session::do_close() {
-    state expected = state::authenticated;
-    if (!state_.compare_exchange_strong(expected, state::closed,
-                                         std::memory_order_acq_rel)) {
-        expected = state::unauthenticated;
-        if (!state_.compare_exchange_strong(expected, state::closed,
-                                             std::memory_order_acq_rel)) {
-            return;
-        }
+    state current = state_.load(std::memory_order_acquire);
+    if (current == state::closed) {
+        return;
     }
+    state_.store(state::closed, std::memory_order_release);
 
     std::string session_id_copy = get_session_id_safe();
 

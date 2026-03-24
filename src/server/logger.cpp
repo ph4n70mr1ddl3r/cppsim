@@ -49,6 +49,13 @@ void log(log_level level, std::string_view msg) noexcept {
       stream << get_timestamp() << " " << level_to_string(level) << " " << msg << '\n';
       stream.flush();
     } catch (...) {
+      try {
+        std::fprintf(stderr, "[FALLBACK] %s %s %.*s\n",
+                     get_timestamp().c_str(),
+                     level_to_string(level),
+                     static_cast<int>(msg.size()), msg.data());
+      } catch (...) {
+      }
     }
 }
 

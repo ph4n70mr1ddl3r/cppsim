@@ -101,7 +101,16 @@ std::string connection_manager::generate_session_id() {
   auto compute_fallback = [&]() -> uint32_t {
     auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
     auto ts_unsigned = static_cast<uint64_t>(timestamp);
-    return static_cast<uint32_t>(ts_unsigned ^ id ^ static_cast<uint64_t>(thread_hash));
+    auto steady_hash = std::hash<typename std::chrono::steady_clock::rep>{}
+        (std::chrono::steady_clock::now().time_since_epoch().count());
+    uint32_t result = static_cast<uint32_t>(ts_unsigned ^ id ^ 
+        static_cast<uint64_t>(thread_hash) ^ static_cast<uint64_t>(steady_hash));
+    result ^= (result >> 16);
+    result *= 0x85ebca6b;
+    result ^= (result >> 13);
+    result *= 0xc2b2ae35;
+    result ^= (result >> 16);
+    return result;
   };
 
   try {
