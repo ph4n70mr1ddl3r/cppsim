@@ -81,7 +81,7 @@ std::string serialize_message(const MessageType& msg, const char* message_type) 
 
 template <typename T>
 std::optional<T> parse_message(std::string_view json_str, std::string_view expected_type,
-                                const char* message_name) {
+                                std::string_view message_name) {
   try {
     auto j = nlohmann::json::parse(json_str);
     auto envelope = j.get<message_envelope>();
@@ -92,7 +92,7 @@ std::optional<T> parse_message(std::string_view json_str, std::string_view expec
     from_json(envelope.payload, msg);
     return msg;
   } catch (const std::exception& e) {
-    log_protocol_error(std::string("[Protocol] ") + message_name + " Parse Error: " + e.what());
+    log_protocol_error(std::string("[Protocol] ") + std::string(message_name) + " Parse Error: " + e.what());
     return std::nullopt;
   }
 }

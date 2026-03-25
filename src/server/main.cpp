@@ -1,39 +1,35 @@
-#include <iostream>
-#include "boost_wrapper.hpp"
-#include <csignal>
 #include <cstdlib>
 
-#include "websocket_server.hpp"
+#include "boost_wrapper.hpp"
+#include <csignal>
+
 #include "config.hpp"
+#include "logger.hpp"
+#include "websocket_server.hpp"
 
 int main() {
   try {
-    // Create the io_context
     boost::asio::io_context ioc;
 
-    // Create the WebSocket server
     cppsim::server::websocket_server server(ioc, cppsim::server::config::DEFAULT_PORT);
 
-    // Set up signal handling for graceful shutdown
     boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
     signals.async_wait([&](boost::beast::error_code const&, int) {
-      std::cout << "\n[Main] Shutting down server...\n";
+      cppsim::server::log_message("[Main] Shutting down server...");
       server.stop();
       ioc.stop();
     });
 
-    // Start the server
-    std::cout << "[Main] Server running. Press Ctrl+C to stop.\n";
+    cppsim::server::log_message("[Main] Server running. Press Ctrl+C to stop.");
     server.run();
 
-    // Run the io_context (blocks until stopped)
     ioc.run();
 
-    std::cout << "[Main] Server stopped.\n";
+    cppsim::server::log_message("[Main] Server stopped.");
     return EXIT_SUCCESS;
 
   } catch (const std::exception& e) {
-    std::cerr << "[Main] Exception: " << e.what() << '\n';
+    cppsim::server::log_error(std::string("[Main] Exception: ") + e.what());
     return EXIT_FAILURE;
   }
 }
