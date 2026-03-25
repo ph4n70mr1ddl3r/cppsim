@@ -5,10 +5,15 @@
 
 #include "config.hpp"
 #include "logger.hpp"
+#include "protocol.hpp"
 #include "websocket_server.hpp"
 
 int main() {
   try {
+    cppsim::protocol::set_error_logger([](std::string_view msg) {
+      cppsim::server::log_error(msg);
+    });
+
     boost::asio::io_context ioc;
 
     cppsim::server::websocket_server server(ioc, cppsim::server::config::DEFAULT_PORT);

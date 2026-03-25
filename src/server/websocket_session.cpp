@@ -123,10 +123,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
 
     if (!handshake_opt) {
       cppsim::server::log_error("[WebSocketSession] Handshake error: Protocol error (Not HANDSHAKE)");
-      protocol::error_message err;
-      err.error_code = protocol::error_codes::PROTOCOL_ERROR;
-      err.message = "Expected HANDSHAKE message";
-      (void)send(protocol::serialize_error(err));
+      send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Expected HANDSHAKE message");
       close();
       return;
     }
@@ -135,10 +132,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
 
     if (handshake_msg.protocol_version != protocol::PROTOCOL_VERSION) {
       cppsim::server::log_error(std::string("[WebSocketSession] Handshake error: Incompatible version ") + handshake_msg.protocol_version);
-      protocol::error_message err;
-      err.error_code = protocol::error_codes::INCOMPATIBLE_VERSION;
-      err.message = "Expected " + std::string(protocol::PROTOCOL_VERSION);
-      (void)send(protocol::serialize_error(err));
+      send_protocol_error(protocol::error_codes::INCOMPATIBLE_VERSION, 
+                          std::string("Expected ") + protocol::PROTOCOL_VERSION);
       close();
       return;
     }
@@ -160,20 +155,13 @@ void websocket_session::on_read(boost::beast::error_code ec,
       new_session_id = mgr->register_session(shared_from_this());
       if (new_session_id.empty()) {
         cppsim::server::log_error("[WebSocketSession] Failed to register session - ID collision");
-        protocol::error_message err;
-        err.error_code = protocol::error_codes::PROTOCOL_ERROR;
-        err.message = "Failed to generate unique session ID";
-        (void)send(protocol::serialize_error(err));
+        send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Failed to generate unique session ID");
         close();
         return;
       }
     } else {
-      // Fallback if no manager - though constructor requires it
       cppsim::server::log_error("[WebSocketSession] Warning: No connection manager, session ID invalid");
-      protocol::error_message err;
-      err.error_code = protocol::error_codes::PROTOCOL_ERROR;
-      err.message = "Connection manager not available";
-      (void)send(protocol::serialize_error(err));
+      send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Connection manager not available");
       close();
       return;
     }
@@ -217,10 +205,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
           cppsim::server::log_error("[WebSocketSession] Invalid sequence number " +
                     std::to_string(action_opt->sequence_number) + " (expected > " +
                     std::to_string(last_seq) + ")");
-          protocol::error_message err;
-          err.error_code = protocol::error_codes::PROTOCOL_ERROR;
-          err.message = "Invalid sequence number - possible replay attack";
-          (void)send(protocol::serialize_error(err));
+          send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Invalid sequence number - possible replay attack");
         } else {
           last_sequence_number_.store(action_opt->sequence_number, std::memory_order_release);
           cppsim::server::log_message(std::string("[WebSocketSession] Validated ACTION from ") + get_session_id_safe() + ": " + message);
@@ -242,10 +227,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
       }
     } else {
       cppsim::server::log_message(std::string("[WebSocketSession] Unknown message type '") + msg_type + "' from " + get_session_id_safe());
-      protocol::error_message err;
-      err.error_code = protocol::error_codes::PROTOCOL_ERROR;
-      err.message = "Unknown message type: " + msg_type;
-      (void)send(protocol::serialize_error(err));
+      send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, 
+                          std::string("Unknown message type: ") + msg_type);
     }
 
     deadline_.expires_after(config::IDLE_TIMEOUT);
@@ -400,10 +383,7 @@ std::string websocket_session::get_session_id_safe() const noexcept {
 bool websocket_session::validate_session_id(const std::string& provided_session_id) {
   if (provided_session_id.empty()) {
     cppsim::server::log_error("[WebSocketSession] Empty session ID provided");
-    protocol::error_message err;
-    err.error_code = protocol::error_codes::PROTOCOL_ERROR;
-    err.message = "Session ID is required";
-    (void)send(protocol::serialize_error(err));
+    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Session ID is required");
     return false;
   }
 
@@ -411,10 +391,7 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
     cppsim::server::log_error(std::string("[WebSocketSession] Session ID too long: ") + 
                std::to_string(provided_session_id.length()) + " > " + 
                std::to_string(config::MAX_SESSION_ID_LENGTH));
-    protocol::error_message err;
-    err.error_code = protocol::error_codes::PROTOCOL_ERROR;
-    err.message = "Session ID exceeds maximum length";
-    (void)send(protocol::serialize_error(err));
+    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Session ID exceeds maximum length");
     return false;
   }
 
@@ -423,13 +400,17 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
   if (provided_session_id != session_id_copy) {
     cppsim::server::log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + session_id_copy + ", got " +
                provided_session_id);
-    protocol::error_message err;
-    err.error_code = protocol::error_codes::PROTOCOL_ERROR;
-    err.message = "Session ID mismatch";
-    (void)send(protocol::serialize_error(err));
+    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Session ID mismatch");
     return false;
   }
   return true;
+}
+
+void websocket_session::send_protocol_error(const char* error_code, std::string_view message) {
+  protocol::error_message err;
+  err.error_code = error_code;
+  err.message = std::string(message);
+  (void)send(protocol::serialize_error(err));
 }
 
 void websocket_session::do_close() {
