@@ -345,9 +345,13 @@ void websocket_session::check_deadline() {
           if (current_state == state::unauthenticated) {
               cppsim::server::log_error("[WebSocketSession] Handshake timeout");
 
-           self->state_.store(state::closed, std::memory_order_release);
-           self->ws_.async_close(boost::beast::websocket::close_code::policy_error,
-               [self](boost::beast::error_code) {});
+            self->state_.store(state::closed, std::memory_order_release);
+            self->ws_.async_close(boost::beast::websocket::close_code::policy_error,
+                [self](boost::beast::error_code close_ec) {
+                  if (close_ec) {
+                    cppsim::server::log_error(std::string("[WebSocketSession] Handshake timeout close error: ") + close_ec.message());
+                  }
+                });
            } else {
              cppsim::server::log_error(std::string("[WebSocketSession] Idle timeout for session ") + self->get_session_id_safe());
              self->close();

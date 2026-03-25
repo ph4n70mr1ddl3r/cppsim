@@ -11,6 +11,33 @@
 #include "logger.hpp"
 #include "websocket_session.hpp"
 
+namespace {
+
+std::mt19937& get_thread_local_generator() {
+  static thread_local std::mt19937 gen{[] {
+    std::random_device rd;
+    std::seed_seq seq{rd(), rd(), rd(), rd(), rd()};
+    return std::mt19937{seq};
+  }()};
+  return gen;
+}
+
+uint32_t compute_fallback_random(uint64_t timestamp, uint64_t id) {
+  auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
+  auto steady_hash = std::hash<typename std::chrono::steady_clock::rep>{}
+      (std::chrono::steady_clock::now().time_since_epoch().count());
+  uint32_t result = static_cast<uint32_t>(timestamp ^ id ^ 
+      static_cast<uint64_t>(thread_hash) ^ static_cast<uint64_t>(steady_hash));
+  result ^= (result >> 16);
+  result *= 0x85ebca6b;
+  result ^= (result >> 13);
+  result *= 0xc2b2ae35;
+  result ^= (result >> 16);
+  return result;
+}
+
+}  // namespace
+
 namespace cppsim {
 namespace server {
 
@@ -98,32 +125,16 @@ std::string connection_manager::generate_session_id() {
       now.time_since_epoch()).count();
   
   uint32_t random_part = 0;
-  auto compute_fallback = [&]() -> uint32_t {
-    auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
-    auto ts_unsigned = static_cast<uint64_t>(timestamp);
-    auto steady_hash = std::hash<typename std::chrono::steady_clock::rep>{}
-        (std::chrono::steady_clock::now().time_since_epoch().count());
-    uint32_t result = static_cast<uint32_t>(ts_unsigned ^ id ^ 
-        static_cast<uint64_t>(thread_hash) ^ static_cast<uint64_t>(steady_hash));
-    result ^= (result >> 16);
-    result *= 0x85ebca6b;
-    result ^= (result >> 13);
-    result *= 0xc2b2ae35;
-    result ^= (result >> 16);
-    return result;
-  };
 
   try {
-    static thread_local std::random_device rd;
-    static thread_local std::mt19937 gen(rd());
     std::uniform_int_distribution<uint32_t> dis(0, std::numeric_limits<uint32_t>::max());
-    random_part = dis(gen);
+    random_part = dis(get_thread_local_generator());
   } catch (const std::exception& e) {
     cppsim::server::log_error(std::string("[ConnectionManager] Random device failed: ") + e.what() + ", using fallback");
-    random_part = compute_fallback();
+    random_part = compute_fallback_random(static_cast<uint64_t>(timestamp), id);
   } catch (...) {
     cppsim::server::log_error("[ConnectionManager] Random device failed with unknown error, using fallback");
-    random_part = compute_fallback();
+    random_part = compute_fallback_random(static_cast<uint64_t>(timestamp), id);
   }
 
   return "sess_" + std::to_string(timestamp) + "_" + std::to_string(id) + "_" + std::to_string(random_part);
