@@ -96,7 +96,7 @@ class websocket_session final
   std::deque<std::chrono::steady_clock::time_point> message_timestamps_;
   mutable std::mutex rate_limit_mutex_;
 
-  std::string get_session_id_safe() const noexcept;
+  [[nodiscard]] std::string get_session_id_safe() const noexcept;
 };
 
 }  // namespace server

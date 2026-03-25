@@ -75,19 +75,19 @@ std::string connection_manager::register_session(
   return session_id;
 }
 
-void connection_manager::unregister_session(const std::string& session_id) noexcept {
+void connection_manager::unregister_session(std::string_view session_id) noexcept {
   if (session_id.empty()) {
     return;
   }
   size_t count;
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
-    sessions_.erase(session_id);
+    sessions_.erase(std::string(session_id));
     count = sessions_.size();
     active_sessions_.store(count, std::memory_order_relaxed);
   }
 
-  cppsim::server::log_message("[ConnectionManager] Unregistered session: " + session_id + " (remaining: " +
+  cppsim::server::log_message("[ConnectionManager] Unregistered session: " + std::string(session_id) + " (remaining: " +
               std::to_string(count) + ")");
 }
 
