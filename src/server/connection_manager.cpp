@@ -4,8 +4,6 @@
 #include <cstdint>
 #include <limits>
 #include <random>
-#include <string>
-#include <thread>
 
 #include "config.hpp"
 #include "logger.hpp"

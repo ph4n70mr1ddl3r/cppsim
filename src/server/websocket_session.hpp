@@ -53,8 +53,8 @@ class websocket_session final
   websocket_session& operator=(websocket_session&&) = delete;
 
  private:
-  [[nodiscard]] bool validate_session_id(const std::string& provided_session_id);
-  void send_protocol_error(const char* error_code, std::string_view message);
+  [[nodiscard]] bool validate_session_id(const std::string& provided_session_id) noexcept;
+  void send_protocol_error(const char* error_code, std::string_view message) noexcept;
   void do_accept();
   void on_accept(boost::beast::error_code ec);
 

@@ -383,7 +383,7 @@ std::string websocket_session::get_session_id_safe() const noexcept {
   return session_id_;
 }
 
-bool websocket_session::validate_session_id(const std::string& provided_session_id) {
+bool websocket_session::validate_session_id(const std::string& provided_session_id) noexcept {
   if (provided_session_id.empty()) {
     cppsim::server::log_error("[WebSocketSession] Empty session ID provided");
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Session ID is required");
@@ -409,7 +409,7 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
   return true;
 }
 
-void websocket_session::send_protocol_error(const char* error_code, std::string_view message) {
+void websocket_session::send_protocol_error(const char* error_code, std::string_view message) noexcept {
   protocol::error_message err;
   err.error_code = error_code;
   err.message = std::string(message);
