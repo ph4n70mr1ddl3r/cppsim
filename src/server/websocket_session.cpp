@@ -414,7 +414,7 @@ void websocket_session::send_protocol_error(const char* error_code, std::string_
   protocol::error_message err;
   err.error_code = error_code;
   err.message = std::string(message);
-  (void)send(protocol::serialize_error(err));
+  [[maybe_unused]] bool sent = send(protocol::serialize_error(err));
 }
 
 void websocket_session::do_close() {

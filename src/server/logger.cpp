@@ -1,4 +1,5 @@
 #include "logger.hpp"
+#include <climits>
 #include <ctime>
 #include <iostream>
 #include <mutex>
@@ -49,9 +50,10 @@ void log(log_level level, std::string_view msg) noexcept {
       stream << get_timestamp() << " " << level_to_string(level) << " " << msg << '\n';
       stream.flush();
     } catch (...) {
+      auto safe_size = static_cast<int>(std::min(msg.size(), static_cast<size_t>(INT_MAX)));
       std::fprintf(stderr, "[FALLBACK] %s %.*s\n",
                    level_to_string(level),
-                   static_cast<int>(msg.size()), msg.data());
+                   safe_size, msg.data());
     }
 }
 

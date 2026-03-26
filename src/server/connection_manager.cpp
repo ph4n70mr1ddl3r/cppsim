@@ -91,6 +91,23 @@ void connection_manager::unregister_session(std::string_view session_id) noexcep
               std::to_string(count) + ")");
 }
 
+void connection_manager::unregister_session(std::string&& session_id) noexcept {
+  if (session_id.empty()) {
+    return;
+  }
+  std::string id_for_log = session_id;
+  size_t count;
+  {
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    sessions_.erase(std::move(session_id));
+    count = sessions_.size();
+    active_sessions_.store(count, std::memory_order_relaxed);
+  }
+
+  cppsim::server::log_message("[ConnectionManager] Unregistered session: " + id_for_log + " (remaining: " +
+              std::to_string(count) + ")");
+}
+
 std::shared_ptr<websocket_session> connection_manager::get_session(
     const std::string& session_id) const {
   std::lock_guard<std::mutex> lock(sessions_mutex_);
@@ -135,7 +152,12 @@ std::string connection_manager::generate_session_id() {
     random_part = compute_fallback_random(static_cast<uint64_t>(timestamp), id);
   }
 
-  return "sess_" + std::to_string(timestamp) + "_" + std::to_string(id) + "_" + std::to_string(random_part);
+  try {
+    return "sess_" + std::to_string(timestamp) + "_" + std::to_string(id) + "_" + std::to_string(random_part);
+  } catch (const std::exception& e) {
+    cppsim::server::log_error(std::string("[ConnectionManager] Failed to generate session ID string: ") + e.what());
+    return "";
+  }
 }
 
 void connection_manager::stop_all() noexcept {
