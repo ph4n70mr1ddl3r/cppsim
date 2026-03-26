@@ -51,8 +51,14 @@ const string_view_set& get_amount_forbidden_types() noexcept {
 }
 
 void log_protocol_error(std::string_view msg) noexcept {
-  std::lock_guard<std::mutex> lock(logger_mutex);
-  error_logger(msg);
+  std::function<void(std::string_view)> logger_copy;
+  {
+    std::lock_guard<std::mutex> lock(logger_mutex);
+    logger_copy = error_logger;
+  }
+  if (logger_copy) {
+    logger_copy(msg);
+  }
 }
 
 }  // namespace
@@ -147,8 +153,8 @@ std::optional<action_message> parse_action(std::string_view json_str) {
     return std::nullopt;
   }
 
-  if (msg.amount && (*msg.amount <= 0 || !std::isfinite(*msg.amount))) {
-    log_protocol_error("[Protocol] Invalid amount in action: must be positive and finite");
+  if (msg.amount && (*msg.amount <= 0 || !std::isfinite(*msg.amount) || *msg.amount > MAX_AMOUNT)) {
+    log_protocol_error("[Protocol] Invalid amount in action: must be positive, finite, and within bounds");
     return std::nullopt;
   }
 
@@ -176,8 +182,8 @@ std::optional<reload_request_message> parse_reload_request(std::string_view json
 
   const auto& msg = *result;
 
-  if (msg.requested_amount < 0 || !std::isfinite(msg.requested_amount)) {
-    log_protocol_error("[Protocol] Invalid reload amount: must be non-negative and finite");
+  if (msg.requested_amount < 0 || !std::isfinite(msg.requested_amount) || msg.requested_amount > MAX_RELOAD_AMOUNT) {
+    log_protocol_error("[Protocol] Invalid reload amount: must be non-negative, finite, and within bounds");
     return std::nullopt;
   }
 

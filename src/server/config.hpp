@@ -34,6 +34,10 @@ struct config {
     // Game placeholders (will be replaced with real game engine values)
     static inline constexpr int PLACEHOLDER_SEAT = -1;
     static inline constexpr double PLACEHOLDER_STACK = 0.0;
+    
+    // Compile-time validation
+    static_assert(MAX_TIMESTAMPS_TO_TRACK >= MAX_MESSAGES_PER_WINDOW,
+                  "MAX_TIMESTAMPS_TO_TRACK must be >= MAX_MESSAGES_PER_WINDOW for rate limiting to work correctly");
 };
 
 } // namespace server

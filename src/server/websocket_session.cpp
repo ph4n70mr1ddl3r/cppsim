@@ -73,6 +73,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
   }
 
   if (ec == boost::beast::websocket::error::closed) {
+    state_.store(state::closed, std::memory_order_release);
     std::string session_id_copy = get_session_id_safe();
     cppsim::server::log_message(std::string("[WebSocketSession] Client disconnected: ") + session_id_copy);
     if (auto mgr = conn_mgr_.lock()) {
@@ -82,6 +83,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
   }
 
   if (ec) {
+    state_.store(state::closed, std::memory_order_release);
     std::string session_id_copy = get_session_id_safe();
     cppsim::server::log_error(std::string("[WebSocketSession] Read error for ") + session_id_copy + ": " + ec.message());
     if (auto mgr = conn_mgr_.lock()) {
@@ -107,6 +109,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     if (message_timestamps_.size() >= config::MAX_MESSAGES_PER_WINDOW) {
       cppsim::server::log_error("[WebSocketSession] Rate limit exceeded (max " + 
           std::to_string(config::MAX_MESSAGES_PER_WINDOW) + " messages per window) for session " + get_session_id_safe());
+      send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Rate limit exceeded");
       state_.store(state::closed, std::memory_order_release);
       close();
       return;
@@ -269,7 +272,7 @@ bool websocket_session::send(std::string&& message) {
 }
 
 void websocket_session::do_write() {
-  std::string message;
+  auto message = std::make_shared<std::string>();
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
     if (write_queue_.empty()) {
@@ -278,13 +281,14 @@ void websocket_session::do_write() {
     }
 
     writing_.store(true, std::memory_order_release);
-    message = write_queue_.front();
+    *message = std::move(write_queue_.front());
+    write_queue_.pop();
   }
 
-  // Write the message
-  ws_.async_write(boost::asio::buffer(message),
-                  boost::beast::bind_front_handler(&websocket_session::on_write,
-                                                    shared_from_this()));
+  ws_.async_write(boost::asio::buffer(*message),
+                  [self = shared_from_this(), message](boost::beast::error_code ec, std::size_t bytes) {
+                    self->on_write(ec, bytes);
+                  });
 }
 
 void websocket_session::on_write(boost::beast::error_code ec,
@@ -301,10 +305,8 @@ void websocket_session::on_write(boost::beast::error_code ec,
     return;
   }
 
-  // Remove the sent message from queue
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
-    write_queue_.pop();
 
     if (write_queue_.empty()) {
       writing_.store(false, std::memory_order_release);
@@ -315,7 +317,6 @@ void websocket_session::on_write(boost::beast::error_code ec,
     }
   }
 
-  // Continue writing if more messages queued
   do_write();
 }
 
