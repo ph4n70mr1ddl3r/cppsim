@@ -41,8 +41,7 @@ class websocket_session final
   void close() noexcept;
 
   [[nodiscard]] std::string session_id() const noexcept { 
-    std::lock_guard<std::mutex> lock(session_id_mutex_);
-    return session_id_;
+    return get_session_id_safe();
   }
 
   // Delete copy and move operations to prevent accidental copying
