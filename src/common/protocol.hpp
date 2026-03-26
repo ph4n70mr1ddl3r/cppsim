@@ -148,7 +148,7 @@ inline void to_json(nlohmann::json& j, const player_stack& p) {
   j = nlohmann::json{{"seat", p.seat}, {"stack", p.stack}};
 }
 
-inline void from_json(const nlohmann::json& j, player_stack& p) noexcept(noexcept(j.at("seat").get_to(p.seat))) {
+inline void from_json(const nlohmann::json& j, player_stack& p) {
   j.at("seat").get_to(p.seat);
   j.at("stack").get_to(p.stack);
 }

@@ -205,7 +205,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
         cppsim::server::log_error("[WebSocketSession] Failed to parse ACTION message from " + get_session_id_safe());
       } else if (validate_session_id(action_opt->session_id)) {
         int64_t last_seq = last_sequence_number_.load(std::memory_order_acquire);
-        if (static_cast<int64_t>(action_opt->sequence_number) < last_seq + 1) {
+        if (action_opt->sequence_number < last_seq + 1) {
           cppsim::server::log_error("[WebSocketSession] Invalid sequence number " +
                     std::to_string(action_opt->sequence_number) + " (expected >= " +
                     std::to_string(last_seq + 1) + ")");
