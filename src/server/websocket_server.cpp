@@ -103,8 +103,13 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
   if (ec) {
     cppsim::server::log_error(std::string("[WebSocketServer] Accept failed: ") + ec.message());
 
-    // Prevent infinite loop on persistent errors (e.g. EMFILE)
-    if (!acceptor_.is_open()) {
+    // Check for fatal errors that should stop the server
+    bool is_fatal = (ec == boost::asio::error::access_denied ||
+                     ec == boost::asio::error::address_in_use ||
+                     ec == boost::asio::error::bad_descriptor);
+
+    if (!acceptor_.is_open() || is_fatal) {
+      cppsim::server::log_error("[WebSocketServer] Fatal accept error, stopping server");
       return;
     }
 

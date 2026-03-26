@@ -205,10 +205,10 @@ void websocket_session::on_read(boost::beast::error_code ec,
         cppsim::server::log_error("[WebSocketSession] Failed to parse ACTION message from " + get_session_id_safe());
       } else if (validate_session_id(action_opt->session_id)) {
         int last_seq = last_sequence_number_.load(std::memory_order_acquire);
-        if (action_opt->sequence_number <= last_seq) {
+        if (action_opt->sequence_number < last_seq + 1) {
           cppsim::server::log_error("[WebSocketSession] Invalid sequence number " +
-                    std::to_string(action_opt->sequence_number) + " (expected > " +
-                    std::to_string(last_seq) + ")");
+                    std::to_string(action_opt->sequence_number) + " (expected >= " +
+                    std::to_string(last_seq + 1) + ")");
           send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Invalid sequence number - possible replay attack");
         } else {
           last_sequence_number_.store(action_opt->sequence_number, std::memory_order_release);
@@ -368,6 +368,9 @@ void websocket_session::close() noexcept {
 
   try {
     boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
+       if (self->state_.load(std::memory_order_acquire) == state::closed) {
+           return;
+       }
        if (self->writing_.load(std::memory_order_acquire)) {
            self->should_close_.store(true, std::memory_order_release);
        } else {

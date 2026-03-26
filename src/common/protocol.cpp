@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <mutex>
 #include <unordered_set>
 
@@ -10,7 +11,9 @@ namespace protocol {
 
 namespace {
 std::function<void(std::string_view)> error_logger = [](std::string_view msg) {
-    std::fprintf(stderr, "%.*s\n", static_cast<int>(msg.size()), msg.data());
+    constexpr size_t max_safe_size = static_cast<size_t>(std::numeric_limits<int>::max());
+    auto safe_size = static_cast<int>(std::min(msg.size(), max_safe_size));
+    std::fprintf(stderr, "%.*s\n", safe_size, msg.data());
 };
 std::mutex logger_mutex;
 
