@@ -128,9 +128,9 @@ void connection_manager::unregister_session(std::string&& session_id) noexcept {
 }
 
 std::shared_ptr<websocket_session> connection_manager::get_session(
-    const std::string& session_id) const noexcept {
+    std::string_view session_id) const noexcept {
   std::lock_guard<std::mutex> lock(sessions_mutex_);
-  auto it = sessions_.find(session_id);
+  auto it = sessions_.find(std::string(session_id));
   if (it != sessions_.end()) {
     return it->second;
   }
@@ -161,13 +161,12 @@ std::string connection_manager::generate_session_id() {
   uint32_t random_part = 0;
 
   try {
-    std::uniform_int_distribution<uint32_t> dis(0, std::numeric_limits<uint32_t>::max());
+    std::uniform_int_distribution<uint32_t> dis(
+        std::numeric_limits<uint32_t>::min(),
+        std::numeric_limits<uint32_t>::max());
     random_part = dis(get_thread_local_generator());
-  } catch (const std::exception& e) {
-    cppsim::server::log_error(std::string("[ConnectionManager] Random device failed: ") + e.what() + ", using fallback");
-    random_part = compute_fallback_random(static_cast<uint64_t>(timestamp), id);
   } catch (...) {
-    cppsim::server::log_error("[ConnectionManager] Random device failed with unknown error, using fallback");
+    cppsim::server::log_error("[ConnectionManager] Random device failed, using fallback");
     random_part = compute_fallback_random(static_cast<uint64_t>(timestamp), id);
   }
 

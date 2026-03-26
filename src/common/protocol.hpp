@@ -143,7 +143,7 @@ inline void to_json(nlohmann::json& j, const player_stack& p) noexcept {
   j = nlohmann::json{{"seat", p.seat}, {"stack", p.stack}};
 }
 
-inline void from_json(const nlohmann::json& j, player_stack& p) {
+inline void from_json(const nlohmann::json& j, player_stack& p) noexcept(noexcept(j.at("seat").get_to(p.seat))) {
   j.at("seat").get_to(p.seat);
   j.at("stack").get_to(p.stack);
 }
@@ -156,7 +156,7 @@ inline void to_json(nlohmann::json& j, const handshake_message& m) noexcept {
 inline void from_json(const nlohmann::json& j, handshake_message& m) {
   j.at("protocol_version").get_to(m.protocol_version);
   if (j.contains("client_name") && !j["client_name"].is_null()) {
-    m.client_name = j["client_name"].get<std::string>();
+    m.client_name = j["client_name"].template get<std::string>();
   }
 }
 

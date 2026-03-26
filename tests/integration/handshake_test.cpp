@@ -62,6 +62,7 @@ protected:
         server_ioc.stop();
         if(server_thread.joinable()) server_thread.join();
         server.reset();
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     // Helper to perform a handshake

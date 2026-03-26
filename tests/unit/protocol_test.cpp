@@ -1,6 +1,7 @@
 #include "protocol.hpp"
 
 #include <gtest/gtest.h>
+#include <limits>
 
 using namespace cppsim::protocol;
 
@@ -457,4 +458,131 @@ TEST(ProtocolTest, ReloadResponseSerialization) {
 
   EXPECT_NE(json_str.find("\"granted\":true"), std::string::npos);
   EXPECT_NE(json_str.find("\"new_stack\":500"), std::string::npos);
+}
+
+// Test: extract_message_type with valid message
+TEST(ProtocolTest, ExtractMessageTypeValid) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json::object();
+
+  nlohmann::json j;
+  to_json(j, env);
+
+  auto extracted = extract_message_type(j.dump());
+  ASSERT_TRUE(extracted.has_value());
+  EXPECT_EQ(*extracted, message_types::ACTION);
+}
+
+// Test: extract_message_type with invalid JSON
+TEST(ProtocolTest, ExtractMessageTypeInvalidJson) {
+  auto result = extract_message_type("not valid json");
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: extract_message_type with missing message_type field
+TEST(ProtocolTest, ExtractMessageTypeMissingField) {
+  std::string json_str = R"({"protocol_version":"v1.0","payload":{}})";
+  auto result = extract_message_type(json_str);
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: extract_message_type with non-string message_type
+TEST(ProtocolTest, ExtractMessageTypeNonString) {
+  std::string json_str = R"({"message_type":123,"protocol_version":"v1.0","payload":{}})";
+  auto result = extract_message_type(json_str);
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Infinity amount should fail
+TEST(ProtocolTest, InfinityAmount) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"action_type", "RAISE"},
+      {"amount", std::numeric_limits<double>::infinity()},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: NaN amount should fail
+TEST(ProtocolTest, NanAmount) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"action_type", "RAISE"},
+      {"amount", std::numeric_limits<double>::quiet_NaN()},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Infinity reload amount should fail
+TEST(ProtocolTest, InfinityReloadAmount) {
+  message_envelope env;
+  env.message_type = message_types::RELOAD_REQUEST;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"requested_amount", std::numeric_limits<double>::infinity()}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_reload_request(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Very large valid amount
+TEST(ProtocolTest, LargeValidAmount) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"action_type", "RAISE"},
+      {"amount", 1e10},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  ASSERT_TRUE(result.has_value());
+  EXPECT_DOUBLE_EQ(result->amount.value(), 1e10);
+}
+
+// Test: Handshake version mismatch between envelope and payload
+TEST(ProtocolTest, HandshakeVersionMismatch) {
+  message_envelope env;
+  env.message_type = message_types::HANDSHAKE;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"protocol_version", "v2.0"},
+      {"client_name", "test"}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_handshake(j.dump());
+
+  EXPECT_FALSE(result.has_value());
 }
