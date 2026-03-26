@@ -414,7 +414,9 @@ void websocket_session::send_protocol_error(const char* error_code, std::string_
   protocol::error_message err;
   err.error_code = error_code;
   err.message = std::string(message);
-  [[maybe_unused]] bool sent = send(protocol::serialize_error(err));
+  if (!send(protocol::serialize_error(err))) {
+    cppsim::server::log_error("[WebSocketSession] Failed to send protocol error for session " + get_session_id_safe());
+  }
 }
 
 void websocket_session::do_close() {

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <limits>
 #include <random>
+#include <thread>
 
 #include "config.hpp"
 #include "logger.hpp"
@@ -21,11 +22,14 @@ std::mt19937& get_thread_local_generator() {
 }
 
 uint32_t compute_fallback_random(uint64_t timestamp, uint64_t id) {
+  // MurmurHash3 finalizer mixing constants for better bit distribution
+  // These constants are derived from MurmurHash3's finalization step
   auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
   auto steady_hash = std::hash<typename std::chrono::steady_clock::rep>{}
       (std::chrono::steady_clock::now().time_since_epoch().count());
   uint32_t result = static_cast<uint32_t>(timestamp ^ id ^ 
       static_cast<uint64_t>(thread_hash) ^ static_cast<uint64_t>(steady_hash));
+  // MurmurHash3 finalizer: improves avalanche behavior
   result ^= (result >> 16);
   result *= 0x85ebca6b;
   result ^= (result >> 13);
@@ -41,38 +45,49 @@ namespace server {
 
 std::string connection_manager::register_session(
     std::shared_ptr<websocket_session> session) {
-  std::string session_id = generate_session_id();
+  constexpr int max_retries = 3;
+  
+  for (int attempt = 0; attempt < max_retries; ++attempt) {
+    std::string session_id = generate_session_id();
 
-  if (session_id.empty()) {
-    cppsim::server::log_error("[ConnectionManager] Failed to generate session ID");
-    return "";
-  }
-
-  if (session_id.length() > config::MAX_SESSION_ID_LENGTH) {
-    cppsim::server::log_error("[ConnectionManager] Generated session ID exceeds maximum length");
-    return "";
-  }
-
-  size_t count;
-  {
-    std::lock_guard<std::mutex> lock(sessions_mutex_);
-    if (sessions_.size() >= config::MAX_CONNECTIONS) {
-      cppsim::server::log_error("[ConnectionManager] Maximum connections reached (" + 
-          std::to_string(config::MAX_CONNECTIONS) + ")");
+    if (session_id.empty()) {
+      cppsim::server::log_error("[ConnectionManager] Failed to generate session ID");
       return "";
     }
-    auto result = sessions_.emplace(session_id, session);
-    if (!result.second) {
-      cppsim::server::log_error("[ConnectionManager] Session ID collision: " + session_id);
+
+    if (session_id.length() > config::MAX_SESSION_ID_LENGTH) {
+      cppsim::server::log_error("[ConnectionManager] Generated session ID exceeds maximum length");
       return "";
     }
-    count = sessions_.size();
-    active_sessions_.store(count, std::memory_order_relaxed);
+
+    size_t count;
+    {
+      std::lock_guard<std::mutex> lock(sessions_mutex_);
+      if (sessions_.size() >= config::MAX_CONNECTIONS) {
+        cppsim::server::log_error("[ConnectionManager] Maximum connections reached (" + 
+            std::to_string(config::MAX_CONNECTIONS) + ")");
+        return "";
+      }
+      auto result = sessions_.emplace(session_id, session);
+      if (!result.second) {
+        if (attempt < max_retries - 1) {
+          cppsim::server::log_error("[ConnectionManager] Session ID collision (attempt " + 
+              std::to_string(attempt + 1) + "), retrying: " + session_id);
+          continue;
+        }
+        cppsim::server::log_error("[ConnectionManager] Session ID collision after retries: " + session_id);
+        return "";
+      }
+      count = sessions_.size();
+      active_sessions_.store(count, std::memory_order_relaxed);
+    }
+
+    cppsim::server::log_message("[ConnectionManager] Registered session: " + session_id + " (total: " + std::to_string(count) + ")");
+
+    return session_id;
   }
-
-  cppsim::server::log_message("[ConnectionManager] Registered session: " + session_id + " (total: " + std::to_string(count) + ")");
-
-  return session_id;
+  
+  return "";
 }
 
 void connection_manager::unregister_session(std::string_view session_id) noexcept {
