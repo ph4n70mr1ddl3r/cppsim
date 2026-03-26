@@ -14,35 +14,43 @@ std::function<void(std::string_view)> error_logger = [](std::string_view msg) {
 };
 std::mutex logger_mutex;
 
-const std::unordered_set<std::string>& get_valid_action_types() {
-  static const std::unordered_set<std::string> valid_types = {
-    std::string(action_types::FOLD),
-    std::string(action_types::CHECK),
-    std::string(action_types::CALL),
-    std::string(action_types::RAISE),
-    std::string(action_types::ALL_IN)
+struct string_view_hash {
+  std::size_t operator()(std::string_view sv) const noexcept {
+    return std::hash<std::string_view>{}(sv);
+  }
+};
+
+using string_view_set = std::unordered_set<std::string_view, string_view_hash>;
+
+const string_view_set& get_valid_action_types() noexcept {
+  static const string_view_set valid_types = {
+    action_types::FOLD,
+    action_types::CHECK,
+    action_types::CALL,
+    action_types::RAISE,
+    action_types::ALL_IN
   };
   return valid_types;
 }
 
-const std::unordered_set<std::string>& get_amount_required_types() {
-  static const std::unordered_set<std::string> amount_required = {
-    std::string(action_types::RAISE),
-    std::string(action_types::ALL_IN)
+const string_view_set& get_amount_required_types() noexcept {
+  static const string_view_set amount_required = {
+    action_types::RAISE,
+    action_types::ALL_IN
   };
   return amount_required;
 }
 
-const std::unordered_set<std::string>& get_amount_forbidden_types() {
-  static const std::unordered_set<std::string> amount_forbidden = {
-    std::string(action_types::FOLD),
-    std::string(action_types::CHECK),
-    std::string(action_types::CALL)
+const string_view_set& get_amount_forbidden_types() noexcept {
+  static const string_view_set amount_forbidden = {
+    action_types::FOLD,
+    action_types::CHECK,
+    action_types::CALL
   };
   return amount_forbidden;
 }
 
-void log_protocol_error(std::string_view msg) {
+void log_protocol_error(std::string_view msg) noexcept {
   std::lock_guard<std::mutex> lock(logger_mutex);
   error_logger(msg);
 }
