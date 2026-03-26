@@ -17,7 +17,8 @@ class websocket_session;
 // Thread-safe: All public methods are thread-safe and can be called from any thread
 class connection_manager final {
  public:
-  connection_manager() = default;
+  connection_manager() noexcept = default;
+  ~connection_manager() noexcept = default;
 
   // Register a new session and return its unique session ID
   // Strong exception guarantee - either succeeds completely or throws without modifying state

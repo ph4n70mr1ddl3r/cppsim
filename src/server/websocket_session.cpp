@@ -116,8 +116,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
     }
 
     // Add current message timestamp, limit memory growth
-    if (message_timestamps_.size() >= config::MAX_TIMESTAMPS_TO_TRACK) {
-      message_timestamps_.erase(message_timestamps_.begin());
+    while (message_timestamps_.size() >= config::MAX_TIMESTAMPS_TO_TRACK) {
+      message_timestamps_.pop_front();
     }
     message_timestamps_.push_back(now);
   }

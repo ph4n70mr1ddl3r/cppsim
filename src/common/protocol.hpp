@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
@@ -75,7 +76,7 @@ struct action_message {
   std::string session_id;
   std::string action_type;  // "FOLD", "CALL", "RAISE", "CHECK", "ALL_IN"
   std::optional<double> amount;
-  int sequence_number;
+  int64_t sequence_number;
 };
 
 // STATE_UPDATE message - Server broadcasts game state

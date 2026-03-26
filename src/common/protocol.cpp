@@ -72,8 +72,10 @@ std::optional<std::string> extract_message_type(std::string_view json_str) noexc
     if (j.contains("message_type") && j["message_type"].is_string()) {
       return j["message_type"].get<std::string>();
     }
+    log_protocol_error("[Protocol] Missing or invalid 'message_type' field in message");
     return std::nullopt;
-  } catch (...) {
+  } catch (const std::exception& e) {
+    log_protocol_error(std::string("[Protocol] JSON parse error in extract_message_type: ") + e.what());
     return std::nullopt;
   }
 }

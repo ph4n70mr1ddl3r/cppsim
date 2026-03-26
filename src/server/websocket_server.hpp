@@ -16,6 +16,10 @@ namespace server {
 class websocket_server final {
  public:
   websocket_server(boost::asio::io_context& ioc, uint16_t port);
+  websocket_server(const websocket_server&) = delete;
+  websocket_server& operator=(const websocket_server&) = delete;
+  websocket_server(websocket_server&&) = delete;
+  websocket_server& operator=(websocket_server&&) = delete;
   ~websocket_server() noexcept;
 
   void run() noexcept;

@@ -12,6 +12,7 @@ namespace server {
 
 namespace {
     std::mutex log_mutex;
+    std::mutex fallback_mutex;
 
     std::string get_timestamp() {
       auto now = std::chrono::system_clock::now();
@@ -50,6 +51,7 @@ void log(log_level level, std::string_view msg) noexcept {
       stream << get_timestamp() << " " << level_to_string(level) << " " << msg << '\n';
       stream.flush();
     } catch (...) {
+      std::lock_guard<std::mutex> fallback_lock(fallback_mutex);
       constexpr size_t max_safe_size = static_cast<size_t>(std::numeric_limits<int>::max());
       auto safe_size = static_cast<int>(std::min(msg.size(), max_safe_size));
       std::fprintf(stderr, "[FALLBACK] %s %.*s\n",
