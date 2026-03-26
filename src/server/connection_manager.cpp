@@ -118,7 +118,7 @@ void connection_manager::unregister_session(std::string&& session_id) noexcept {
   size_t count;
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
-    sessions_.erase(std::move(session_id));
+    sessions_.erase(session_id);
     count = sessions_.size();
     active_sessions_.store(count, std::memory_order_relaxed);
   }

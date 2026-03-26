@@ -3,6 +3,7 @@
 #include "boost_wrapper.hpp"
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <deque>
@@ -85,10 +86,11 @@ class websocket_session final
   std::atomic<bool> should_close_{false};
   void do_close();
 
-  [[nodiscard]] bool queue_message(std::string&& message);
+  [[nodiscard]] bool queue_message(std::string&& message);  // Returns false if queue full
 
   // Sequence number tracking for replay attack prevention
-  std::atomic<int> last_sequence_number_{-1};
+  // Using int64_t to prevent overflow edge case at INT_MAX sequences
+  std::atomic<int64_t> last_sequence_number_{-1};
 
   // Rate limiting for DoS prevention
   // Sliding window using timestamps of recent messages
