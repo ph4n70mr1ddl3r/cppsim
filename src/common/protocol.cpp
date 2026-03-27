@@ -195,7 +195,7 @@ std::optional<reload_request_message> parse_reload_request(std::string_view json
 
   const auto& msg = *result;
 
-  if (msg.requested_amount < 0 || !std::isfinite(msg.requested_amount) || msg.requested_amount > MAX_RELOAD_AMOUNT) {
+  if (msg.requested_amount < 0 || !std::isfinite(msg.requested_amount) || msg.requested_amount > MAX_AMOUNT) {
     log_protocol_error("[Protocol] Invalid reload amount: must be non-negative, finite, and within bounds");
     return std::nullopt;
   }
@@ -207,7 +207,6 @@ std::optional<disconnect_message> parse_disconnect(std::string_view json_str) {
   return parse_message<disconnect_message>(json_str, message_types::DISCONNECT, "Disconnect");
 }
 
-// Serialization functions
 std::string serialize_state_update(const state_update_message& msg) {
   return serialize_message(msg, message_types::STATE_UPDATE);
 }

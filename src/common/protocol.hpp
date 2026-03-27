@@ -21,7 +21,6 @@ constexpr const char* PROTOCOL_VERSION = "v1.0";
 
 // Validation constants
 constexpr double MAX_AMOUNT = 1e15;  // Maximum valid amount for bets/reloads
-constexpr double MAX_RELOAD_AMOUNT = 1e15;  // Maximum valid reload amount
 
 // Error Codes
 namespace error_codes {
@@ -134,7 +133,6 @@ struct message_envelope {
 
 [[nodiscard]] std::optional<std::string> extract_message_type(std::string_view json_str) noexcept;
 
-// Serialization functions - convert messages to JSON strings
 [[nodiscard]] std::string serialize_state_update(const state_update_message& msg);
 [[nodiscard]] std::string serialize_error(const error_message& msg);
 [[nodiscard]] std::string serialize_handshake_response(const handshake_response& msg);
