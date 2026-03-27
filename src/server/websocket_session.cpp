@@ -435,11 +435,9 @@ void websocket_session::send_protocol_error(const char* error_code, std::string_
 }
 
 void websocket_session::do_close() {
-    state expected = state::closed;
-    if (state_.compare_exchange_strong(expected, state::closed, std::memory_order_acq_rel)) {
+    if (state_.exchange(state::closed, std::memory_order_acq_rel) == state::closed) {
         return;
     }
-    state_.store(state::closed, std::memory_order_release);
 
     std::string session_id_copy = get_session_id_safe();
 
