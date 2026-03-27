@@ -14,8 +14,11 @@ websocket_session::websocket_session(
     : ws_(std::move(socket)), conn_mgr_(mgr), deadline_(ws_.get_executor()) {}
 
 websocket_session::~websocket_session() noexcept {
-  boost::beast::error_code ec;
-  deadline_.cancel(ec);
+  try {
+    boost::beast::error_code ec;
+    deadline_.cancel(ec);
+  } catch (...) {
+  }
 }
 
 void websocket_session::run() {
@@ -56,11 +59,13 @@ void websocket_session::on_accept(boost::beast::error_code ec) {
 }
 
 void websocket_session::do_read() {
-  if (state_.load(std::memory_order_acquire) == state::closed) {
-    return;
-  }
-  ws_.async_read(buffer_, boost::beast::bind_front_handler(
-                              &websocket_session::on_read, shared_from_this()));
+  boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
+    if (self->state_.load(std::memory_order_acquire) == state::closed) {
+      return;
+    }
+    self->ws_.async_read(self->buffer_, boost::beast::bind_front_handler(
+                                &websocket_session::on_read, self));
+  });
 }
 
 void websocket_session::on_read(boost::beast::error_code ec,
@@ -204,11 +209,18 @@ void websocket_session::on_read(boost::beast::error_code ec,
         cppsim::server::log_error("[WebSocketSession] Failed to parse ACTION message from " + get_session_id_safe());
       } else if (validate_session_id(action_opt->session_id)) {
         int64_t last_seq = last_sequence_number_.load(std::memory_order_acquire);
+        constexpr int64_t MAX_SEQUENCE_GAP = 10000;
         if (action_opt->sequence_number < last_seq + 1) {
           cppsim::server::log_error("[WebSocketSession] Invalid sequence number " +
                     std::to_string(action_opt->sequence_number) + " (expected >= " +
                     std::to_string(last_seq + 1) + ")");
           send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Invalid sequence number - possible replay attack");
+        } else if (action_opt->sequence_number > last_seq + MAX_SEQUENCE_GAP) {
+          cppsim::server::log_error("[WebSocketSession] Sequence number too far ahead: " +
+                    std::to_string(action_opt->sequence_number) + " (max allowed: " +
+                    std::to_string(last_seq + MAX_SEQUENCE_GAP) + ")");
+          send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Sequence number gap too large");
+          close();
         } else {
           last_sequence_number_.store(action_opt->sequence_number, std::memory_order_release);
           cppsim::server::log_message(std::string("[WebSocketSession] Validated ACTION from ") + get_session_id_safe() + ": " + message);
@@ -423,8 +435,8 @@ void websocket_session::send_protocol_error(const char* error_code, std::string_
 }
 
 void websocket_session::do_close() {
-    state current = state_.load(std::memory_order_acquire);
-    if (current == state::closed) {
+    state expected = state::closed;
+    if (state_.compare_exchange_strong(expected, state::closed, std::memory_order_acq_rel)) {
         return;
     }
     state_.store(state::closed, std::memory_order_release);

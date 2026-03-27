@@ -10,6 +10,9 @@ namespace cppsim {
 namespace protocol {
 
 namespace {
+
+constexpr size_t MAX_MESSAGE_TYPE_LENGTH = 32;
+
 std::function<void(std::string_view)> error_logger = [](std::string_view msg) {
     constexpr size_t max_safe_size = static_cast<size_t>(std::numeric_limits<int>::max());
     auto safe_size = static_cast<int>(std::min(msg.size(), max_safe_size));
@@ -70,7 +73,12 @@ std::optional<std::string> extract_message_type(std::string_view json_str) noexc
   try {
     auto j = nlohmann::json::parse(json_str);
     if (j.contains("message_type") && j["message_type"].is_string()) {
-      return j["message_type"].get<std::string>();
+      auto msg_type = j["message_type"].get<std::string>();
+      if (msg_type.size() > MAX_MESSAGE_TYPE_LENGTH) {
+        log_protocol_error("[Protocol] message_type exceeds maximum length");
+        return std::nullopt;
+      }
+      return msg_type;
     }
     log_protocol_error("[Protocol] Missing or invalid 'message_type' field in message");
     return std::nullopt;

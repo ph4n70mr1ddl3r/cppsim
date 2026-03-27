@@ -10,19 +10,13 @@
 namespace cppsim {
 namespace server {
 
-// Forward declaration to break circular dependency with websocket_session.hpp
 class websocket_session;
 
-// Manages all active WebSocket sessions
-// Thread-safe: All public methods are thread-safe and can be called from any thread
 class connection_manager final {
  public:
   connection_manager() noexcept = default;
   ~connection_manager() noexcept = default;
 
-  // Register a new session and return its unique session ID
-  // Strong exception guarantee - either succeeds completely or throws without modifying state
-  // Returns empty string on session ID collision or max connections reached
   [[nodiscard]] std::string register_session(std::shared_ptr<websocket_session> session);
 
   void unregister_session(std::string_view session_id) noexcept;
@@ -38,6 +32,7 @@ class connection_manager final {
 
  private:
   [[nodiscard]] std::string generate_session_id();
+  void unregister_session_impl(std::string&& session_id) noexcept;
 
   mutable std::mutex sessions_mutex_;
   std::unordered_map<std::string, std::shared_ptr<websocket_session>>

@@ -94,26 +94,17 @@ void connection_manager::unregister_session(std::string_view session_id) noexcep
   if (session_id.empty()) {
     return;
   }
-  std::string id_for_log(session_id);
-  size_t count;
-  {
-    std::lock_guard<std::mutex> lock(sessions_mutex_);
-    auto it = sessions_.find(id_for_log);
-    if (it != sessions_.end()) {
-      sessions_.erase(it);
-    }
-    count = sessions_.size();
-    active_sessions_.store(count, std::memory_order_relaxed);
-  }
-
-  cppsim::server::log_message("[ConnectionManager] Unregistered session: " + id_for_log + " (remaining: " +
-              std::to_string(count) + ")");
+  unregister_session_impl(std::string(session_id));
 }
 
 void connection_manager::unregister_session(std::string&& session_id) noexcept {
   if (session_id.empty()) {
     return;
   }
+  unregister_session_impl(std::move(session_id));
+}
+
+void connection_manager::unregister_session_impl(std::string&& session_id) noexcept {
   std::string id_for_log = session_id;
   size_t count;
   {
