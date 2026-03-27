@@ -110,7 +110,6 @@ void websocket_session::on_read(boost::beast::error_code ec,
       cppsim::server::log_error("[WebSocketSession] Rate limit exceeded (max " + 
           std::to_string(config::MAX_MESSAGES_PER_WINDOW) + " messages per window) for session " + get_session_id_safe());
       send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Rate limit exceeded");
-      state_.store(state::closed, std::memory_order_release);
       close();
       return;
     }
