@@ -1,7 +1,6 @@
 #include "websocket_server.hpp"
 
 #include <algorithm>
-#include <iostream>
 #include <stdexcept>
 
 #include "config.hpp"

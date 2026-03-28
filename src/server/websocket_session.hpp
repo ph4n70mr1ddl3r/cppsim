@@ -4,23 +4,20 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <mutex>
-#include <deque>
 #include <queue>
 #include <string>
+#include <string_view>
 
 #include "config.hpp"
 
 namespace cppsim {
 namespace server {
 
-// Forward declaration
 class connection_manager;
 
-// Represents a single WebSocket client connection
-// Handles async read/write operations and session lifecycle
-// Thread-safe for all public methods
 class websocket_session final
     : public std::enable_shared_from_this<websocket_session> {
  public:
@@ -29,7 +26,6 @@ class websocket_session final
 
   ~websocket_session() noexcept;
 
-  // Start the session (performs WebSocket handshake and begins reading)
   void run();
 
   [[nodiscard]] bool send(const std::string& message);
@@ -41,20 +37,16 @@ class websocket_session final
 
   void close() noexcept;
 
-  [[nodiscard]] std::string session_id() const noexcept { 
+  [[nodiscard]] std::string session_id() const noexcept {
     return get_session_id_safe();
   }
 
-  // Delete copy and move operations to prevent accidental copying
-  // websocket_session manages async operations and should only be accessed via shared_ptr
   websocket_session(const websocket_session&) = delete;
   websocket_session& operator=(const websocket_session&) = delete;
   websocket_session(websocket_session&&) = delete;
   websocket_session& operator=(websocket_session&&) = delete;
 
  private:
-  [[nodiscard]] bool validate_session_id(const std::string& provided_session_id) noexcept;
-  void send_protocol_error(const char* error_code, std::string_view message) noexcept;
   void do_accept();
   void on_accept(boost::beast::error_code ec);
 
@@ -66,6 +58,20 @@ class websocket_session final
 
   void check_deadline();
 
+  [[nodiscard]] bool validate_session_id(const std::string& provided_session_id) noexcept;
+  void send_protocol_error(const char* error_code, std::string_view message) noexcept;
+  void do_close();
+
+  [[nodiscard]] bool check_rate_limit();
+  void handle_handshake_message(const std::string& message);
+  void handle_authenticated_message(const std::string& message);
+  void handle_action(const std::string& message, const std::string& sid);
+  void handle_reload_msg(const std::string& message, const std::string& sid);
+  void handle_disconnect_msg(const std::string& message, const std::string& sid);
+
+  [[nodiscard]] bool queue_message(std::string&& message);
+  [[nodiscard]] std::string get_session_id_safe() const noexcept;
+
   boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;
   boost::beast::flat_buffer buffer_;
   std::string session_id_;
@@ -75,29 +81,17 @@ class websocket_session final
   mutable std::mutex write_queue_mutex_;
   std::atomic<bool> writing_{false};
 
-  // Session state
   enum class state { unauthenticated, authenticated, closed };
   std::atomic<state> state_{state::unauthenticated};
 
-  // Authentication timeout
   boost::asio::steady_timer deadline_;
 
-  // Graceful closure support
   std::atomic<bool> should_close_{false};
-  void do_close();
 
-  [[nodiscard]] bool queue_message(std::string&& message);  // Returns false if queue full
-
-  // Sequence number tracking for replay attack prevention
-  // Using int64_t to prevent overflow edge case at INT_MAX sequences
   std::atomic<int64_t> last_sequence_number_{-1};
 
-  // Rate limiting for DoS prevention
-  // Sliding window using timestamps of recent messages
   std::deque<std::chrono::steady_clock::time_point> message_timestamps_;
   mutable std::mutex rate_limit_mutex_;
-
-  [[nodiscard]] std::string get_session_id_safe() const noexcept;
 };
 
 }  // namespace server

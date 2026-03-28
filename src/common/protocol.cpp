@@ -20,13 +20,7 @@ std::function<void(std::string_view)> error_logger = [](std::string_view msg) {
 };
 std::mutex logger_mutex;
 
-struct string_view_hash {
-  std::size_t operator()(std::string_view sv) const noexcept {
-    return std::hash<std::string_view>{}(sv);
-  }
-};
-
-using string_view_set = std::unordered_set<std::string_view, string_view_hash>;
+using string_view_set = std::unordered_set<std::string_view>;
 
 const string_view_set& get_valid_action_types() noexcept {
   static const string_view_set valid_types = {

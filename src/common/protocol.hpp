@@ -192,20 +192,11 @@ inline void from_json(const nlohmann::json& j, action_message& m) {
 }
 
 inline void to_json(nlohmann::json& j, const state_update_message& m) {
-  j = nlohmann::json::object();
-  j["game_phase"] = m.game_phase;
-  j["pot_size"] = m.pot_size;
-  j["current_bet"] = m.current_bet;
-
-  nlohmann::json stacks_array = nlohmann::json::array();
-  for (const auto& ps : m.player_stacks) {
-    nlohmann::json ps_json;
-    to_json(ps_json, ps);
-    stacks_array.push_back(ps_json);
-  }
-  j["player_stacks"] = stacks_array;
-
-  j["valid_actions"] = m.valid_actions;
+  j = nlohmann::json{{"game_phase", m.game_phase},
+                     {"pot_size", m.pot_size},
+                     {"current_bet", m.current_bet},
+                     {"player_stacks", m.player_stacks},
+                     {"valid_actions", m.valid_actions}};
   if (m.community_cards) j["community_cards"] = *m.community_cards;
   if (m.hole_cards) j["hole_cards"] = *m.hole_cards;
   if (m.acting_seat) j["acting_seat"] = *m.acting_seat;
