@@ -86,8 +86,6 @@ class websocket_session final
 
   boost::asio::steady_timer deadline_;
 
-  std::atomic<bool> should_close_{false};
-
   std::atomic<int64_t> last_sequence_number_{-1};
 
   std::deque<std::chrono::steady_clock::time_point> message_timestamps_;

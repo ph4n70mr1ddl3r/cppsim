@@ -46,9 +46,10 @@ namespace {
 
 void log(log_level level, std::string_view msg) noexcept {
     try {
+      std::string timestamp = get_timestamp();
       std::lock_guard<std::mutex> lock(log_mutex);
       std::ostream& stream = (level == log_level::error) ? std::cerr : std::cout;
-      stream << get_timestamp() << " " << level_to_string(level) << " " << msg << '\n';
+      stream << timestamp << " " << level_to_string(level) << " " << msg << '\n';
       stream.flush();
     } catch (...) {
       std::lock_guard<std::mutex> fallback_lock(fallback_mutex);

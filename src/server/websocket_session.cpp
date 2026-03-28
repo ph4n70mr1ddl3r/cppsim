@@ -105,8 +105,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     handle_authenticated_message(message);
   }
 
-  if (state_.load(std::memory_order_acquire) != state::closed &&
-      !should_close_.load(std::memory_order_acquire)) {
+  if (state_.load(std::memory_order_acquire) != state::closed) {
     deadline_.expires_after(config::IDLE_TIMEOUT);
     do_read();
   }
@@ -307,13 +306,12 @@ bool websocket_session::send(std::string&& message) {
 }
 
 void websocket_session::do_write() {
-  if (state_.load(std::memory_order_acquire) == state::closed) {
-    return;
-  }
-
   auto message = std::make_shared<std::string>();
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
+    if (state_.load(std::memory_order_acquire) == state::closed) {
+      return;
+    }
     if (write_queue_.empty()) {
       writing_.store(false, std::memory_order_release);
       return;
@@ -347,16 +345,17 @@ void websocket_session::on_write(boost::beast::error_code ec,
     return;
   }
 
+  bool queue_empty;
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
-
-    if (write_queue_.empty()) {
+    queue_empty = write_queue_.empty();
+    if (queue_empty) {
       writing_.store(false, std::memory_order_release);
-      if (should_close_.load(std::memory_order_acquire)) {
-        do_close();
-      }
-      return;
     }
+  }
+
+  if (queue_empty) {
+    return;
   }
 
   do_write();
@@ -409,18 +408,9 @@ void websocket_session::close() noexcept {
     return;
   }
 
-  should_close_.store(true, std::memory_order_release);
-
   try {
     boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
-       if (self->state_.load(std::memory_order_acquire) == state::closed) {
-           return;
-       }
-       if (self->writing_.load(std::memory_order_acquire)) {
-           self->should_close_.store(true, std::memory_order_release);
-       } else {
-           self->do_close();
-       }
+       self->do_close();
     });
   } catch (...) {
     cppsim::server::log_error("[WebSocketSession] Exception in close() - forcing state to closed");
