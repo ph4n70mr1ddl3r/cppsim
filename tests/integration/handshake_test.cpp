@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
-#include "../../src/server/boost_wrapper.hpp"
-#include "../../src/server/websocket_server.hpp"
-#include "../../src/server/config.hpp"
+#include "server/boost_wrapper.hpp"
+#include "server/websocket_server.hpp"
+#include "server/config.hpp"
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <chrono>
 #include <iostream>
-#include "protocol.hpp"
+#include "common/protocol.hpp"
 
 namespace beast = boost::beast;
 namespace http = beast::http;

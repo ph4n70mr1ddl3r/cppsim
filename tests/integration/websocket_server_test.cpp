@@ -3,10 +3,10 @@
 #include <thread>
 #include <vector>
 
-#include "../../src/server/boost_wrapper.hpp"
-#include "../../src/server/websocket_server.hpp"
-#include "../../src/server/connection_manager.hpp"
-#include "../../src/server/config.hpp"
+#include "server/boost_wrapper.hpp"
+#include "server/websocket_server.hpp"
+#include "server/connection_manager.hpp"
+#include "server/config.hpp"
 
 namespace net = boost::asio;
 namespace beast = boost::beast;

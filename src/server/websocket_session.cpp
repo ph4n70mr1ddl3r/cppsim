@@ -2,7 +2,6 @@
 
 #include <algorithm>
 
-#include "config.hpp"
 #include "connection_manager.hpp"
 #include "logger.hpp"
 #include "protocol.hpp"
@@ -293,10 +292,8 @@ bool websocket_session::queue_message(std::string&& message) {
   }
 
   boost::asio::post(ws_.get_executor(),
-                    [self = shared_from_this()]() mutable {
-                       if (!self->writing_.load(std::memory_order_acquire)) {
-                         self->do_write();
-                       }
+                    [self = shared_from_this()]() {
+                       self->do_write();
                     });
   return true;
 }
@@ -310,11 +307,19 @@ bool websocket_session::send(std::string&& message) {
 }
 
 void websocket_session::do_write() {
+  if (state_.load(std::memory_order_acquire) == state::closed) {
+    return;
+  }
+
   auto message = std::make_shared<std::string>();
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
     if (write_queue_.empty()) {
       writing_.store(false, std::memory_order_release);
+      return;
+    }
+
+    if (writing_.load(std::memory_order_acquire)) {
       return;
     }
 
@@ -472,7 +477,7 @@ void websocket_session::send_protocol_error(const char* error_code, std::string_
   }
 }
 
-void websocket_session::do_close() {
+void websocket_session::do_close() noexcept {
   if (state_.exchange(state::closed, std::memory_order_acq_rel) == state::closed) {
     return;
   }

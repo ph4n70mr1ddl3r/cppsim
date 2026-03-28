@@ -60,7 +60,7 @@ class websocket_session final
 
   [[nodiscard]] bool validate_session_id(const std::string& provided_session_id) noexcept;
   void send_protocol_error(const char* error_code, std::string_view message) noexcept;
-  void do_close();
+  void do_close() noexcept;
 
   [[nodiscard]] bool check_rate_limit();
   void handle_handshake_message(const std::string& message);

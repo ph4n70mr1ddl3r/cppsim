@@ -1,4 +1,4 @@
-#include "protocol.hpp"
+#include "common/protocol.hpp"
 
 #include <gtest/gtest.h>
 #include <limits>
