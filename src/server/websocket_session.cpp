@@ -114,14 +114,26 @@ void websocket_session::on_read(boost::beast::error_code ec,
 
 bool websocket_session::check_rate_limit() {
   auto now = std::chrono::steady_clock::now();
+  bool rate_exceeded = false;
 
-  std::lock_guard<std::mutex> lock(rate_limit_mutex_);
-  auto window_start = now - config::RATE_LIMIT_WINDOW;
-  auto it = std::remove_if(message_timestamps_.begin(), message_timestamps_.end(),
-      [window_start](const auto& timestamp) { return timestamp < window_start; });
-  message_timestamps_.erase(it, message_timestamps_.end());
+  {
+    std::lock_guard<std::mutex> lock(rate_limit_mutex_);
+    auto window_start = now - config::RATE_LIMIT_WINDOW;
+    auto it = std::remove_if(message_timestamps_.begin(), message_timestamps_.end(),
+        [window_start](const auto& timestamp) { return timestamp < window_start; });
+    message_timestamps_.erase(it, message_timestamps_.end());
 
-  if (message_timestamps_.size() >= config::MAX_MESSAGES_PER_WINDOW) {
+    if (message_timestamps_.size() >= config::MAX_MESSAGES_PER_WINDOW) {
+      rate_exceeded = true;
+    } else {
+      while (message_timestamps_.size() >= config::MAX_TIMESTAMPS_TO_TRACK) {
+        message_timestamps_.pop_front();
+      }
+      message_timestamps_.push_back(now);
+    }
+  }
+
+  if (rate_exceeded) {
     cppsim::server::log_error("[WebSocketSession] Rate limit exceeded (max " +
         std::to_string(config::MAX_MESSAGES_PER_WINDOW) + " messages per window) for session " + get_session_id_safe());
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Rate limit exceeded");
@@ -129,10 +141,6 @@ bool websocket_session::check_rate_limit() {
     return false;
   }
 
-  while (message_timestamps_.size() >= config::MAX_TIMESTAMPS_TO_TRACK) {
-    message_timestamps_.pop_front();
-  }
-  message_timestamps_.push_back(now);
   return true;
 }
 
@@ -156,8 +164,6 @@ void websocket_session::handle_handshake_message(const std::string& message) {
     return;
   }
 
-  state_.store(state::authenticated, std::memory_order_release);
-
   if (handshake_msg.client_name) {
     cppsim::server::log_message(std::string("[WebSocketSession] Client Name: ") + *handshake_msg.client_name);
   }
@@ -179,6 +185,8 @@ void websocket_session::handle_handshake_message(const std::string& message) {
     close();
     return;
   }
+
+  state_.store(state::authenticated, std::memory_order_release);
 
   {
     std::lock_guard<std::mutex> lock(session_id_mutex_);
@@ -238,6 +246,7 @@ void websocket_session::handle_action(const std::string& message, const std::str
               std::to_string(action_opt->sequence_number) + " (expected >= " +
               std::to_string(last_seq + 1) + ")");
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Invalid sequence number - possible replay attack");
+    close();
   } else if (action_opt->sequence_number > last_seq + config::MAX_SEQUENCE_GAP) {
     cppsim::server::log_error("[WebSocketSession] Sequence number too far ahead: " +
               std::to_string(action_opt->sequence_number) + " (max allowed: " +
