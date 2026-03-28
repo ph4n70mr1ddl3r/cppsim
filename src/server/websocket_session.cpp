@@ -106,7 +106,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
     handle_authenticated_message(message);
   }
 
-  if (state_.load(std::memory_order_acquire) != state::closed) {
+  if (state_.load(std::memory_order_acquire) != state::closed &&
+      !should_close_.load(std::memory_order_acquire)) {
     deadline_.expires_after(config::IDLE_TIMEOUT);
     do_read();
   }
@@ -186,12 +187,12 @@ void websocket_session::handle_handshake_message(const std::string& message) {
     return;
   }
 
-  state_.store(state::authenticated, std::memory_order_release);
-
   {
     std::lock_guard<std::mutex> lock(session_id_mutex_);
     session_id_ = new_session_id;
   }
+
+  state_.store(state::authenticated, std::memory_order_release);
 
   cppsim::server::log_message(std::string("[WebSocketSession] Handshake successful for session: ") + new_session_id);
 
@@ -403,6 +404,8 @@ void websocket_session::close() noexcept {
     return;
   }
 
+  should_close_.store(true, std::memory_order_release);
+
   try {
     boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
        if (self->state_.load(std::memory_order_acquire) == state::closed) {
@@ -474,18 +477,18 @@ void websocket_session::do_close() {
     return;
   }
 
-  boost::beast::error_code timer_ec;
-  deadline_.cancel(timer_ec);
-
-  std::string session_id_copy = get_session_id_safe();
-
-  if (!session_id_copy.empty()) {
-    if (auto mgr = conn_mgr_.lock()) {
-      mgr->unregister_session(session_id_copy);
-    }
-  }
-
   try {
+    boost::beast::error_code timer_ec;
+    deadline_.cancel(timer_ec);
+
+    std::string session_id_copy = get_session_id_safe();
+
+    if (!session_id_copy.empty()) {
+      if (auto mgr = conn_mgr_.lock()) {
+        mgr->unregister_session(std::move(session_id_copy));
+      }
+    }
+
     ws_.async_close(boost::beast::websocket::close_code::normal,
                     [self = shared_from_this()](boost::beast::error_code ec) {
                       if (ec) {
