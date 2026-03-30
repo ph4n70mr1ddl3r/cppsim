@@ -109,7 +109,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
     handle_authenticated_message(message);
   }
 
-  if (state_.load(std::memory_order_acquire) != state::closed) {
+  if (state_.load(std::memory_order_acquire) != state::closed &&
+      !close_requested_.load(std::memory_order_acquire)) {
     deadline_.expires_after(config::IDLE_TIMEOUT);
     do_read();
   }
@@ -152,7 +153,7 @@ void websocket_session::handle_handshake_message(const std::string& message) {
 
   if (!handshake_opt) {
     log_error("[WebSocketSession] Handshake error: Protocol error (Not HANDSHAKE)");
-    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Expected HANDSHAKE message");
+    send_protocol_error(protocol::error_codes::MALFORMED_HANDSHAKE, "Expected HANDSHAKE message");
     close();
     return;
   }
@@ -410,6 +411,8 @@ void websocket_session::check_deadline() {
 }
 
 void websocket_session::close() noexcept {
+  close_requested_.store(true, std::memory_order_release);
+
   auto current_state = state_.load(std::memory_order_acquire);
   if (current_state == state::closed) {
     return;
@@ -422,6 +425,8 @@ void websocket_session::close() noexcept {
   } catch (...) {
     log_error("[WebSocketSession] Exception in close() - forcing state to closed");
     state_.store(state::closed, std::memory_order_release);
+    boost::beast::error_code timer_ec;
+    deadline_.cancel(timer_ec);
   }
 }
 

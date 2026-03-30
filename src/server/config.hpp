@@ -10,6 +10,8 @@ namespace server {
 // Server configuration constants
 // Using inline constexpr for proper ODR compliance with non-integral types in C++17
 struct config {
+    config() = delete;
+
     static constexpr auto HANDSHAKE_TIMEOUT = std::chrono::seconds(10);
     static constexpr auto IDLE_TIMEOUT = std::chrono::seconds(60);
     

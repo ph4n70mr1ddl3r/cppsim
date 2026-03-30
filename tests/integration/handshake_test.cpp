@@ -181,7 +181,7 @@ TEST_F(HandshakeTest, MalformedData) {
         // If we get here, it should be an error message
         auto resp_env = resp_json.get<cppsim::protocol::message_envelope>();
         EXPECT_EQ(resp_env.message_type, cppsim::protocol::message_types::ERROR);
-        EXPECT_EQ(resp_env.payload["error_code"], cppsim::protocol::error_codes::PROTOCOL_ERROR);
+        EXPECT_EQ(resp_env.payload["error_code"], cppsim::protocol::error_codes::MALFORMED_HANDSHAKE);
     } catch (...) {
         // Closing is also acceptable
     }
@@ -216,7 +216,7 @@ TEST_F(HandshakeTest, ProtocolError) {
     auto resp_env = resp_json.get<cppsim::protocol::message_envelope>();
 
     EXPECT_EQ(resp_env.message_type, cppsim::protocol::message_types::ERROR);
-    EXPECT_EQ(resp_env.payload["error_code"], cppsim::protocol::error_codes::PROTOCOL_ERROR);
+    EXPECT_EQ(resp_env.payload["error_code"], cppsim::protocol::error_codes::MALFORMED_HANDSHAKE);
 }
 
 // Test 5: Handshake Timeout

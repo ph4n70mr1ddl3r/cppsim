@@ -122,15 +122,16 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
       }
       backoff_timer_ = std::make_shared<boost::asio::steady_timer>(ioc_);
       backoff_timer_->expires_after(std::chrono::seconds(backoff));
-      backoff_timer_->async_wait([this, timer_ptr = backoff_timer_, backoff](boost::beast::error_code timer_ec) {
-        if (!timer_ec && alive_.load(std::memory_order_acquire)) {
+      auto retry_self = shared_from_this();
+      backoff_timer_->async_wait([retry_self, timer_ptr = backoff_timer_, backoff](boost::beast::error_code timer_ec) {
+        if (!timer_ec && retry_self->alive_.load(std::memory_order_acquire)) {
           bool should_retry = false;
           {
-            std::lock_guard<std::mutex> timer_lock(timer_mutex_);
-            should_retry = acceptor_.is_open() && timer_ptr == backoff_timer_;
+            std::lock_guard<std::mutex> timer_lock(retry_self->timer_mutex_);
+            should_retry = retry_self->acceptor_.is_open() && timer_ptr == retry_self->backoff_timer_;
           }
           if (should_retry) {
-            do_accept();
+            retry_self->do_accept();
           }
         }
       });
