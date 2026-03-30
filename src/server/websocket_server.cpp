@@ -49,12 +49,12 @@ websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port)
     }
 
    initialized_.store(true, std::memory_order_release);
-   cppsim::server::log_message(std::string("[WebSocketServer] Listening on port ") + std::to_string(port));
+   log_message(std::string("[WebSocketServer] Listening on port ") + std::to_string(port));
  }
 
 void websocket_server::run() noexcept {
   if (!initialized_.load(std::memory_order_acquire)) {
-    cppsim::server::log_error("[WebSocketServer] Cannot run - initialization failed");
+    log_error("[WebSocketServer] Cannot run - initialization failed");
     return;
   }
   // Start accepting connections
@@ -78,7 +78,7 @@ void websocket_server::stop() noexcept {
   boost::beast::error_code ec;
   acceptor_.close(ec);
   if (ec) {
-    cppsim::server::log_error(std::string("[WebSocketServer] Error closing acceptor: ") + ec.message());
+    log_error(std::string("[WebSocketServer] Error closing acceptor: ") + ec.message());
   }
 
   // Stop all active sessions
@@ -86,7 +86,7 @@ void websocket_server::stop() noexcept {
       conn_mgr_->stop_all();
   }
 
-  cppsim::server::log_message("[WebSocketServer] Stopped accepting connections");
+  log_message("[WebSocketServer] Stopped accepting connections");
 }
 
 void websocket_server::do_accept() {
@@ -100,7 +100,7 @@ void websocket_server::do_accept() {
 
 void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::tcp::socket socket) {
   if (ec) {
-    cppsim::server::log_error(std::string("[WebSocketServer] Accept failed: ") + ec.message());
+    log_error(std::string("[WebSocketServer] Accept failed: ") + ec.message());
 
     // Check for fatal errors that should stop the server
     bool is_fatal = (ec == boost::asio::error::access_denied ||
@@ -108,7 +108,7 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
                      ec == boost::asio::error::bad_descriptor);
 
     if (!acceptor_.is_open() || is_fatal) {
-      cppsim::server::log_error("[WebSocketServer] Fatal accept error, stopping server");
+      log_error("[WebSocketServer] Fatal accept error, stopping server");
       return;
     }
 
@@ -150,7 +150,7 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
   // Start the session (perform WebSocket handshake and begin reading)
   session->run();
 
-  cppsim::server::log_message("[WebSocketServer] New connection accepted");
+  log_message("[WebSocketServer] New connection accepted");
 
   // Accept the next connection
   do_accept();

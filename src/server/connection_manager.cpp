@@ -51,12 +51,12 @@ std::string connection_manager::register_session(
     std::string session_id = generate_session_id();
 
     if (session_id.empty()) {
-      cppsim::server::log_error("[ConnectionManager] Failed to generate session ID");
+      log_error("[ConnectionManager] Failed to generate session ID");
       return "";
     }
 
     if (session_id.length() > config::MAX_SESSION_ID_LENGTH) {
-      cppsim::server::log_error("[ConnectionManager] Generated session ID exceeds maximum length");
+      log_error("[ConnectionManager] Generated session ID exceeds maximum length");
       return "";
     }
 
@@ -64,25 +64,25 @@ std::string connection_manager::register_session(
     {
       std::lock_guard<std::mutex> lock(sessions_mutex_);
       if (sessions_.size() >= config::MAX_CONNECTIONS) {
-        cppsim::server::log_error("[ConnectionManager] Maximum connections reached (" + 
+        log_error("[ConnectionManager] Maximum connections reached (" + 
             std::to_string(config::MAX_CONNECTIONS) + ")");
         return "";
       }
       auto result = sessions_.emplace(session_id, session);
       if (!result.second) {
         if (attempt < max_retries - 1) {
-          cppsim::server::log_error("[ConnectionManager] Session ID collision (attempt " + 
+          log_error("[ConnectionManager] Session ID collision (attempt " + 
               std::to_string(attempt + 1) + "), retrying: " + session_id);
           continue;
         }
-        cppsim::server::log_error("[ConnectionManager] Session ID collision after retries: " + session_id);
+        log_error("[ConnectionManager] Session ID collision after retries: " + session_id);
         return "";
       }
       count = sessions_.size();
       active_sessions_.store(count, std::memory_order_relaxed);
     }
 
-    cppsim::server::log_message("[ConnectionManager] Registered session: " + session_id + " (total: " + std::to_string(count) + ")");
+    log_message("[ConnectionManager] Registered session: " + session_id + " (total: " + std::to_string(count) + ")");
 
     return session_id;
   }
@@ -114,7 +114,7 @@ void connection_manager::unregister_session_impl(std::string&& session_id) noexc
     active_sessions_.store(count, std::memory_order_relaxed);
   }
 
-  cppsim::server::log_message("[ConnectionManager] Unregistered session: " + id_for_log + " (remaining: " +
+  log_message("[ConnectionManager] Unregistered session: " + id_for_log + " (remaining: " +
               std::to_string(count) + ")");
 }
 
@@ -157,14 +157,14 @@ std::string connection_manager::generate_session_id() {
         std::numeric_limits<uint32_t>::max());
     random_part = dis(get_thread_local_generator());
   } catch (...) {
-    cppsim::server::log_error("[ConnectionManager] Random device failed, using fallback");
+    log_error("[ConnectionManager] Random device failed, using fallback");
     random_part = compute_fallback_random(static_cast<uint64_t>(timestamp), id);
   }
 
   try {
     return "sess_" + std::to_string(timestamp) + "_" + std::to_string(id) + "_" + std::to_string(random_part);
   } catch (const std::exception& e) {
-    cppsim::server::log_error(std::string("[ConnectionManager] Failed to generate session ID string: ") + e.what());
+    log_error(std::string("[ConnectionManager] Failed to generate session ID string: ") + e.what());
     return "";
   }
 }
@@ -185,7 +185,7 @@ void connection_manager::stop_all() noexcept {
     session->close();
   }
 
-  cppsim::server::log_message("[ConnectionManager] All sessions stopped.");
+  log_message("[ConnectionManager] All sessions stopped.");
 }
 
 }  // namespace server
