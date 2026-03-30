@@ -213,6 +213,7 @@ void websocket_session::handle_authenticated_message(const std::string& message)
 
   if (!msg_type_opt) {
     log_message(std::string("[WebSocketSession] Invalid message format from ") + get_session_id_safe() + ": missing message_type");
+    send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Missing or invalid message_type field");
     return;
   }
 
@@ -236,6 +237,7 @@ void websocket_session::handle_action(const std::string& message, const std::str
   auto action_opt = protocol::parse_action(message);
   if (!action_opt) {
     log_error("[WebSocketSession] Failed to parse ACTION message from " + sid);
+    send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid ACTION message format");
     return;
   }
 
@@ -266,13 +268,14 @@ void websocket_session::handle_reload_msg(const std::string& message, const std:
   auto reload_opt = protocol::parse_reload_request(message);
   if (!reload_opt) {
     log_error("[WebSocketSession] Failed to parse RELOAD_REQUEST from " + sid);
+    send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid RELOAD_REQUEST format");
     return;
   }
   if (validate_session_id(reload_opt->session_id)) {
     log_message(std::string("[WebSocketSession] Validated RELOAD_REQUEST from ") + sid);
     protocol::reload_response_message resp;
     resp.granted = true;
-    resp.new_stack = reload_opt->requested_amount;
+    resp.new_stack = config::PLACEHOLDER_STACK + reload_opt->requested_amount;
     if (!send(protocol::serialize_reload_response(resp))) {
       log_error("[WebSocketSession] Failed to send RELOAD_RESPONSE to " + sid);
     }
@@ -283,6 +286,7 @@ void websocket_session::handle_disconnect_msg(const std::string& message, const 
   auto disconnect_opt = protocol::parse_disconnect(message);
   if (!disconnect_opt) {
     log_error("[WebSocketSession] Failed to parse DISCONNECT from " + sid);
+    send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid DISCONNECT format");
     return;
   }
   if (validate_session_id(disconnect_opt->session_id)) {
@@ -317,23 +321,23 @@ bool websocket_session::send(std::string&& message) {
 }
 
 void websocket_session::do_write() {
-  auto message = std::make_shared<std::string>();
+  std::shared_ptr<std::string> message;
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
     if (state_.load(std::memory_order_acquire) == state::closed) {
       return;
     }
     if (write_queue_.empty()) {
-      writing_.store(false, std::memory_order_release);
+      writing_ = false;
       return;
     }
 
-    if (writing_.load(std::memory_order_acquire)) {
+    if (writing_) {
       return;
     }
 
-    writing_.store(true, std::memory_order_release);
-    *message = std::move(write_queue_.front());
+    writing_ = true;
+    message = std::make_shared<std::string>(std::move(write_queue_.front()));
     write_queue_.pop();
   }
 
@@ -347,9 +351,9 @@ void websocket_session::on_write(boost::beast::error_code ec,
                                    [[maybe_unused]] std::size_t bytes_transferred) {
   if (ec) {
     log_error(std::string("[WebSocketSession] Write error for ") + get_session_id_safe() + ": " + ec.message());
-    writing_.store(false, std::memory_order_release);
     {
       std::lock_guard<std::mutex> lock(write_queue_mutex_);
+      writing_ = false;
       write_queue_ = std::queue<std::string>();
     }
     do_close();
@@ -358,7 +362,7 @@ void websocket_session::on_write(boost::beast::error_code ec,
 
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
-    writing_.store(false, std::memory_order_release);
+    writing_ = false;
   }
 
   do_write();
@@ -448,6 +452,7 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
       log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + session_id_copy + ", got " +
                   provided_session_id);
       send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Session ID mismatch");
+      close();
       return false;
     }
     return true;

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <unordered_set>
 
@@ -13,11 +14,12 @@ namespace {
 
 constexpr size_t MAX_MESSAGE_TYPE_LENGTH = 32;
 
-std::function<void(std::string_view)> error_logger = [](std::string_view msg) {
-    constexpr size_t max_safe_size = static_cast<size_t>(std::numeric_limits<int>::max());
-    auto safe_size = static_cast<int>(std::min(msg.size(), max_safe_size));
-    std::fprintf(stderr, "%.*s\n", safe_size, msg.data());
-};
+auto error_logger = std::make_shared<std::function<void(std::string_view)>>(
+    [](std::string_view msg) {
+      constexpr size_t max_safe_size = static_cast<size_t>(std::numeric_limits<int>::max());
+      auto safe_size = static_cast<int>(std::min(msg.size(), max_safe_size));
+      std::fprintf(stderr, "%.*s\n", safe_size, msg.data());
+    });
 std::mutex logger_mutex;
 
 using string_view_set = std::unordered_set<std::string_view>;
@@ -51,13 +53,9 @@ const string_view_set& get_amount_forbidden_types() noexcept {
 }
 
 void log_protocol_error(std::string_view msg) noexcept {
-  std::function<void(std::string_view)> logger_copy;
-  {
-    std::lock_guard<std::mutex> lock(logger_mutex);
-    logger_copy = error_logger;
-  }
-  if (logger_copy) {
-    logger_copy(msg);
+  auto logger_copy = error_logger;
+  if (logger_copy && *logger_copy) {
+    (*logger_copy)(msg);
   }
 }
 
@@ -118,8 +116,9 @@ std::optional<T> parse_message(std::string_view json_str, std::string_view expec
 }
 
 void set_error_logger(std::function<void(std::string_view)> logger) {
+  auto new_logger = std::make_shared<std::function<void(std::string_view)>>(std::move(logger));
   std::lock_guard<std::mutex> lock(logger_mutex);
-  error_logger = std::move(logger);
+  error_logger = std::move(new_logger);
 }
 
 std::optional<handshake_message> parse_handshake(std::string_view json_str) {

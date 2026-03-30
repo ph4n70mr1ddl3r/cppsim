@@ -90,11 +90,11 @@ void websocket_server::stop() noexcept {
 }
 
 void websocket_server::do_accept() {
-  // Accept a new connection
+  auto self = shared_from_this();
   acceptor_.async_accept(
       boost::asio::make_strand(ioc_),
-      [this](boost::beast::error_code ec, boost::asio::ip::tcp::socket socket) {
-        on_accept(ec, std::move(socket));
+      [self](boost::beast::error_code ec, boost::asio::ip::tcp::socket socket) {
+        self->on_accept(ec, std::move(socket));
       });
 }
 

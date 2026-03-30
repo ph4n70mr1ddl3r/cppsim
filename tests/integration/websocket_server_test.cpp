@@ -34,37 +34,32 @@ TEST_F(WebSocketServerTest, AcceptsConnection) {
   net::io_context ioc_server;
   net::io_context ioc_client;
   
-  uint16_t port = cppsim::server::config::DEFAULT_TEST_PORT + 1; // Use test port + 1 to avoid conflicts
+  uint16_t port = cppsim::server::config::DEFAULT_TEST_PORT + 1;
   
-  // Start server in a thread
-  cppsim::server::websocket_server server(ioc_server, port);
-  server.run();
+  auto server = std::make_shared<cppsim::server::websocket_server>(ioc_server, port);
+  server->run();
   
   std::thread server_thread([&ioc_server] {
     ioc_server.run();
   });
 
-  // Start client
   tcp::resolver resolver(ioc_client);
   websocket::stream<tcp::socket> ws(ioc_client);
 
   auto const results = resolver.resolve("localhost", std::to_string(port));
   net::connect(ws.next_layer(), results.begin(), results.end());
 
-  // Perform handshake
   ws.handshake("localhost", "/");
 
-  // If we got here, handshake succeeded!
   EXPECT_TRUE(ws.is_open());
 
   ws.write(net::buffer("Hello Server"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  // Close nicely
   ws.close(websocket::close_code::normal);
   
-  server.stop();
+  server->stop();
   ioc_server.stop();
   if (server_thread.joinable()) {
     server_thread.join();

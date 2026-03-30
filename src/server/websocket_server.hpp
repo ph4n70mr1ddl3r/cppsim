@@ -13,7 +13,7 @@ namespace server {
 
 class websocket_session;
 
-class websocket_server final {
+class websocket_server final : public std::enable_shared_from_this<websocket_server> {
  public:
   websocket_server(boost::asio::io_context& ioc, uint16_t port);
   websocket_server(const websocket_server&) = delete;

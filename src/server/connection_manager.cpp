@@ -45,6 +45,10 @@ namespace server {
 
 std::string connection_manager::register_session(
     std::shared_ptr<websocket_session> session) {
+  if (!session) {
+    log_error("[ConnectionManager] Cannot register null session");
+    return "";
+  }
   constexpr int max_retries = 3;
   
   for (int attempt = 0; attempt < max_retries; ++attempt) {
@@ -79,7 +83,6 @@ std::string connection_manager::register_session(
         return "";
       }
       count = sessions_.size();
-      active_sessions_.store(count, std::memory_order_relaxed);
     }
 
     log_message("[ConnectionManager] Registered session: " + session_id + " (total: " + std::to_string(count) + ")");
@@ -111,7 +114,6 @@ void connection_manager::unregister_session_impl(std::string&& session_id) noexc
     std::lock_guard<std::mutex> lock(sessions_mutex_);
     sessions_.erase(session_id);
     count = sessions_.size();
-    active_sessions_.store(count, std::memory_order_relaxed);
   }
 
   log_message("[ConnectionManager] Unregistered session: " + id_for_log + " (remaining: " +
@@ -139,7 +141,8 @@ std::vector<std::string> connection_manager::active_session_ids() const {
 }
 
 size_t connection_manager::session_count() const noexcept {
-  return active_sessions_.load(std::memory_order_relaxed);
+  std::lock_guard<std::mutex> lock(sessions_mutex_);
+  return sessions_.size();
 }
 
 std::string connection_manager::generate_session_id() {
@@ -178,7 +181,6 @@ void connection_manager::stop_all() noexcept {
       sessions_to_stop.push_back(pair.second);
     }
     sessions_.clear();
-    active_sessions_.store(0, std::memory_order_relaxed);
   }
 
   for (auto& session : sessions_to_stop) {

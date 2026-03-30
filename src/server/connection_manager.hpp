@@ -38,7 +38,6 @@ class connection_manager final {
   std::unordered_map<std::string, std::shared_ptr<websocket_session>>
       sessions_;
   std::atomic<uint64_t> session_counter_{0};
-  std::atomic<size_t> active_sessions_{0};
 };
 
 }  // namespace server
