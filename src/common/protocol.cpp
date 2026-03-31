@@ -100,11 +100,16 @@ std::string serialize_message(const MessageType& msg, const char* message_type) 
 
 template <typename T>
 std::optional<T> parse_message(std::string_view json_str, std::string_view expected_type,
-                                std::string_view message_name) {
+                                 std::string_view message_name) {
   try {
     auto j = nlohmann::json::parse(json_str);
     auto envelope = j.get<message_envelope>();
     if (envelope.message_type != expected_type) {
+      return std::nullopt;
+    }
+    if (envelope.protocol_version != PROTOCOL_VERSION) {
+      log_protocol_error(std::string("[Protocol] ") + std::string(message_name) + " version mismatch: expected " +
+                         PROTOCOL_VERSION + ", got " + envelope.protocol_version);
       return std::nullopt;
     }
     T msg;

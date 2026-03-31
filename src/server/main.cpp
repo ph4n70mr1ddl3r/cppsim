@@ -19,7 +19,7 @@ int main() {
     auto server = std::make_shared<cppsim::server::websocket_server>(ioc, cppsim::server::config::DEFAULT_PORT);
 
     boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
-    signals.async_wait([&](boost::beast::error_code const&, int) {
+    signals.async_wait([server, &ioc](boost::beast::error_code const&, int) {
       cppsim::server::log_message("[Main] Shutting down server...");
       server->stop();
       ioc.stop();
