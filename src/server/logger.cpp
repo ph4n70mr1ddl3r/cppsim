@@ -28,8 +28,8 @@ namespace {
 #endif
 
       std::array<char, 32> buf;
-      std::strftime(buf.data(), buf.size(), "%Y-%m-%d %H:%M:%S", &tm);
-      std::snprintf(buf.data() + 19, buf.size() - 19, ".%03d",
+      size_t len = std::strftime(buf.data(), buf.size(), "%Y-%m-%d %H:%M:%S", &tm);
+      std::snprintf(buf.data() + len, buf.size() - len, ".%03d",
                     static_cast<int>(ms.count()));
       return buf;
     }
@@ -54,11 +54,10 @@ void log(log_level level, std::string_view msg) noexcept {
       stream.flush();
     } catch (...) {
       std::lock_guard<std::mutex> fallback_lock(fallback_mutex);
-      constexpr size_t max_safe_size = static_cast<size_t>(std::numeric_limits<int>::max());
-      auto safe_size = static_cast<int>(std::min(msg.size(), max_safe_size));
       std::fprintf(stderr, "[FALLBACK] %s %.*s\n",
                    level_to_string(level),
-                   safe_size, msg.data());
+                   static_cast<int>(msg.size() > 1024 ? 1024 : msg.size()),
+                   msg.data());
     }
 }
 

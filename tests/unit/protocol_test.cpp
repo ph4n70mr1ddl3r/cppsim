@@ -724,3 +724,37 @@ TEST(ProtocolTest, NegativeSequenceNumber) {
 
   EXPECT_FALSE(result.has_value());
 }
+
+// Test: Disconnect with reason exceeding max length should fail
+TEST(ProtocolTest, DisconnectReasonTooLong) {
+  message_envelope env;
+  env.message_type = message_types::DISCONNECT;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"reason", std::string(300, 'x')}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_disconnect(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Handshake with envelope version mismatch should fail
+TEST(ProtocolTest, HandshakeEnvelopeVersionMismatch) {
+  message_envelope env;
+  env.message_type = message_types::HANDSHAKE;
+  env.protocol_version = "v99.0";
+  env.payload = nlohmann::json{
+      {"protocol_version", "v99.0"},
+      {"client_name", "test"}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_handshake(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}

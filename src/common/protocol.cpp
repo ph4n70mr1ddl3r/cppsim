@@ -14,6 +14,7 @@ namespace {
 constexpr size_t MAX_MESSAGE_TYPE_LENGTH = 32;
 constexpr size_t MAX_CLIENT_NAME_LENGTH = 128;
 constexpr size_t MAX_LOG_FIELD_LENGTH = 64;
+constexpr size_t MAX_DISCONNECT_REASON_LENGTH = 256;
 
 std::string trunc_field(std::string_view s) {
   if (s.size() <= MAX_LOG_FIELD_LENGTH) return std::string(s);
@@ -60,9 +61,12 @@ const string_view_set& get_amount_forbidden_types() noexcept {
 }
 
 void log_protocol_error(std::string_view msg) noexcept {
-  auto logger_copy = std::atomic_load(&error_logger);
-  if (logger_copy && *logger_copy) {
-    (*logger_copy)(msg);
+  try {
+    auto logger_copy = std::atomic_load(&error_logger);
+    if (logger_copy && *logger_copy) {
+      (*logger_copy)(msg);
+    }
+  } catch (...) {
   }
 }
 
@@ -177,6 +181,12 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
       log_protocol_error("[Protocol] Handshake version mismatch between payload and envelope");
       return std::nullopt;
     }
+
+    if (envelope.protocol_version != PROTOCOL_VERSION) {
+      log_protocol_error("[Protocol] Handshake version mismatch: expected " +
+                         std::string(PROTOCOL_VERSION) + ", got " + envelope.protocol_version);
+      return std::nullopt;
+    }
     
     return msg;
   } catch (const std::exception& e) {
@@ -262,6 +272,11 @@ std::optional<disconnect_message> parse_disconnect(std::string_view json_str) {
 
   if (result->session_id.empty()) {
     log_protocol_error("[Protocol] Empty session_id in DISCONNECT message");
+    return std::nullopt;
+  }
+
+  if (result->reason && result->reason->size() > MAX_DISCONNECT_REASON_LENGTH) {
+    log_protocol_error("[Protocol] Disconnect reason exceeds maximum length");
     return std::nullopt;
   }
 

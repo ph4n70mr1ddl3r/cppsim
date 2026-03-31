@@ -1,6 +1,7 @@
 #include "websocket_server.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <stdexcept>
 
 #include "config.hpp"
@@ -87,12 +88,16 @@ void websocket_server::stop() noexcept {
 }
 
 void websocket_server::do_accept() {
-  auto self = shared_from_this();
-  acceptor_.async_accept(
-      boost::asio::make_strand(ioc_),
-      [self](boost::beast::error_code ec, boost::asio::ip::tcp::socket socket) {
-        self->on_accept(ec, std::move(socket));
-      });
+  try {
+    auto self = shared_from_this();
+    acceptor_.async_accept(
+        boost::asio::make_strand(ioc_),
+        [self](boost::beast::error_code ec, boost::asio::ip::tcp::socket socket) {
+          self->on_accept(ec, std::move(socket));
+        });
+  } catch (const std::exception& e) {
+    log_error(std::string("[WebSocketServer] do_accept error: ") + e.what());
+  }
 }
 
 void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::tcp::socket socket) {
@@ -135,6 +140,8 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
     }
     // Increase backoff for next attempt, cap at configured max
     int new_backoff = std::min(backoff * 2, static_cast<int>(config::MAX_BACKOFF.count()));
+    static_assert(config::MAX_BACKOFF.count() <= std::numeric_limits<int>::max(),
+                  "MAX_BACKOFF must fit in int");
     backoff_seconds_.store(new_backoff, std::memory_order_release);
     return;
   }

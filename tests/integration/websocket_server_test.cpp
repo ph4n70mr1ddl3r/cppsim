@@ -38,6 +38,14 @@ TEST_F(WebSocketServerTest, AcceptsConnection) {
     ioc_server.run();
   });
 
+  auto cleanup = [&]() {
+    server->stop();
+    ioc_server.stop();
+    if (server_thread.joinable()) {
+      server_thread.join();
+    }
+  };
+
   auto start = std::chrono::steady_clock::now();
   bool connected = false;
   while (std::chrono::steady_clock::now() - start < std::chrono::seconds(5)) {
@@ -55,7 +63,11 @@ TEST_F(WebSocketServerTest, AcceptsConnection) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
-  ASSERT_TRUE(connected) << "Failed to connect to server within 5 seconds";
+
+  if (!connected) {
+    cleanup();
+    FAIL() << "Failed to connect to server within 5 seconds";
+  }
 
   tcp::resolver resolver(ioc_client);
   websocket::stream<tcp::socket> ws(ioc_client);
@@ -88,9 +100,5 @@ TEST_F(WebSocketServerTest, AcceptsConnection) {
 
   ws.close(websocket::close_code::normal);
 
-  server->stop();
-  ioc_server.stop();
-  if (server_thread.joinable()) {
-    server_thread.join();
-  }
+  cleanup();
 }

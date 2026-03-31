@@ -20,7 +20,6 @@ class connection_manager final {
   [[nodiscard]] std::string register_session(std::shared_ptr<websocket_session> session);
 
   void unregister_session(std::string_view session_id) noexcept;
-  void unregister_session(std::string&& session_id) noexcept;
 
   [[nodiscard]] std::shared_ptr<websocket_session> get_session(std::string_view session_id) const noexcept;
 

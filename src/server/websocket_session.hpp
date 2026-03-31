@@ -78,7 +78,7 @@ class websocket_session final
   std::weak_ptr<connection_manager> conn_mgr_;
   std::queue<std::string> write_queue_;
   mutable std::mutex write_queue_mutex_;
-  bool writing_{false};
+  bool writing_{false};  // INVARIANT: all accesses must hold write_queue_mutex_
 
   enum class state { unauthenticated, authenticated, closed };
   std::atomic<state> state_{state::unauthenticated};

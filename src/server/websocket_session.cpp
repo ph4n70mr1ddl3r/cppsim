@@ -284,9 +284,9 @@ void websocket_session::handle_action(const std::string& message, const std::str
     close();
     return;
   }
-  last_sequence_number_.store(action_opt->sequence_number, std::memory_order_release);
+  last_sequence_number_.store(seq, std::memory_order_release);
   log_message(std::string("[WebSocketSession] Validated ACTION from ") + sid + ": type=" +
-              action_opt->action_type + " seq=" + std::to_string(action_opt->sequence_number));
+              action_opt->action_type + " seq=" + std::to_string(seq));
 }
 
 void websocket_session::handle_reload_msg(const std::string& message, const std::string& sid) {
@@ -321,6 +321,7 @@ void websocket_session::handle_disconnect_msg(const std::string& message, const 
 }
 
 bool websocket_session::queue_message(std::string&& message) {
+  bool should_post = false;
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
     if (state_.load(std::memory_order_acquire) == state::closed ||
@@ -332,12 +333,16 @@ bool websocket_session::queue_message(std::string&& message) {
       return false;
     }
     write_queue_.push(std::move(message));
+    should_post = !writing_;
+    if (should_post) writing_ = true;
   }
 
-  boost::asio::post(ws_.get_executor(),
-                    [self = shared_from_this()]() {
-                       self->do_write();
-                    });
+  if (should_post) {
+    boost::asio::post(ws_.get_executor(),
+                      [self = shared_from_this()]() {
+                         self->do_write();
+                      });
+  }
   return true;
 }
 
@@ -349,7 +354,9 @@ void websocket_session::do_write() {
   std::shared_ptr<std::string> message;
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
-    if (state_.load(std::memory_order_acquire) == state::closed) {
+    if (state_.load(std::memory_order_acquire) == state::closed ||
+        close_requested_.load(std::memory_order_acquire)) {
+      writing_ = false;
       return;
     }
     if (write_queue_.empty()) {
