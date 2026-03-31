@@ -27,7 +27,7 @@ struct config {
     
     static constexpr size_t MAX_CONNECTIONS = 1000;
     static constexpr size_t MAX_SESSION_ID_LENGTH = 256;
-    static constexpr int MAX_BACKOFF_SECONDS = 30;
+    static constexpr auto MAX_BACKOFF = std::chrono::seconds{30};
     
     static constexpr int PLACEHOLDER_SEAT = -1;
     static constexpr double PLACEHOLDER_STACK = 0.0;

@@ -309,6 +309,9 @@ void websocket_session::handle_disconnect_msg(const std::string& message, const 
 bool websocket_session::queue_message(std::string&& message) {
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
+    if (close_requested_.load(std::memory_order_acquire)) {
+      return false;
+    }
     if (write_queue_.size() >= config::MAX_WRITE_QUEUE_SIZE) {
       log_error(std::string("[WebSocketSession] Write queue full for session ") + get_session_id_safe() + ", dropping message");
       return false;
@@ -377,22 +380,7 @@ void websocket_session::on_write(boost::beast::error_code ec,
     return;
   }
 
-  std::shared_ptr<std::string> next_message;
-  {
-    std::lock_guard<std::mutex> lock(write_queue_mutex_);
-    if (!write_queue_.empty() && state_.load(std::memory_order_acquire) != state::closed) {
-      writing_ = true;
-      next_message = std::make_shared<std::string>(std::move(write_queue_.front()));
-      write_queue_.pop();
-    }
-  }
-
-  if (next_message) {
-    ws_.async_write(boost::asio::buffer(*next_message),
-                    [self = shared_from_this(), next_message](boost::beast::error_code write_ec, std::size_t bytes) {
-                      self->on_write(write_ec, bytes);
-                    });
-  }
+  do_write();
 }
 
 void websocket_session::check_deadline() {

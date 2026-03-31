@@ -15,42 +15,39 @@ websocket_server::~websocket_server() noexcept {
 }
 
 websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port)
-     : ioc_(ioc),
-       acceptor_(boost::asio::make_strand(ioc)),
-       conn_mgr_(std::make_shared<connection_manager>()) {
-   boost::beast::error_code ec;
+    : ioc_(ioc),
+      acceptor_(boost::asio::make_strand(ioc)),
+      conn_mgr_(std::make_shared<connection_manager>()) {
+  boost::beast::error_code ec;
 
-   // Open the acceptor
-   boost::asio::ip::tcp::endpoint endpoint{boost::asio::ip::tcp::v4(), port};
-   acceptor_.open(endpoint.protocol(), ec);
-   if (ec) {
-     throw std::runtime_error(std::string("[WebSocketServer] Failed to open acceptor: ") + ec.message());
-   }
+  boost::asio::ip::tcp::endpoint endpoint{boost::asio::ip::tcp::v4(), port};
+  acceptor_.open(endpoint.protocol(), ec);
+  if (ec) {
+    throw std::runtime_error(std::string("[WebSocketServer] Failed to open acceptor: ") + ec.message());
+  }
 
-    // Allow address reuse
-    acceptor_.set_option(boost::asio::socket_base::reuse_address(true), ec);
-    if (ec) {
-      acceptor_.close(ec);
-      throw std::runtime_error(std::string("[WebSocketServer] Failed to set reuse_address: ") + ec.message());
-    }
+  acceptor_.set_option(boost::asio::socket_base::reuse_address(true), ec);
+  if (ec) {
+    acceptor_.close(ec);
+    throw std::runtime_error(std::string("[WebSocketServer] Failed to set reuse_address: ") + ec.message());
+  }
 
-    // Bind to the server address
-    acceptor_.bind(endpoint, ec);
-    if (ec) {
-      acceptor_.close(ec);
-      throw std::runtime_error(std::string("[WebSocketServer] Failed to bind to port ") + std::to_string(port) + ": " + ec.message());
-    }
+  acceptor_.bind(endpoint, ec);
+  if (ec) {
+    acceptor_.close(ec);
+    throw std::runtime_error(
+        std::string("[WebSocketServer] Failed to bind to port ") + std::to_string(port) + ": " + ec.message());
+  }
 
-    // Start listening for connections
-    acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
-    if (ec) {
-      acceptor_.close(ec);
-      throw std::runtime_error(std::string("[WebSocketServer] Failed to listen: ") + ec.message());
-    }
+  acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
+  if (ec) {
+    acceptor_.close(ec);
+    throw std::runtime_error(std::string("[WebSocketServer] Failed to listen: ") + ec.message());
+  }
 
-   initialized_.store(true, std::memory_order_release);
-   log_message(std::string("[WebSocketServer] Listening on port ") + std::to_string(port));
- }
+  initialized_.store(true, std::memory_order_release);
+  log_message(std::string("[WebSocketServer] Listening on port ") + std::to_string(port));
+}
 
 void websocket_server::run() noexcept {
   if (!initialized_.load(std::memory_order_acquire)) {
@@ -137,7 +134,7 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
       });
     }
     // Increase backoff for next attempt, cap at configured max
-    int new_backoff = std::min(backoff * 2, config::MAX_BACKOFF_SECONDS);
+    int new_backoff = std::min(backoff * 2, static_cast<int>(config::MAX_BACKOFF.count()));
     backoff_seconds_.store(new_backoff, std::memory_order_release);
     return;
   }
