@@ -18,6 +18,14 @@ websocket_session::~websocket_session() noexcept {
   try {
     boost::beast::error_code ec;
     deadline_.cancel(ec);
+    if (state_.load(std::memory_order_acquire) != state::closed) {
+      if (auto mgr = conn_mgr_.lock()) {
+        std::string sid = get_session_id_safe();
+        if (!sid.empty()) {
+          mgr->unregister_session(std::move(sid));
+        }
+      }
+    }
   } catch (...) {
   }
 }
@@ -55,7 +63,7 @@ void websocket_session::on_accept(boost::beast::error_code ec) {
 }
 
 void websocket_session::do_read() {
-  boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
+  boost::asio::dispatch(ws_.get_executor(), [self = shared_from_this()]() {
     if (self->state_.load(std::memory_order_acquire) == state::closed) {
       return;
     }
@@ -361,12 +369,23 @@ void websocket_session::on_write(boost::beast::error_code ec,
     return;
   }
 
+  std::shared_ptr<std::string> next_message;
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
     writing_ = false;
+    if (!write_queue_.empty() && state_.load(std::memory_order_acquire) != state::closed) {
+      writing_ = true;
+      next_message = std::make_shared<std::string>(std::move(write_queue_.front()));
+      write_queue_.pop();
+    }
   }
 
-  do_write();
+  if (next_message) {
+    ws_.async_write(boost::asio::buffer(*next_message),
+                    [self = shared_from_this(), next_message](boost::beast::error_code write_ec, std::size_t bytes) {
+                      self->on_write(write_ec, bytes);
+                    });
+  }
 }
 
 void websocket_session::check_deadline() {

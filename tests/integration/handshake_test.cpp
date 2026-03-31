@@ -59,6 +59,7 @@ protected:
     }
 
     void TearDown() override {
+        server->stop();
         server_ioc.stop();
         if(server_thread.joinable()) server_thread.join();
         server.reset();

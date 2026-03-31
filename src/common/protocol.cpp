@@ -13,6 +13,7 @@ namespace protocol {
 namespace {
 
 constexpr size_t MAX_MESSAGE_TYPE_LENGTH = 32;
+constexpr size_t MAX_CLIENT_NAME_LENGTH = 128;
 
 auto error_logger = std::make_shared<std::function<void(std::string_view)>>(
     [](std::string_view msg) {
@@ -75,7 +76,10 @@ std::optional<std::string> extract_message_type(std::string_view json_str) noexc
     log_protocol_error("[Protocol] Missing or invalid 'message_type' field in message");
     return std::nullopt;
   } catch (const std::exception& e) {
-    log_protocol_error(std::string("[Protocol] JSON parse error in extract_message_type: ") + e.what());
+    try {
+      log_protocol_error(std::string("[Protocol] JSON parse error in extract_message_type: ") + e.what());
+    } catch (...) {
+    }
     return std::nullopt;
   }
 }
@@ -109,7 +113,10 @@ std::optional<T> parse_message(std::string_view json_str, std::string_view expec
     from_json(envelope.payload, msg);
     return msg;
   } catch (const std::exception& e) {
-    log_protocol_error(std::string("[Protocol] ") + std::string(message_name) + " Parse Error: " + e.what());
+    try {
+      log_protocol_error(std::string("[Protocol] ") + std::string(message_name) + " Parse Error: " + e.what());
+    } catch (...) {
+    }
     return std::nullopt;
   }
 }
@@ -133,6 +140,11 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
     handshake_message msg;
     from_json(envelope.payload, msg);
     
+    if (msg.client_name && msg.client_name->size() > MAX_CLIENT_NAME_LENGTH) {
+      log_protocol_error("[Protocol] Client name exceeds maximum length");
+      return std::nullopt;
+    }
+    
     if (msg.protocol_version != envelope.protocol_version) {
       log_protocol_error("[Protocol] Handshake version mismatch between payload and envelope");
       return std::nullopt;
@@ -140,7 +152,10 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
     
     return msg;
   } catch (const std::exception& e) {
-    log_protocol_error(std::string("[Protocol] Handshake Parse Error: ") + e.what());
+    try {
+      log_protocol_error(std::string("[Protocol] Handshake Parse Error: ") + e.what());
+    } catch (...) {
+    }
     return std::nullopt;
   }
 }
