@@ -586,3 +586,141 @@ TEST(ProtocolTest, HandshakeVersionMismatch) {
 
   EXPECT_FALSE(result.has_value());
 }
+
+// Test: Client name too long should fail
+TEST(ProtocolTest, ClientNameTooLong) {
+  message_envelope env;
+  env.message_type = message_types::HANDSHAKE;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"protocol_version", PROTOCOL_VERSION},
+      {"client_name", std::string(129, 'a')}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_handshake(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Client name with non-printable characters should fail
+TEST(ProtocolTest, ClientNameNonPrintable) {
+  message_envelope env;
+  env.message_type = message_types::HANDSHAKE;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"protocol_version", PROTOCOL_VERSION},
+      {"client_name", "bad\x01name"}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_handshake(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Client name whitespace-only should fail
+TEST(ProtocolTest, ClientNameWhitespaceOnly) {
+  message_envelope env;
+  env.message_type = message_types::HANDSHAKE;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"protocol_version", PROTOCOL_VERSION},
+      {"client_name", "   "}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_handshake(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Action with amount exceeding MAX_AMOUNT should fail
+TEST(ProtocolTest, AmountExceedsMax) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"action_type", "RAISE"},
+      {"amount", MAX_AMOUNT + 1.0},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Reload request with NaN amount should fail
+TEST(ProtocolTest, NanReloadAmount) {
+  message_envelope env;
+  env.message_type = message_types::RELOAD_REQUEST;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"requested_amount", std::numeric_limits<double>::quiet_NaN()}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_reload_request(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Reload request with amount exceeding MAX_AMOUNT should fail
+TEST(ProtocolTest, ReloadAmountExceedsMax) {
+  message_envelope env;
+  env.message_type = message_types::RELOAD_REQUEST;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"requested_amount", MAX_AMOUNT + 1.0}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_reload_request(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Disconnect with empty session_id should fail
+TEST(ProtocolTest, DisconnectEmptySessionId) {
+  message_envelope env;
+  env.message_type = message_types::DISCONNECT;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", ""}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_disconnect(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Action with negative sequence_number should fail
+TEST(ProtocolTest, NegativeSequenceNumber) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "s1"},
+      {"action_type", "FOLD"},
+      {"sequence_number", -1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}

@@ -201,6 +201,11 @@ std::optional<action_message> parse_action(std::string_view json_str) {
     return std::nullopt;
   }
 
+  if (msg.sequence_number < 0) {
+    log_protocol_error("[Protocol] Negative sequence_number in ACTION message");
+    return std::nullopt;
+  }
+
   const auto& valid_types = get_valid_action_types();
   if (valid_types.find(msg.action_type) == valid_types.end()) {
     log_protocol_error("[Protocol] Invalid action_type: " + trunc_field(msg.action_type));
@@ -250,7 +255,17 @@ std::optional<reload_request_message> parse_reload_request(std::string_view json
 }
 
 std::optional<disconnect_message> parse_disconnect(std::string_view json_str) {
-  return parse_message<disconnect_message>(json_str, message_types::DISCONNECT, "Disconnect");
+  auto result = parse_message<disconnect_message>(json_str, message_types::DISCONNECT, "Disconnect");
+  if (!result) {
+    return result;
+  }
+
+  if (result->session_id.empty()) {
+    log_protocol_error("[Protocol] Empty session_id in DISCONNECT message");
+    return std::nullopt;
+  }
+
+  return result;
 }
 
 std::string serialize_state_update(const state_update_message& msg) {
