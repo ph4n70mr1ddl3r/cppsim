@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <limits>
 #include <memory>
-#include <mutex>
 #include <unordered_set>
 
 namespace cppsim {
@@ -21,7 +20,6 @@ auto error_logger = std::make_shared<std::function<void(std::string_view)>>(
       auto safe_size = static_cast<int>(std::min(msg.size(), max_safe_size));
       std::fprintf(stderr, "%.*s\n", safe_size, msg.data());
     });
-std::mutex logger_mutex;
 
 using string_view_set = std::unordered_set<std::string_view>;
 
@@ -54,7 +52,7 @@ const string_view_set& get_amount_forbidden_types() noexcept {
 }
 
 void log_protocol_error(std::string_view msg) noexcept {
-  auto logger_copy = error_logger;
+  auto logger_copy = std::atomic_load(&error_logger);
   if (logger_copy && *logger_copy) {
     (*logger_copy)(msg);
   }
@@ -124,8 +122,7 @@ std::optional<T> parse_message(std::string_view json_str, std::string_view expec
 
 void set_error_logger(std::function<void(std::string_view)> logger) {
   auto new_logger = std::make_shared<std::function<void(std::string_view)>>(std::move(logger));
-  std::lock_guard<std::mutex> lock(logger_mutex);
-  error_logger = std::move(new_logger);
+  std::atomic_store(&error_logger, std::move(new_logger));
 }
 
 std::optional<handshake_message> parse_handshake(std::string_view json_str) {

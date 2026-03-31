@@ -28,8 +28,7 @@ class websocket_session final
 
   void run();
 
-  [[nodiscard]] bool send(const std::string& message);
-  [[nodiscard]] bool send(std::string&& message);
+  [[nodiscard]] bool send(std::string message);
 
   [[nodiscard]] bool is_authenticated() const noexcept {
     return state_.load(std::memory_order_acquire) == state::authenticated;

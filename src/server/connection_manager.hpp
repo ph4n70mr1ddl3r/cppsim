@@ -1,10 +1,11 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace cppsim {
@@ -32,11 +33,9 @@ class connection_manager final {
 
  private:
   [[nodiscard]] std::string generate_session_id();
-  void unregister_session_impl(std::string&& session_id) noexcept;
 
   mutable std::mutex sessions_mutex_;
-  std::unordered_map<std::string, std::shared_ptr<websocket_session>>
-      sessions_;
+  std::map<std::string, std::shared_ptr<websocket_session>, std::less<>> sessions_;
   std::atomic<uint64_t> session_counter_{0};
 };
 

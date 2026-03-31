@@ -31,9 +31,10 @@ websocket_session::~websocket_session() noexcept {
 }
 
 void websocket_session::run() {
-  ws_.set_option(
-      boost::beast::websocket::stream_base::timeout::suggested(
-          boost::beast::role_type::server));
+  ws_.set_option(boost::beast::websocket::stream_base::timeout{
+      std::chrono::hours(24),
+      std::chrono::hours(24),
+      false});
 
   ws_.read_message_max(config::MAX_MESSAGE_SIZE);
 
@@ -261,16 +262,17 @@ void websocket_session::handle_action(const std::string& message, const std::str
               std::to_string(last_seq + 1) + ")");
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Invalid sequence number - possible replay attack");
     close();
+    return;
   } else if (action_opt->sequence_number > last_seq + config::MAX_SEQUENCE_GAP) {
     log_error("[WebSocketSession] Sequence number too far ahead: " +
               std::to_string(action_opt->sequence_number) + " (max allowed: " +
               std::to_string(last_seq + config::MAX_SEQUENCE_GAP) + ")");
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Sequence number gap too large");
     close();
-  } else {
-    last_sequence_number_.store(action_opt->sequence_number, std::memory_order_release);
-    log_message(std::string("[WebSocketSession] Validated ACTION from ") + sid + ": " + message);
+    return;
   }
+  last_sequence_number_.store(action_opt->sequence_number, std::memory_order_release);
+  log_message(std::string("[WebSocketSession] Validated ACTION from ") + sid + ": " + message);
 }
 
 void websocket_session::handle_reload_msg(const std::string& message, const std::string& sid) {
@@ -321,11 +323,7 @@ bool websocket_session::queue_message(std::string&& message) {
   return true;
 }
 
-bool websocket_session::send(const std::string& message) {
-  return queue_message(std::string(message));
-}
-
-bool websocket_session::send(std::string&& message) {
+bool websocket_session::send(std::string message) {
   return queue_message(std::move(message));
 }
 
@@ -369,10 +367,19 @@ void websocket_session::on_write(boost::beast::error_code ec,
     return;
   }
 
-  std::shared_ptr<std::string> next_message;
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
     writing_ = false;
+  }
+
+  if (close_requested_.load(std::memory_order_acquire)) {
+    do_close();
+    return;
+  }
+
+  std::shared_ptr<std::string> next_message;
+  {
+    std::lock_guard<std::mutex> lock(write_queue_mutex_);
     if (!write_queue_.empty() && state_.load(std::memory_order_acquire) != state::closed) {
       writing_ = true;
       next_message = std::make_shared<std::string>(std::move(write_queue_.front()));
@@ -415,13 +422,7 @@ void websocket_session::check_deadline() {
 
         if (current_state == state::unauthenticated) {
           log_error("[WebSocketSession] Handshake timeout");
-          self->state_.store(state::closed, std::memory_order_release);
-          self->ws_.async_close(boost::beast::websocket::close_code::policy_error,
-              [self](boost::beast::error_code close_ec) {
-                if (close_ec) {
-                  log_error(std::string("[WebSocketSession] Handshake timeout close error: ") + close_ec.message());
-                }
-              });
+          self->close();
         } else {
           log_error(std::string("[WebSocketSession] Idle timeout for session ") + self->get_session_id_safe());
           self->close();
@@ -439,7 +440,14 @@ void websocket_session::close() noexcept {
 
   try {
     boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
-       self->do_close();
+       bool write_in_flight = false;
+       {
+         std::lock_guard<std::mutex> lock(self->write_queue_mutex_);
+         write_in_flight = self->writing_;
+       }
+       if (!write_in_flight) {
+         self->do_close();
+       }
     });
   } catch (...) {
     log_error("[WebSocketSession] Exception in close() - forcing state to closed");
