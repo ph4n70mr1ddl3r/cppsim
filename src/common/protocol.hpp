@@ -209,6 +209,7 @@ inline void from_json(const nlohmann::json& j, state_update_message& m) {
 
   const auto& stacks_json = j.at("player_stacks");
   m.player_stacks.clear();
+  m.player_stacks.reserve(stacks_json.size());
   for (const auto& stack_json : stacks_json) {
     player_stack ps;
     from_json(stack_json, ps);

@@ -86,7 +86,11 @@ void websocket_session::on_read(boost::beast::error_code ec,
       return;
     }
     std::string sid = get_session_id_safe();
-    log_message(std::string("[WebSocketSession] Client disconnected: ") + sid);
+    if (sid.empty()) {
+      log_message("[WebSocketSession] Unauthenticated client disconnected");
+    } else {
+      log_message(std::string("[WebSocketSession] Client disconnected: ") + sid);
+    }
     if (auto mgr = conn_mgr_.lock()) {
       mgr->unregister_session(std::move(sid));
     }
@@ -98,7 +102,11 @@ void websocket_session::on_read(boost::beast::error_code ec,
       return;
     }
     std::string sid = get_session_id_safe();
-    log_error(std::string("[WebSocketSession] Read error for ") + sid + ": " + ec.message());
+    if (sid.empty()) {
+      log_error(std::string("[WebSocketSession] Read error (unauthenticated): ") + ec.message());
+    } else {
+      log_error(std::string("[WebSocketSession] Read error for ") + sid + ": " + ec.message());
+    }
     if (auto mgr = conn_mgr_.lock()) {
       mgr->unregister_session(std::move(sid));
     }

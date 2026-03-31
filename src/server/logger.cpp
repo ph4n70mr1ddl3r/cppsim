@@ -1,11 +1,11 @@
 #include "logger.hpp"
+#include <array>
+#include <cstdio>
 #include <ctime>
+#include <chrono>
 #include <iostream>
 #include <limits>
 #include <mutex>
-#include <chrono>
-#include <iomanip>
-#include <sstream>
 
 namespace cppsim {
 namespace server {
@@ -14,7 +14,7 @@ namespace {
     std::mutex log_mutex;
     std::mutex fallback_mutex;
 
-    std::string get_timestamp() {
+    std::array<char, 32> get_timestamp() {
       auto now = std::chrono::system_clock::now();
       auto time_t = std::chrono::system_clock::to_time_t(now);
       auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -27,10 +27,11 @@ namespace {
       localtime_r(&time_t, &tm);
 #endif
 
-      std::stringstream ss;
-      ss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S");
-      ss << '.' << std::setfill('0') << std::setw(3) << ms.count();
-      return ss.str();
+      std::array<char, 32> buf;
+      std::strftime(buf.data(), buf.size(), "%Y-%m-%d %H:%M:%S", &tm);
+      std::snprintf(buf.data() + 19, buf.size() - 19, ".%03d",
+                    static_cast<int>(ms.count()));
+      return buf;
     }
 
     [[nodiscard]] const char* level_to_string(log_level level) noexcept {
@@ -46,10 +47,10 @@ namespace {
 
 void log(log_level level, std::string_view msg) noexcept {
     try {
-      std::string timestamp = get_timestamp();
+      auto timestamp = get_timestamp();
       std::lock_guard<std::mutex> lock(log_mutex);
       std::ostream& stream = (level == log_level::error) ? std::cerr : std::cout;
-      stream << timestamp << " " << level_to_string(level) << " " << msg << '\n';
+      stream << timestamp.data() << " " << level_to_string(level) << " " << msg << '\n';
       stream.flush();
     } catch (...) {
       std::lock_guard<std::mutex> fallback_lock(fallback_mutex);

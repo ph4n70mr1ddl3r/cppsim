@@ -14,7 +14,7 @@ namespace {
 constexpr size_t MAX_MESSAGE_TYPE_LENGTH = 32;
 constexpr size_t MAX_CLIENT_NAME_LENGTH = 128;
 
-bool is_printable_ascii(char c) noexcept { return static_cast<unsigned char>(c) >= 0x20 && static_cast<unsigned char>(c) < 0x7f; }
+constexpr bool is_printable_ascii(char c) noexcept { return static_cast<unsigned char>(c) >= 0x20 && static_cast<unsigned char>(c) < 0x7f; }
 
 auto error_logger = std::make_shared<std::function<void(std::string_view)>>(
     [](std::string_view msg) {
@@ -93,7 +93,7 @@ std::string serialize_message(const MessageType& msg, const char* message_type) 
   env.protocol_version = PROTOCOL_VERSION;
   nlohmann::json payload;
   to_json(payload, msg);
-  env.payload = payload;
+  env.payload = std::move(payload);
 
   nlohmann::json j;
   to_json(j, env);
@@ -190,6 +190,11 @@ std::optional<action_message> parse_action(std::string_view json_str) {
 
   const auto& msg = *result;
 
+  if (msg.session_id.empty()) {
+    log_protocol_error("[Protocol] Empty session_id in ACTION message");
+    return std::nullopt;
+  }
+
   const auto& valid_types = get_valid_action_types();
   if (valid_types.find(msg.action_type) == valid_types.end()) {
     log_protocol_error("[Protocol] Invalid action_type: " + msg.action_type);
@@ -224,6 +229,11 @@ std::optional<reload_request_message> parse_reload_request(std::string_view json
   }
 
   const auto& msg = *result;
+
+  if (msg.session_id.empty()) {
+    log_protocol_error("[Protocol] Empty session_id in RELOAD_REQUEST message");
+    return std::nullopt;
+  }
 
   if (msg.requested_amount < 0 || !std::isfinite(msg.requested_amount) || msg.requested_amount > MAX_AMOUNT) {
     log_protocol_error("[Protocol] Invalid reload amount: must be non-negative, finite, and within bounds");
