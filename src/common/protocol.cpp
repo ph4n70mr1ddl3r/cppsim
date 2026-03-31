@@ -13,6 +13,12 @@ namespace {
 
 constexpr size_t MAX_MESSAGE_TYPE_LENGTH = 32;
 constexpr size_t MAX_CLIENT_NAME_LENGTH = 128;
+constexpr size_t MAX_LOG_FIELD_LENGTH = 64;
+
+std::string trunc_field(std::string_view s) {
+  if (s.size() <= MAX_LOG_FIELD_LENGTH) return std::string(s);
+  return std::string(s.substr(0, MAX_LOG_FIELD_LENGTH)) + "...";
+}
 
 constexpr bool is_printable_ascii(char c) noexcept { return static_cast<unsigned char>(c) >= 0x20 && static_cast<unsigned char>(c) < 0x7f; }
 
@@ -197,7 +203,7 @@ std::optional<action_message> parse_action(std::string_view json_str) {
 
   const auto& valid_types = get_valid_action_types();
   if (valid_types.find(msg.action_type) == valid_types.end()) {
-    log_protocol_error("[Protocol] Invalid action_type: " + msg.action_type);
+    log_protocol_error("[Protocol] Invalid action_type: " + trunc_field(msg.action_type));
     return std::nullopt;
   }
 
@@ -208,13 +214,13 @@ std::optional<action_message> parse_action(std::string_view json_str) {
 
   const auto& amount_required = get_amount_required_types();
   if (amount_required.find(msg.action_type) != amount_required.end() && !msg.amount) {
-    log_protocol_error("[Protocol] " + msg.action_type + " action requires amount field");
+    log_protocol_error("[Protocol] " + trunc_field(msg.action_type) + " action requires amount field");
     return std::nullopt;
   }
 
   const auto& amount_forbidden = get_amount_forbidden_types();
   if (amount_forbidden.find(msg.action_type) != amount_forbidden.end() && msg.amount) {
-    log_protocol_error("[Protocol] " + msg.action_type + " action should not have amount field");
+    log_protocol_error("[Protocol] " + trunc_field(msg.action_type) + " action should not have amount field");
     return std::nullopt;
   }
 

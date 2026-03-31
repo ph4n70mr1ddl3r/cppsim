@@ -265,18 +265,21 @@ void websocket_session::handle_action(const std::string& message, const std::str
     return;
   }
 
+  int64_t seq = action_opt->sequence_number;
   int64_t last_seq = last_sequence_number_.load(std::memory_order_acquire);
-  if (action_opt->sequence_number < last_seq + 1) {
+  if (seq <= last_seq) {
     log_error("[WebSocketSession] Invalid sequence number " +
-              std::to_string(action_opt->sequence_number) + " (expected >= " +
-              std::to_string(last_seq + 1) + ")");
+              std::to_string(seq) + " (expected > " +
+              std::to_string(last_seq) + ")");
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Invalid sequence number - possible replay attack");
     close();
     return;
-  } else if (action_opt->sequence_number > last_seq + config::MAX_SEQUENCE_GAP) {
+  }
+  uint64_t gap = static_cast<uint64_t>(seq) - static_cast<uint64_t>(last_seq);
+  if (gap > static_cast<uint64_t>(config::MAX_SEQUENCE_GAP)) {
     log_error("[WebSocketSession] Sequence number too far ahead: " +
-              std::to_string(action_opt->sequence_number) + " (max allowed: " +
-              std::to_string(last_seq + config::MAX_SEQUENCE_GAP) + ")");
+              std::to_string(seq) + " (gap: " + std::to_string(gap) +
+              ", max allowed: " + std::to_string(config::MAX_SEQUENCE_GAP) + ")");
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Sequence number gap too large");
     close();
     return;

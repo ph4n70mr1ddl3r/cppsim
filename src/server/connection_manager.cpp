@@ -97,7 +97,6 @@ void connection_manager::unregister_session(std::string_view session_id) noexcep
   if (session_id.empty()) {
     return;
   }
-  std::string id_for_log(session_id);
   size_t count;
   bool found = false;
   {
@@ -110,7 +109,7 @@ void connection_manager::unregister_session(std::string_view session_id) noexcep
     count = sessions_.size();
   }
   if (found) {
-    log_message("[ConnectionManager] Unregistered session: " + id_for_log + " (remaining: " +
+    log_message("[ConnectionManager] Unregistered session: " + std::string(session_id) + " (remaining: " +
                 std::to_string(count) + ")");
   }
 }
