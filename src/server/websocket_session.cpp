@@ -204,10 +204,6 @@ void websocket_session::handle_handshake_message(const std::string& message) {
     session_id_ = new_session_id;
   }
 
-  state_.store(state::authenticated, std::memory_order_release);
-
-  log_message(std::string("[WebSocketSession] Handshake successful for session: ") + new_session_id);
-
   protocol::handshake_response resp;
   resp.session_id = new_session_id;
   resp.seat_number = config::PLACEHOLDER_SEAT;
@@ -215,7 +211,13 @@ void websocket_session::handle_handshake_message(const std::string& message) {
 
   if (!send(protocol::serialize_handshake_response(resp))) {
     log_error("[WebSocketSession] Failed to send handshake response for session: " + new_session_id);
+    close();
+    return;
   }
+
+  state_.store(state::authenticated, std::memory_order_release);
+
+  log_message(std::string("[WebSocketSession] Handshake successful for session: ") + new_session_id);
 }
 
 void websocket_session::handle_authenticated_message(const std::string& message) {
@@ -272,7 +274,8 @@ void websocket_session::handle_action(const std::string& message, const std::str
     return;
   }
   last_sequence_number_.store(action_opt->sequence_number, std::memory_order_release);
-  log_message(std::string("[WebSocketSession] Validated ACTION from ") + sid + ": " + message);
+  log_message(std::string("[WebSocketSession] Validated ACTION from ") + sid + ": type=" +
+              action_opt->action_type + " seq=" + std::to_string(action_opt->sequence_number));
 }
 
 void websocket_session::handle_reload_msg(const std::string& message, const std::string& sid) {
@@ -309,7 +312,8 @@ void websocket_session::handle_disconnect_msg(const std::string& message, const 
 bool websocket_session::queue_message(std::string&& message) {
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
-    if (close_requested_.load(std::memory_order_acquire)) {
+    if (state_.load(std::memory_order_acquire) == state::closed ||
+        close_requested_.load(std::memory_order_acquire)) {
       return false;
     }
     if (write_queue_.size() >= config::MAX_WRITE_QUEUE_SIZE) {
@@ -380,7 +384,9 @@ void websocket_session::on_write(boost::beast::error_code ec,
     return;
   }
 
-  do_write();
+  boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
+    self->do_write();
+  });
 }
 
 void websocket_session::check_deadline() {

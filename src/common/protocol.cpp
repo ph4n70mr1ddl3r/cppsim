@@ -14,6 +14,8 @@ namespace {
 constexpr size_t MAX_MESSAGE_TYPE_LENGTH = 32;
 constexpr size_t MAX_CLIENT_NAME_LENGTH = 128;
 
+bool is_printable_ascii(char c) noexcept { return static_cast<unsigned char>(c) >= 0x20 && static_cast<unsigned char>(c) < 0x7f; }
+
 auto error_logger = std::make_shared<std::function<void(std::string_view)>>(
     [](std::string_view msg) {
       constexpr size_t max_safe_size = static_cast<size_t>(std::numeric_limits<int>::max());
@@ -145,6 +147,24 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
     if (msg.client_name && msg.client_name->size() > MAX_CLIENT_NAME_LENGTH) {
       log_protocol_error("[Protocol] Client name exceeds maximum length");
       return std::nullopt;
+    }
+
+    if (msg.client_name) {
+      const auto& name = *msg.client_name;
+      bool all_blank = true;
+      for (char c : name) {
+        if (!is_printable_ascii(c)) {
+          log_protocol_error("[Protocol] Client name contains non-printable characters");
+          return std::nullopt;
+        }
+        if (c != ' ') {
+          all_blank = false;
+        }
+      }
+      if (all_blank) {
+        log_protocol_error("[Protocol] Client name is blank/whitespace-only");
+        return std::nullopt;
+      }
     }
     
     if (msg.protocol_version != envelope.protocol_version) {

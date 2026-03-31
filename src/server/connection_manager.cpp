@@ -99,16 +99,20 @@ void connection_manager::unregister_session(std::string_view session_id) noexcep
   }
   std::string id_for_log(session_id);
   size_t count;
+  bool found = false;
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
     auto it = sessions_.find(session_id);
     if (it != sessions_.end()) {
       sessions_.erase(it);
+      found = true;
     }
     count = sessions_.size();
   }
-  log_message("[ConnectionManager] Unregistered session: " + id_for_log + " (remaining: " +
-              std::to_string(count) + ")");
+  if (found) {
+    log_message("[ConnectionManager] Unregistered session: " + id_for_log + " (remaining: " +
+                std::to_string(count) + ")");
+  }
 }
 
 void connection_manager::unregister_session(std::string&& session_id) noexcept {
@@ -116,16 +120,20 @@ void connection_manager::unregister_session(std::string&& session_id) noexcept {
     return;
   }
   size_t count;
+  bool found = false;
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
     auto it = sessions_.find(session_id);
     if (it != sessions_.end()) {
       sessions_.erase(it);
+      found = true;
     }
     count = sessions_.size();
   }
-  log_message("[ConnectionManager] Unregistered session: " + session_id + " (remaining: " +
-              std::to_string(count) + ")");
+  if (found) {
+    log_message("[ConnectionManager] Unregistered session: " + session_id + " (remaining: " +
+                std::to_string(count) + ")");
+  }
 }
 
 std::shared_ptr<websocket_session> connection_manager::get_session(
