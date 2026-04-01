@@ -1,6 +1,7 @@
 #include "websocket_session.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 #include "connection_manager.hpp"
 #include "logger.hpp"
@@ -300,7 +301,7 @@ void websocket_session::handle_reload_msg(const std::string& message, const std:
     log_message(std::string("[WebSocketSession] Validated RELOAD_REQUEST from ") + sid);
     protocol::reload_response_message resp;
     resp.granted = true;
-    resp.new_stack = config::PLACEHOLDER_STACK + reload_opt->requested_amount;
+    resp.new_stack = std::min(config::PLACEHOLDER_STACK + reload_opt->requested_amount, protocol::MAX_AMOUNT);
     if (!send(protocol::serialize_reload_response(resp))) {
       log_error("[WebSocketSession] Failed to send RELOAD_RESPONSE to " + sid);
     }
@@ -354,17 +355,12 @@ void websocket_session::do_write() {
   std::shared_ptr<std::string> message;
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
-    if (state_.load(std::memory_order_acquire) == state::closed ||
-        close_requested_.load(std::memory_order_acquire)) {
+    if (state_.load(std::memory_order_acquire) == state::closed) {
       writing_ = false;
       return;
     }
     if (write_queue_.empty()) {
       writing_ = false;
-      return;
-    }
-
-    if (writing_) {
       return;
     }
 
@@ -392,12 +388,16 @@ void websocket_session::on_write(boost::beast::error_code ec,
     return;
   }
 
+  bool should_close = false;
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
     writing_ = false;
+    if (close_requested_.load(std::memory_order_acquire) && write_queue_.empty()) {
+      should_close = true;
+    }
   }
 
-  if (close_requested_.load(std::memory_order_acquire)) {
+  if (should_close) {
     do_close();
     return;
   }

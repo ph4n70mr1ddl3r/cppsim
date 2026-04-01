@@ -181,12 +181,6 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
       log_protocol_error("[Protocol] Handshake version mismatch between payload and envelope");
       return std::nullopt;
     }
-
-    if (envelope.protocol_version != PROTOCOL_VERSION) {
-      log_protocol_error("[Protocol] Handshake version mismatch: expected " +
-                         std::string(PROTOCOL_VERSION) + ", got " + envelope.protocol_version);
-      return std::nullopt;
-    }
     
     return msg;
   } catch (const std::exception& e) {

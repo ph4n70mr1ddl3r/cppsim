@@ -5,11 +5,9 @@
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <chrono>
-#include <iostream>
 #include "common/protocol.hpp"
 
 namespace beast = boost::beast;
-namespace http = beast::http;
 namespace websocket = beast::websocket;
 namespace net = boost::asio;
 using tcp = boost::asio::ip::tcp;

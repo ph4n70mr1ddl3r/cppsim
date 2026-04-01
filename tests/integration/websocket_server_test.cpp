@@ -15,17 +15,13 @@ namespace beast = boost::beast;
 namespace websocket = beast::websocket;
 using tcp = net::ip::tcp;
 
-class WebSocketServerTest : public ::testing::Test {
- protected:
-};
-
 TEST(ConnectionManagerTest, BasicLifecycle) {
   auto mgr = std::make_shared<cppsim::server::connection_manager>();
   EXPECT_EQ(mgr->session_count(), 0);
   EXPECT_TRUE(mgr->active_session_ids().empty());
 }
 
-TEST_F(WebSocketServerTest, AcceptsConnection) {
+TEST(WebSocketServerTest, AcceptsConnection) {
   net::io_context ioc_server;
   net::io_context ioc_client;
 

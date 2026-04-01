@@ -742,7 +742,8 @@ TEST(ProtocolTest, DisconnectReasonTooLong) {
   EXPECT_FALSE(result.has_value());
 }
 
-// Test: Handshake with envelope version mismatch should fail
+// Test: Handshake with non-matching envelope version parses successfully
+// (version compatibility is the caller's responsibility)
 TEST(ProtocolTest, HandshakeEnvelopeVersionMismatch) {
   message_envelope env;
   env.message_type = message_types::HANDSHAKE;
@@ -756,5 +757,6 @@ TEST(ProtocolTest, HandshakeEnvelopeVersionMismatch) {
   to_json(j, env);
   auto result = parse_handshake(j.dump());
 
-  EXPECT_FALSE(result.has_value());
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->protocol_version, "v99.0");
 }
