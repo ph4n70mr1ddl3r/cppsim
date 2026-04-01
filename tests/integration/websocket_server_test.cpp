@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <functional>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -34,13 +35,16 @@ TEST(WebSocketServerTest, AcceptsConnection) {
     ioc_server.run();
   });
 
-  auto cleanup = [&]() {
+  struct cleanup_guard {
+    std::function<void()> fn;
+    ~cleanup_guard() { if (fn) fn(); }
+  } guard{[&]() {
     server->stop();
     ioc_server.stop();
     if (server_thread.joinable()) {
       server_thread.join();
     }
-  };
+  }};
 
   auto start = std::chrono::steady_clock::now();
   bool connected = false;
@@ -61,7 +65,6 @@ TEST(WebSocketServerTest, AcceptsConnection) {
   }
 
   if (!connected) {
-    cleanup();
     FAIL() << "Failed to connect to server within 5 seconds";
   }
 
@@ -95,6 +98,4 @@ TEST(WebSocketServerTest, AcceptsConnection) {
   EXPECT_FALSE(resp_json["payload"]["session_id"].get<std::string>().empty());
 
   ws.close(websocket::close_code::normal);
-
-  cleanup();
 }

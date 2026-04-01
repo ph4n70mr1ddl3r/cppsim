@@ -1,7 +1,6 @@
 #include "websocket_session.hpp"
 
 #include <algorithm>
-#include <cmath>
 
 #include "connection_manager.hpp"
 #include "logger.hpp"
@@ -389,11 +388,15 @@ void websocket_session::on_write(boost::beast::error_code ec,
   }
 
   bool should_close = false;
+  bool has_more = false;
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
     writing_ = false;
     if (close_requested_.load(std::memory_order_acquire) && write_queue_.empty()) {
       should_close = true;
+    } else if (!write_queue_.empty()) {
+      writing_ = true;
+      has_more = true;
     }
   }
 
@@ -402,9 +405,11 @@ void websocket_session::on_write(boost::beast::error_code ec,
     return;
   }
 
-  boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
-    self->do_write();
-  });
+  if (has_more) {
+    boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
+      self->do_write();
+    });
+  }
 }
 
 void websocket_session::check_deadline() {
