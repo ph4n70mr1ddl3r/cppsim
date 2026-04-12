@@ -333,6 +333,7 @@ void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, c
     resp.new_stack = current_stack_;
     if (!send(protocol::serialize_reload_response(resp))) {
       log_error("[WebSocketSession] Failed to send RELOAD_RESPONSE to " + sid);
+      close();
     }
   }
 }
