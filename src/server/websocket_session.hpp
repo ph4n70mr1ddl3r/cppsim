@@ -12,6 +12,7 @@
 #include <string_view>
 
 #include "config.hpp"
+#include <nlohmann/json.hpp>
 
 namespace cppsim {
 namespace server {
@@ -64,9 +65,9 @@ class websocket_session final
   [[nodiscard]] bool check_rate_limit();
   void handle_handshake_message(const std::string& message);
   void handle_authenticated_message(const std::string& message);
-  void handle_action(const std::string& message, const std::string& sid);
-  void handle_reload_msg(const std::string& message, const std::string& sid);
-  void handle_disconnect_msg(const std::string& message, const std::string& sid);
+  void handle_action(const nlohmann::json& envelope_json, const std::string& sid);
+  void handle_reload_msg(const nlohmann::json& envelope_json, const std::string& sid);
+  void handle_disconnect_msg(const nlohmann::json& envelope_json, const std::string& sid);
 
   [[nodiscard]] bool queue_message(std::string&& message);
   [[nodiscard]] std::string get_session_id_safe() const noexcept;

@@ -263,11 +263,11 @@ void websocket_session::handle_authenticated_message(const std::string& message)
   std::string sid = get_session_id_safe();
 
   if (msg_type == protocol::message_types::ACTION) {
-    handle_action(message, sid);
+    handle_action(header_opt->envelope_json, sid);
   } else if (msg_type == protocol::message_types::RELOAD_REQUEST) {
-    handle_reload_msg(message, sid);
+    handle_reload_msg(header_opt->envelope_json, sid);
   } else if (msg_type == protocol::message_types::DISCONNECT) {
-    handle_disconnect_msg(message, sid);
+    handle_disconnect_msg(header_opt->envelope_json, sid);
   } else {
     log_message(std::string("[WebSocketSession] Unknown message type '") + msg_type + "' from " + sid);
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR,
@@ -276,8 +276,8 @@ void websocket_session::handle_authenticated_message(const std::string& message)
   }
 }
 
-void websocket_session::handle_action(const std::string& message, const std::string& sid) {
-  auto action_opt = protocol::parse_action(message);
+void websocket_session::handle_action(const nlohmann::json& envelope_json, const std::string& sid) {
+  auto action_opt = protocol::parse_action_from_envelope(envelope_json);
   if (!action_opt) {
     log_error("[WebSocketSession] Failed to parse ACTION message from " + sid);
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid ACTION message format");
@@ -312,8 +312,8 @@ void websocket_session::handle_action(const std::string& message, const std::str
               action_opt->action_type + " seq=" + std::to_string(seq));
 }
 
-void websocket_session::handle_reload_msg(const std::string& message, const std::string& sid) {
-  auto reload_opt = protocol::parse_reload_request(message);
+void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, const std::string& sid) {
+  auto reload_opt = protocol::parse_reload_from_envelope(envelope_json);
   if (!reload_opt) {
     log_error("[WebSocketSession] Failed to parse RELOAD_REQUEST from " + sid);
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid RELOAD_REQUEST format");
@@ -331,8 +331,8 @@ void websocket_session::handle_reload_msg(const std::string& message, const std:
   }
 }
 
-void websocket_session::handle_disconnect_msg(const std::string& message, const std::string& sid) {
-  auto disconnect_opt = protocol::parse_disconnect(message);
+void websocket_session::handle_disconnect_msg(const nlohmann::json& envelope_json, const std::string& sid) {
+  auto disconnect_opt = protocol::parse_disconnect_from_envelope(envelope_json);
   if (!disconnect_opt) {
     log_error("[WebSocketSession] Failed to parse DISCONNECT from " + sid);
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid DISCONNECT format");
@@ -519,6 +519,7 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
     if (provided_session_id.empty()) {
       log_error("[WebSocketSession] Empty session ID provided");
       send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Session ID is required");
+      close();
       return false;
     }
 
@@ -527,6 +528,7 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
                   std::to_string(provided_session_id.length()) + " > " +
                   std::to_string(config::MAX_SESSION_ID_LENGTH));
       send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Session ID exceeds maximum length");
+      close();
       return false;
     }
 

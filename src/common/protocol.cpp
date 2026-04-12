@@ -28,8 +28,9 @@ constexpr bool is_valid_session_id_char(char c) noexcept {
 }
 
 bool validate_session_id_format(const std::string& sid) noexcept {
-  if (sid.size() < 5 || sid.size() > 128) return false;
-  if (sid.substr(0, 5) != "sess_") return false;
+  // Minimum: "sess_" + at least 1 hex char
+  if (sid.size() < 6 || sid.size() > 128) return false;
+  if (sid[0] != 's' || sid[1] != 'e' || sid[2] != 's' || sid[3] != 's' || sid[4] != '_') return false;
   for (size_t i = 5; i < sid.size(); ++i) {
     if (!is_valid_session_id_char(sid[i])) return false;
   }
@@ -156,6 +157,32 @@ std::optional<T> parse_message(std::string_view json_str, std::string_view expec
     return std::nullopt;
   }
 }
+
+// Parse from pre-parsed envelope JSON (avoids double JSON parse)
+template <typename T>
+std::optional<T> parse_from_envelope(const nlohmann::json& envelope_json, std::string_view expected_type,
+                                      std::string_view message_name) {
+  try {
+    auto envelope = envelope_json.get<message_envelope>();
+    if (envelope.message_type != expected_type) {
+      return std::nullopt;
+    }
+    if (envelope.protocol_version != PROTOCOL_VERSION) {
+      log_protocol_error(std::string("[Protocol] ") + std::string(message_name) + " version mismatch: expected " +
+                         PROTOCOL_VERSION + ", got " + envelope.protocol_version);
+      return std::nullopt;
+    }
+    T msg;
+    from_json(envelope.payload, msg);
+    return msg;
+  } catch (const std::exception& e) {
+    try {
+      log_protocol_error(std::string("[Protocol] ") + std::string(message_name) + " Parse Error: " + e.what());
+    } catch (...) {
+    }
+    return std::nullopt;
+  }
+}
 }
 
 void set_error_logger(std::function<void(std::string_view)> logger) {
@@ -213,12 +240,9 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
   }
 }
 
-std::optional<action_message> parse_action(std::string_view json_str) {
-  auto result = parse_message<action_message>(json_str, message_types::ACTION, "Action");
-  if (!result) {
-    return result;
-  }
-
+// Validate action_message fields after deserialization
+std::optional<action_message> validate_action(std::optional<action_message> result) {
+  if (!result) return std::nullopt;
   const auto& msg = *result;
 
   if (msg.session_id.empty() || !validate_session_id_format(msg.session_id)) {
@@ -257,13 +281,17 @@ std::optional<action_message> parse_action(std::string_view json_str) {
   return result;
 }
 
-std::optional<reload_request_message> parse_reload_request(std::string_view json_str) {
-  auto result = parse_message<reload_request_message>(json_str, message_types::RELOAD_REQUEST,
-                                                "Reload Request");
-  if (!result) {
-    return result;
-  }
+std::optional<action_message> parse_action(std::string_view json_str) {
+  return validate_action(parse_message<action_message>(json_str, message_types::ACTION, "Action"));
+}
 
+std::optional<action_message> parse_action_from_envelope(const nlohmann::json& envelope_json) {
+  return validate_action(parse_from_envelope<action_message>(envelope_json, message_types::ACTION, "Action"));
+}
+
+// Validate reload_request_message fields after deserialization
+std::optional<reload_request_message> validate_reload(std::optional<reload_request_message> result) {
+  if (!result) return std::nullopt;
   const auto& msg = *result;
 
   if (msg.session_id.empty() || !validate_session_id_format(msg.session_id)) {
@@ -279,11 +307,19 @@ std::optional<reload_request_message> parse_reload_request(std::string_view json
   return result;
 }
 
-std::optional<disconnect_message> parse_disconnect(std::string_view json_str) {
-  auto result = parse_message<disconnect_message>(json_str, message_types::DISCONNECT, "Disconnect");
-  if (!result) {
-    return result;
-  }
+std::optional<reload_request_message> parse_reload_request(std::string_view json_str) {
+  return validate_reload(parse_message<reload_request_message>(json_str, message_types::RELOAD_REQUEST,
+                                                "Reload Request"));
+}
+
+std::optional<reload_request_message> parse_reload_from_envelope(const nlohmann::json& envelope_json) {
+  return validate_reload(parse_from_envelope<reload_request_message>(envelope_json, message_types::RELOAD_REQUEST,
+                                                "Reload Request"));
+}
+
+// Validate disconnect_message fields after deserialization
+std::optional<disconnect_message> validate_disconnect(std::optional<disconnect_message> result) {
+  if (!result) return std::nullopt;
 
   if (result->session_id.empty() || !validate_session_id_format(result->session_id)) {
     log_protocol_error("[Protocol] Invalid session_id in DISCONNECT message");
@@ -296,6 +332,14 @@ std::optional<disconnect_message> parse_disconnect(std::string_view json_str) {
   }
 
   return result;
+}
+
+std::optional<disconnect_message> parse_disconnect(std::string_view json_str) {
+  return validate_disconnect(parse_message<disconnect_message>(json_str, message_types::DISCONNECT, "Disconnect"));
+}
+
+std::optional<disconnect_message> parse_disconnect_from_envelope(const nlohmann::json& envelope_json) {
+  return validate_disconnect(parse_from_envelope<disconnect_message>(envelope_json, message_types::DISCONNECT, "Disconnect"));
 }
 
 std::string serialize_state_update(const state_update_message& msg) {

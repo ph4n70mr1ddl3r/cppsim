@@ -131,6 +131,12 @@ struct message_envelope {
 [[nodiscard]] std::optional<reload_request_message> parse_reload_request(std::string_view json_str);
 [[nodiscard]] std::optional<disconnect_message> parse_disconnect(std::string_view json_str);
 
+/// Parse from pre-parsed envelope JSON (avoids double-parsing).
+/// The envelope_json must contain "payload" and "protocol_version" fields.
+[[nodiscard]] std::optional<action_message> parse_action_from_envelope(const nlohmann::json& envelope_json);
+[[nodiscard]] std::optional<reload_request_message> parse_reload_from_envelope(const nlohmann::json& envelope_json);
+[[nodiscard]] std::optional<disconnect_message> parse_disconnect_from_envelope(const nlohmann::json& envelope_json);
+
 [[nodiscard]] std::optional<std::string> extract_message_type(std::string_view json_str) noexcept;
 
 /// Extract message type and pre-parsed JSON to avoid double-parsing.
