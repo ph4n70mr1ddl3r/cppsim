@@ -88,6 +88,7 @@ class websocket_session final
   std::atomic<int64_t> last_sequence_number_{-1};
 
   std::atomic<bool> close_requested_{false};
+  std::atomic<bool> close_initiated_{false};
 
   std::deque<std::chrono::steady_clock::time_point> message_timestamps_;
   mutable std::mutex rate_limit_mutex_;

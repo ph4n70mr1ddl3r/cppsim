@@ -77,7 +77,7 @@ TEST(ProtocolTest, HandshakeMessageOptionalAbsent) {
 // Test: action_message serialization for all action types
 TEST(ProtocolTest, ActionMessageFold) {
   action_message msg;
-  msg.session_id = "session123";
+  msg.session_id = "sess_a1b2c3d4e5f6aabb";
   msg.action_type = "FOLD";
   msg.sequence_number = 1;
 
@@ -90,7 +90,7 @@ TEST(ProtocolTest, ActionMessageFold) {
 
 TEST(ProtocolTest, ActionMessageRaise) {
   action_message msg;
-  msg.session_id = "session123";
+  msg.session_id = "sess_a1b2c3d4e5f6aabb";
   msg.action_type = "RAISE";
   msg.amount = 10.5;
   msg.sequence_number = 2;
@@ -167,7 +167,7 @@ TEST(ProtocolTest, ErrorMessageSerialization) {
   error_message msg;
   msg.error_code = "INVALID_ACTION";
   msg.message = "Cannot raise with insufficient stack";
-  msg.session_id = "session123";
+  msg.session_id = "sess_a1b2c3d4e5f6aabb";
 
   std::string json_str = serialize_error(msg);
 
@@ -180,7 +180,7 @@ TEST(ProtocolTest, ErrorMessageSerialization) {
 // Test: reload_request_message round-trip
 TEST(ProtocolTest, ReloadRequestRoundTrip) {
   reload_request_message original;
-  original.session_id = "session456";
+  original.session_id = "sess_deadbeef1234cafe";
   original.requested_amount = 100.0;
 
   message_envelope env;
@@ -227,7 +227,7 @@ TEST(ProtocolTest, MissingRequiredFieldsHandshake) {
 
 TEST(ProtocolTest, MissingRequiredFieldsAction) {
   std::string json_str =
-      R"({"session_id":"s1","action_type":"FOLD"})";  // Missing sequence_number
+      R"({"session_id":"sess_aabbccdd11223344","action_type":"FOLD"})";  // Missing sequence_number
 
   auto result = parse_action(json_str);
 
@@ -237,7 +237,7 @@ TEST(ProtocolTest, MissingRequiredFieldsAction) {
 // Test: Invalid field types
 TEST(ProtocolTest, InvalidFieldTypeAction) {
   std::string json_str =
-      R"({"session_id":"s1","action_type":"RAISE","amount":"not_a_number","sequence_number":1})";
+      R"({"session_id":"sess_aabbccdd11223344","action_type":"RAISE","amount":"not_a_number","sequence_number":1})";
 
   auto result = parse_action(json_str);
 
@@ -247,7 +247,7 @@ TEST(ProtocolTest, InvalidFieldTypeAction) {
 // Test: disconnect_message parsing
 TEST(ProtocolTest, DisconnectMessage) {
   disconnect_message msg;
-  msg.session_id = "session789";
+  msg.session_id = "sess_cafed00dcafebabe";
   msg.reason = "Client timeout";
 
   message_envelope env;
@@ -262,7 +262,7 @@ TEST(ProtocolTest, DisconnectMessage) {
   auto parsed = parse_disconnect(j.dump());
 
   ASSERT_TRUE(parsed.has_value());
-  EXPECT_EQ(parsed->session_id, "session789");
+  EXPECT_EQ(parsed->session_id, "sess_cafed00dcafebabe");
   ASSERT_TRUE(parsed->reason.has_value());
   EXPECT_EQ(parsed->reason.value(), "Client timeout");
 }
@@ -294,7 +294,7 @@ TEST(ProtocolTest, RaiseWithoutAmount) {
   env.message_type = message_types::ACTION;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"action_type", "RAISE"},
       {"sequence_number", 1}
   };
@@ -312,7 +312,7 @@ TEST(ProtocolTest, CallWithAmount) {
   env.message_type = message_types::ACTION;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"action_type", "CALL"},
       {"amount", 10.0},
       {"sequence_number", 1}
@@ -331,7 +331,7 @@ TEST(ProtocolTest, InvalidActionType) {
   env.message_type = message_types::ACTION;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"action_type", "INVALID_ACTION"},
       {"sequence_number", 1}
   };
@@ -349,7 +349,7 @@ TEST(ProtocolTest, NegativeAmount) {
   env.message_type = message_types::ACTION;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"action_type", "RAISE"},
       {"amount", -10.0},
       {"sequence_number", 1}
@@ -368,7 +368,7 @@ TEST(ProtocolTest, ZeroAmount) {
   env.message_type = message_types::ACTION;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"action_type", "RAISE"},
       {"amount", 0.0},
       {"sequence_number", 1}
@@ -387,7 +387,7 @@ TEST(ProtocolTest, NegativeReloadAmount) {
   env.message_type = message_types::RELOAD_REQUEST;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"requested_amount", -100.0}
   };
 
@@ -404,7 +404,7 @@ TEST(ProtocolTest, ZeroReloadAmount) {
   env.message_type = message_types::RELOAD_REQUEST;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"requested_amount", 0.0}
   };
 
@@ -421,7 +421,7 @@ TEST(ProtocolTest, AllInWithoutAmount) {
   env.message_type = message_types::ACTION;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"action_type", "ALL_IN"},
       {"sequence_number", 1}
   };
@@ -500,7 +500,7 @@ TEST(ProtocolTest, InfinityAmount) {
   env.message_type = message_types::ACTION;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"action_type", "RAISE"},
       {"amount", std::numeric_limits<double>::infinity()},
       {"sequence_number", 1}
@@ -519,7 +519,7 @@ TEST(ProtocolTest, NanAmount) {
   env.message_type = message_types::ACTION;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"action_type", "RAISE"},
       {"amount", std::numeric_limits<double>::quiet_NaN()},
       {"sequence_number", 1}
@@ -538,7 +538,7 @@ TEST(ProtocolTest, InfinityReloadAmount) {
   env.message_type = message_types::RELOAD_REQUEST;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"requested_amount", std::numeric_limits<double>::infinity()}
   };
 
@@ -555,7 +555,7 @@ TEST(ProtocolTest, LargeValidAmount) {
   env.message_type = message_types::ACTION;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"action_type", "RAISE"},
       {"amount", 1e10},
       {"sequence_number", 1}
@@ -643,7 +643,7 @@ TEST(ProtocolTest, AmountExceedsMax) {
   env.message_type = message_types::ACTION;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"action_type", "RAISE"},
       {"amount", MAX_AMOUNT + 1.0},
       {"sequence_number", 1}
@@ -662,7 +662,7 @@ TEST(ProtocolTest, NanReloadAmount) {
   env.message_type = message_types::RELOAD_REQUEST;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"requested_amount", std::numeric_limits<double>::quiet_NaN()}
   };
 
@@ -679,7 +679,7 @@ TEST(ProtocolTest, ReloadAmountExceedsMax) {
   env.message_type = message_types::RELOAD_REQUEST;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"requested_amount", MAX_AMOUNT + 1.0}
   };
 
@@ -706,13 +706,31 @@ TEST(ProtocolTest, DisconnectEmptySessionId) {
   EXPECT_FALSE(result.has_value());
 }
 
+// Test: Action with invalid session_id format should fail
+TEST(ProtocolTest, InvalidSessionIdFormat) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "<script>alert(1)</script>"},
+      {"action_type", "FOLD"},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
 // Test: Action with negative sequence_number should fail
 TEST(ProtocolTest, NegativeSequenceNumber) {
   message_envelope env;
   env.message_type = message_types::ACTION;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"action_type", "FOLD"},
       {"sequence_number", -1}
   };
@@ -730,7 +748,7 @@ TEST(ProtocolTest, DisconnectReasonTooLong) {
   env.message_type = message_types::DISCONNECT;
   env.protocol_version = PROTOCOL_VERSION;
   env.payload = nlohmann::json{
-      {"session_id", "s1"},
+      {"session_id", "sess_aabbccdd11223344"},
       {"reason", std::string(300, 'x')}
   };
 

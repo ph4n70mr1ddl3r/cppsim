@@ -23,6 +23,19 @@ std::string trunc_field(std::string_view s) {
 
 constexpr bool is_printable_ascii(char c) noexcept { return static_cast<unsigned char>(c) >= 0x20 && static_cast<unsigned char>(c) < 0x7f; }
 
+constexpr bool is_valid_session_id_char(char c) noexcept {
+  return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+bool validate_session_id_format(const std::string& sid) noexcept {
+  if (sid.size() < 5 || sid.size() > 128) return false;
+  if (sid.substr(0, 5) != "sess_") return false;
+  for (size_t i = 5; i < sid.size(); ++i) {
+    if (!is_valid_session_id_char(sid[i])) return false;
+  }
+  return true;
+}
+
 auto error_logger = std::make_shared<std::function<void(std::string_view)>>(
     [](std::string_view msg) {
       constexpr size_t max_safe_size = static_cast<size_t>(std::numeric_limits<int>::max());
@@ -208,8 +221,8 @@ std::optional<action_message> parse_action(std::string_view json_str) {
 
   const auto& msg = *result;
 
-  if (msg.session_id.empty()) {
-    log_protocol_error("[Protocol] Empty session_id in ACTION message");
+  if (msg.session_id.empty() || !validate_session_id_format(msg.session_id)) {
+    log_protocol_error("[Protocol] Invalid session_id in ACTION message");
     return std::nullopt;
   }
 
@@ -253,8 +266,8 @@ std::optional<reload_request_message> parse_reload_request(std::string_view json
 
   const auto& msg = *result;
 
-  if (msg.session_id.empty()) {
-    log_protocol_error("[Protocol] Empty session_id in RELOAD_REQUEST message");
+  if (msg.session_id.empty() || !validate_session_id_format(msg.session_id)) {
+    log_protocol_error("[Protocol] Invalid session_id in RELOAD_REQUEST message");
     return std::nullopt;
   }
 
@@ -272,8 +285,8 @@ std::optional<disconnect_message> parse_disconnect(std::string_view json_str) {
     return result;
   }
 
-  if (result->session_id.empty()) {
-    log_protocol_error("[Protocol] Empty session_id in DISCONNECT message");
+  if (result->session_id.empty() || !validate_session_id_format(result->session_id)) {
+    log_protocol_error("[Protocol] Invalid session_id in DISCONNECT message");
     return std::nullopt;
   }
 

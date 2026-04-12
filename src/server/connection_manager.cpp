@@ -38,7 +38,6 @@ bool get_secure_random(unsigned char* buf, size_t len) noexcept {
 // Uses mixed timestamps, addresses, and counter as entropy.
 std::string generate_fallback_session_id() {
   static std::atomic<uint64_t> fallback_counter{0};
-  static std::mutex fallback_mutex;
 
   uint64_t counter = fallback_counter.fetch_add(1, std::memory_order_relaxed);
   auto steady = std::chrono::steady_clock::now().time_since_epoch().count();
@@ -84,6 +83,16 @@ std::string generate_crypto_session_id() {
 namespace cppsim {
 namespace server {
 
+namespace {
+
+// Truncate session ID for safe logging (show only first 8 chars of the hex part)
+std::string sanitize_session_id(std::string_view sid) {
+  if (sid.size() <= 13) return std::string(sid);  // "sess_" + 8 hex chars minimum
+  return std::string(sid.substr(0, 13)) + "...";
+}
+
+}  // namespace
+
 std::string connection_manager::register_session(
     std::shared_ptr<websocket_session> session) {
   if (!session) {
@@ -116,21 +125,21 @@ std::string connection_manager::register_session(
       auto result = sessions_.try_emplace(session_id, session);
       if (!result.second) {
         if (attempt < max_retries - 1) {
-          log_error("[ConnectionManager] Session ID collision (attempt " + 
-              std::to_string(attempt + 1) + "), retrying: " + session_id);
+          log_error("[ConnectionManager] Session ID collision (attempt " +
+              std::to_string(attempt + 1) + "), retrying: " + sanitize_session_id(session_id));
           continue;
         }
-        log_error("[ConnectionManager] Session ID collision after retries: " + session_id);
+        log_error("[ConnectionManager] Session ID collision after retries: " + sanitize_session_id(session_id));
         return "";
       }
       count = sessions_.size();
     }
 
-    log_message("[ConnectionManager] Registered session: " + session_id + " (total: " + std::to_string(count) + ")");
+    log_message("[ConnectionManager] Registered session: " + sanitize_session_id(session_id) + " (total: " + std::to_string(count) + ")");
 
     return session_id;
   }
-  
+
   return "";
 }
 
@@ -150,7 +159,7 @@ void connection_manager::unregister_session(std::string_view session_id) noexcep
     count = sessions_.size();
   }
   if (found) {
-    log_message("[ConnectionManager] Unregistered session: " + std::string(session_id) + " (remaining: " +
+    log_message("[ConnectionManager] Unregistered session: " + sanitize_session_id(session_id) + " (remaining: " +
                 std::to_string(count) + ")");
   }
 }
