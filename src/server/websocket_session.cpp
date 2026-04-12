@@ -130,10 +130,19 @@ void websocket_session::on_read(boost::beast::error_code ec,
     return;
   }
 
-  if (current_state == state::unauthenticated) {
-    handle_handshake_message(message);
-  } else {
-    handle_authenticated_message(message);
+  try {
+    if (current_state == state::unauthenticated) {
+      handle_handshake_message(message);
+    } else {
+      handle_authenticated_message(message);
+    }
+  } catch (const std::exception& e) {
+    log_error(std::string("[WebSocketSession] Unhandled exception in message handler: ") + e.what());
+    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Internal server error");
+    close();
+  } catch (...) {
+    log_error("[WebSocketSession] Unknown exception in message handler");
+    close();
   }
 
   if (state_.load(std::memory_order_acquire) != state::closed &&
@@ -198,7 +207,7 @@ void websocket_session::handle_handshake_message(const std::string& message) {
   }
 
   if (handshake_msg.client_name) {
-    log_message(std::string("[WebSocketSession] Client Name: ") + *handshake_msg.client_name);
+    log_message(std::string("[WebSocketSession] Client Name: ") + handshake_msg.client_name->substr(0, 32));
   }
 
   deadline_.expires_after(config::IDLE_TIMEOUT);
@@ -314,7 +323,8 @@ void websocket_session::handle_reload_msg(const std::string& message, const std:
     log_message(std::string("[WebSocketSession] Validated RELOAD_REQUEST from ") + sid);
     protocol::reload_response_message resp;
     resp.granted = true;
-    resp.new_stack = std::min(config::PLACEHOLDER_STACK + reload_opt->requested_amount, protocol::MAX_AMOUNT);
+    current_stack_ = std::min(current_stack_ + reload_opt->requested_amount, protocol::MAX_AMOUNT);
+    resp.new_stack = current_stack_;
     if (!send(protocol::serialize_reload_response(resp))) {
       log_error("[WebSocketSession] Failed to send RELOAD_RESPONSE to " + sid);
     }
@@ -436,7 +446,8 @@ void websocket_session::check_deadline() {
   deadline_.async_wait(
       [self = shared_from_this()](boost::beast::error_code ec) {
         if (ec == boost::asio::error::operation_aborted) {
-          if (self->state_.load(std::memory_order_acquire) != state::closed) {
+          if (self->state_.load(std::memory_order_acquire) != state::closed &&
+              !self->close_requested_.load(std::memory_order_acquire)) {
             self->check_deadline();
           }
           return;
@@ -522,8 +533,8 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
     std::string session_id_copy = get_session_id_safe();
 
     if (provided_session_id != session_id_copy) {
-      log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + session_id_copy + ", got " +
-                  provided_session_id);
+      log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + sanitize_sid(session_id_copy) + ", got " +
+                  sanitize_sid(provided_session_id));
       send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Session ID mismatch");
       close();
       return false;

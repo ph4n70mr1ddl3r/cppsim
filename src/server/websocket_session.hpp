@@ -92,6 +92,8 @@ class websocket_session final
 
   std::deque<std::chrono::steady_clock::time_point> message_timestamps_;
   mutable std::mutex rate_limit_mutex_;
+
+  double current_stack_{config::PLACEHOLDER_STACK};
 };
 
 }  // namespace server
