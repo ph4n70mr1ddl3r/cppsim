@@ -21,8 +21,12 @@ std::string sanitize_sid(const std::string& sid) {
 
 websocket_session::websocket_session(
     boost::asio::ip::tcp::socket socket,
-    std::shared_ptr<connection_manager> mgr)
-    : ws_(std::move(socket)), conn_mgr_(mgr), deadline_(ws_.get_executor()) {}
+    std::shared_ptr<connection_manager> mgr,
+    std::chrono::seconds handshake_timeout)
+    : ws_(std::move(socket)),
+      conn_mgr_(mgr),
+      deadline_(ws_.get_executor()),
+      handshake_timeout_(handshake_timeout) {}
 
 websocket_session::~websocket_session() noexcept {
   try {
@@ -48,7 +52,7 @@ void websocket_session::run() {
 
   ws_.read_message_max(config::MAX_MESSAGE_SIZE);
 
-  deadline_.expires_after(config::HANDSHAKE_TIMEOUT);
+  deadline_.expires_after(handshake_timeout_);
   check_deadline();
 
   do_accept();

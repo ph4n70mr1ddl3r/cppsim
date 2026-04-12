@@ -12,6 +12,30 @@ namespace websocket = beast::websocket;
 namespace net = boost::asio;
 using tcp = boost::asio::ip::tcp;
 
+// Use a very short handshake timeout for the timeout test (500ms instead of 10s)
+static constexpr auto TEST_HANDSHAKE_TIMEOUT = std::chrono::seconds{1};
+
+// Wait for a TCP server to become reachable by polling with probe connections.
+static bool wait_for_server(uint16_t port,
+                             std::chrono::steady_clock::duration timeout = std::chrono::seconds(5)) {
+  auto deadline = std::chrono::steady_clock::now() + timeout;
+  while (std::chrono::steady_clock::now() < deadline) {
+    try {
+      net::io_context ioc;
+      tcp::socket s(ioc);
+      tcp::resolver resolver(ioc);
+      auto const results = resolver.resolve("localhost", std::to_string(port));
+      net::connect(s, results.begin(), results.end());
+      boost::system::error_code ec;
+      s.close(ec);
+      return true;
+    } catch (...) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  }
+  return false;
+}
+
 class HandshakeTest : public ::testing::Test {
 protected:
     net::io_context server_ioc;
@@ -19,10 +43,14 @@ protected:
     std::shared_ptr<cppsim::server::websocket_server> server;
     static constexpr unsigned short TEST_PORT = cppsim::server::config::DEFAULT_TEST_PORT;
 
+    // Most tests use the default timeout; override in derived fixtures as needed.
+    virtual std::chrono::seconds handshake_timeout() const { return TEST_HANDSHAKE_TIMEOUT; }
+
     void SetUp() override {
         // Start server on test port
         try {
-            server = std::make_shared<cppsim::server::websocket_server>(server_ioc, TEST_PORT);
+            server = std::make_shared<cppsim::server::websocket_server>(
+                server_ioc, TEST_PORT, handshake_timeout());
             server->run();
             
             server_thread = std::thread([this]{ 
@@ -30,27 +58,7 @@ protected:
                 server_ioc.run(); 
             });
             
-            // Wait for server to be ready using retry loop
-            auto start = std::chrono::steady_clock::now();
-            bool connected = false;
-            while (std::chrono::steady_clock::now() - start < std::chrono::seconds(5)) {
-                try {
-                    net::io_context ioc;
-                    tcp::socket s(ioc);
-                    tcp::resolver resolver(ioc);
-                    auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
-                    net::connect(s, results.begin(), results.end());
-                    connected = true;
-                    boost::system::error_code ec;
-                    s.close(ec);
-                    break;
-                } catch (...) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                }
-            }
-            if (!connected) {
-                FAIL() << "Failed to connect to server within 5 seconds";
-            }
+            ASSERT_TRUE(wait_for_server(TEST_PORT)) << "Failed to connect to server within 5 seconds";
         } catch (const std::exception& e) {
             FAIL() << "Failed to start server: " << e.what();
         }
@@ -221,7 +229,7 @@ TEST_F(HandshakeTest, ProtocolError) {
     EXPECT_EQ(resp_env.payload["error_code"], cppsim::protocol::error_codes::MALFORMED_HANDSHAKE);
 }
 
-// Test 5: Handshake Timeout
+// Test 5: Handshake Timeout (uses 1-second timeout from fixture)
 TEST_F(HandshakeTest, HandshakeTimeout) {
     net::io_context ioc;
     tcp::resolver resolver(ioc);
@@ -231,21 +239,12 @@ TEST_F(HandshakeTest, HandshakeTimeout) {
     net::connect(ws.next_layer(), results.begin(), results.end());
     perform_handshake(ws);
 
-    // Initial read to make sure we are connected and timer starts on server
-    // (Though run() starts timer immediately upon accept).
-    
-    // Do NOTHING for > 10 seconds.
-    // We expect the server to close the connection efficiently.
-    // Instead of sleep, we can try to read. The read should fail with EOF/closed eventually.
-    
+    // Do NOTHING — server should close the connection after handshake timeout (1s).
     beast::flat_buffer buffer;
     try {
-        // This read should block until the server closes the connection
         ws.read(buffer);
         FAIL() << "Should not have received any data, connection should close";
     } catch (const beast::system_error& se) {
-        // We now close the socket directly, so we might get EOF or Connection Reset
-        // instead of a clean WebSocket close frame.
         bool expected = (se.code() == websocket::error::closed) ||
                         (se.code() == net::error::eof) ||
                         (se.code() == net::error::connection_reset);

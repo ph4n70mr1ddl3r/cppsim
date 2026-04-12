@@ -15,10 +15,12 @@ websocket_server::~websocket_server() noexcept {
   stop();
 }
 
-websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port)
+websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port,
+                                       std::chrono::seconds handshake_timeout)
     : ioc_(ioc),
       acceptor_(boost::asio::make_strand(ioc)),
-      conn_mgr_(std::make_shared<connection_manager>()) {
+      conn_mgr_(std::make_shared<connection_manager>()),
+      handshake_timeout_(handshake_timeout) {
   boost::beast::error_code ec;
 
   boost::asio::ip::tcp::endpoint endpoint{boost::asio::ip::tcp::v4(), port};
@@ -60,6 +62,11 @@ void websocket_server::run() noexcept {
 }
 
 void websocket_server::stop() noexcept {
+  bool expected = false;
+  if (!stopped_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+    return;  // Already stopped
+  }
+
   alive_.store(false, std::memory_order_release);
   
   // Cancel any pending backoff timer
@@ -150,7 +157,7 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
   backoff_seconds_.store(1, std::memory_order_release);
 
   // Create a new session for this connection
-  auto session = std::make_shared<websocket_session>(std::move(socket), conn_mgr_);
+  auto session = std::make_shared<websocket_session>(std::move(socket), conn_mgr_, handshake_timeout_);
 
   // Start the session (perform WebSocket handshake and begin reading)
   session->run();

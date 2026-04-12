@@ -2,6 +2,7 @@
 
 #include <array>
 #include <chrono>
+#include <cinttypes>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -14,6 +15,12 @@
 #include "websocket_session.hpp"
 
 namespace {
+
+// Truncate session ID for safe logging (show only first 8 chars of the hex part)
+std::string sanitize_session_id(std::string_view sid) {
+  if (sid.size() <= 13) return std::string(sid);  // "sess_" + 8 hex chars minimum
+  return std::string(sid.substr(0, 13)) + "...";
+}
 
 // Generate cryptographically secure random bytes from /dev/urandom (Linux) or arc4random (BSD/macOS).
 // Falls back to a hash-mixed entropy source if OS CPRNG is unavailable.
@@ -54,7 +61,7 @@ std::string generate_fallback_session_id() {
   h ^= h >> 33;
 
   std::array<char, 33> buf;
-  std::snprintf(buf.data(), buf.size(), "%016llx", static_cast<unsigned long long>(h));
+  std::snprintf(buf.data(), buf.size(), "%016" PRIx64, h);
   return "sess_" + std::string(buf.data());
 }
 
@@ -82,16 +89,6 @@ std::string generate_crypto_session_id() {
 
 namespace cppsim {
 namespace server {
-
-namespace {
-
-// Truncate session ID for safe logging (show only first 8 chars of the hex part)
-std::string sanitize_session_id(std::string_view sid) {
-  if (sid.size() <= 13) return std::string(sid);  // "sess_" + 8 hex chars minimum
-  return std::string(sid.substr(0, 13)) + "...";
-}
-
-}  // namespace
 
 std::string connection_manager::register_session(
     std::shared_ptr<websocket_session> session) {

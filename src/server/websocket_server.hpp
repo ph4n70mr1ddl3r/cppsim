@@ -2,10 +2,12 @@
 
 #include "boost_wrapper.hpp"
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <mutex>
 
+#include "config.hpp"
 #include "connection_manager.hpp"
 
 namespace cppsim {
@@ -15,7 +17,8 @@ class websocket_session;
 
 class websocket_server final : public std::enable_shared_from_this<websocket_server> {
  public:
-  websocket_server(boost::asio::io_context& ioc, uint16_t port);
+  websocket_server(boost::asio::io_context& ioc, uint16_t port,
+                   std::chrono::seconds handshake_timeout = config::HANDSHAKE_TIMEOUT);
   websocket_server(const websocket_server&) = delete;
   websocket_server& operator=(const websocket_server&) = delete;
   websocket_server(websocket_server&&) = delete;
@@ -34,10 +37,12 @@ class websocket_server final : public std::enable_shared_from_this<websocket_ser
   boost::asio::io_context& ioc_;
   boost::asio::ip::tcp::acceptor acceptor_;
   std::shared_ptr<connection_manager> conn_mgr_;
+  std::chrono::seconds handshake_timeout_;
   std::shared_ptr<boost::asio::steady_timer> backoff_timer_;
   std::mutex timer_mutex_;
   std::atomic<bool> initialized_{false};
   std::atomic<bool> alive_{true};
+  std::atomic<bool> stopped_{false};
   std::atomic<int> backoff_seconds_{1};
 };
 

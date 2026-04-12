@@ -23,7 +23,8 @@ class websocket_session final
     : public std::enable_shared_from_this<websocket_session> {
  public:
   websocket_session(boost::asio::ip::tcp::socket socket,
-                    std::shared_ptr<connection_manager> mgr);
+                    std::shared_ptr<connection_manager> mgr,
+                    std::chrono::seconds handshake_timeout = config::HANDSHAKE_TIMEOUT);
 
   ~websocket_session() noexcept;
 
@@ -94,7 +95,9 @@ class websocket_session final
   std::deque<std::chrono::steady_clock::time_point> message_timestamps_;
   mutable std::mutex rate_limit_mutex_;
 
+  // Mutable by handlers running on the session's strand only — no concurrent access.
   double current_stack_{config::PLACEHOLDER_STACK};
+  std::chrono::seconds handshake_timeout_;
 };
 
 }  // namespace server

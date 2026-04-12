@@ -16,10 +16,50 @@ namespace beast = boost::beast;
 namespace websocket = beast::websocket;
 using tcp = net::ip::tcp;
 
+// Wait for a TCP server to become reachable by polling with probe connections.
+// Returns true on success, false on timeout.
+static bool wait_for_server(uint16_t port,
+                             std::chrono::steady_clock::duration timeout = std::chrono::seconds(5)) {
+  auto deadline = std::chrono::steady_clock::now() + timeout;
+  while (std::chrono::steady_clock::now() < deadline) {
+    try {
+      net::io_context ioc;
+      tcp::socket s(ioc);
+      tcp::resolver resolver(ioc);
+      auto const results = resolver.resolve("localhost", std::to_string(port));
+      net::connect(s, results.begin(), results.end());
+      boost::system::error_code ec;
+      s.close(ec);
+      return true;
+    } catch (...) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  }
+  return false;
+}
+
 TEST(ConnectionManagerTest, BasicLifecycle) {
   auto mgr = std::make_shared<cppsim::server::connection_manager>();
   EXPECT_EQ(mgr->session_count(), 0);
   EXPECT_TRUE(mgr->active_session_ids().empty());
+}
+
+TEST(ConnectionManagerTest, StopAllOnEmpty) {
+  auto mgr = std::make_shared<cppsim::server::connection_manager>();
+  mgr->stop_all();  // Should not crash or log errors
+  EXPECT_EQ(mgr->session_count(), 0);
+}
+
+TEST(ConnectionManagerTest, UnregisterUnknownSession) {
+  auto mgr = std::make_shared<cppsim::server::connection_manager>();
+  mgr->unregister_session("sess_nonexistent");  // Should not crash
+  EXPECT_EQ(mgr->session_count(), 0);
+}
+
+TEST(ConnectionManagerTest, GetNonexistentSession) {
+  auto mgr = std::make_shared<cppsim::server::connection_manager>();
+  auto session = mgr->get_session("sess_nonexistent");
+  EXPECT_EQ(session, nullptr);
 }
 
 TEST(WebSocketServerTest, AcceptsConnection) {
@@ -46,27 +86,7 @@ TEST(WebSocketServerTest, AcceptsConnection) {
     }
   }};
 
-  auto start = std::chrono::steady_clock::now();
-  bool connected = false;
-  while (std::chrono::steady_clock::now() - start < std::chrono::seconds(5)) {
-    try {
-      net::io_context probe_ioc;
-      tcp::socket s(probe_ioc);
-      tcp::resolver resolver(probe_ioc);
-      auto const results = resolver.resolve("localhost", std::to_string(port));
-      net::connect(s, results.begin(), results.end());
-      connected = true;
-      boost::system::error_code ec;
-      s.close(ec);
-      break;
-    } catch (...) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-  }
-
-  if (!connected) {
-    FAIL() << "Failed to connect to server within 5 seconds";
-  }
+  ASSERT_TRUE(wait_for_server(port)) << "Failed to connect to server within 5 seconds";
 
   tcp::resolver resolver(ioc_client);
   websocket::stream<tcp::socket> ws(ioc_client);
@@ -98,4 +118,23 @@ TEST(WebSocketServerTest, AcceptsConnection) {
   EXPECT_FALSE(resp_json["payload"]["session_id"].get<std::string>().empty());
 
   ws.close(websocket::close_code::normal);
+}
+
+TEST(WebSocketServerTest, StopIsIdempotent) {
+  net::io_context ioc;
+  uint16_t port = cppsim::server::config::DEFAULT_TEST_PORT + 2;
+
+  auto server = std::make_shared<cppsim::server::websocket_server>(ioc, port);
+  server->run();
+
+  std::thread server_thread([&ioc] { ioc.run(); });
+
+  ASSERT_TRUE(wait_for_server(port));
+
+  server->stop();
+  server->stop();  // Second call should be a no-op
+  server->stop();  // Third call should also be a no-op
+
+  ioc.stop();
+  if (server_thread.joinable()) server_thread.join();
 }
