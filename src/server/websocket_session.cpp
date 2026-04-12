@@ -234,6 +234,7 @@ void websocket_session::handle_authenticated_message(const std::string& message)
   if (!msg_type_opt) {
     log_message(std::string("[WebSocketSession] Invalid message format from ") + get_session_id_safe() + ": missing message_type");
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Missing or invalid message_type field");
+    close();
     return;
   }
 
@@ -250,6 +251,7 @@ void websocket_session::handle_authenticated_message(const std::string& message)
     log_message(std::string("[WebSocketSession] Unknown message type '") + msg_type + "' from " + sid);
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR,
                         std::string("Unknown message type: ") + msg_type);
+    close();
   }
 }
 
