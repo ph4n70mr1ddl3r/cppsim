@@ -285,6 +285,7 @@ void websocket_session::handle_action(const nlohmann::json& envelope_json, const
   if (!action_opt) {
     log_error("[WebSocketSession] Failed to parse ACTION message from " + sid);
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid ACTION message format");
+    close();
     return;
   }
 
@@ -321,6 +322,7 @@ void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, c
   if (!reload_opt) {
     log_error("[WebSocketSession] Failed to parse RELOAD_REQUEST from " + sid);
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid RELOAD_REQUEST format");
+    close();
     return;
   }
   if (validate_session_id(reload_opt->session_id)) {
@@ -340,6 +342,7 @@ void websocket_session::handle_disconnect_msg(const nlohmann::json& envelope_jso
   if (!disconnect_opt) {
     log_error("[WebSocketSession] Failed to parse DISCONNECT from " + sid);
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid DISCONNECT format");
+    close();
     return;
   }
   if (validate_session_id(disconnect_opt->session_id)) {
@@ -506,6 +509,19 @@ void websocket_session::close() noexcept {
     state_.store(state::closed, std::memory_order_release);
     boost::beast::error_code timer_ec;
     deadline_.cancel(timer_ec);
+    try {
+      ws_.next_layer().close();
+    } catch (...) {
+    }
+    try {
+      std::string sid = get_session_id_safe();
+      if (!sid.empty()) {
+        if (auto mgr = conn_mgr_.lock()) {
+          mgr->unregister_session(std::move(sid));
+        }
+      }
+    } catch (...) {
+    }
   }
 }
 
