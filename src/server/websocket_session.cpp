@@ -95,6 +95,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
     if (state_.exchange(state::closed, std::memory_order_acq_rel) == state::closed) {
       return;
     }
+    boost::beast::error_code timer_ec;
+    deadline_.cancel(timer_ec);
     std::string sid = get_session_id_safe();
     if (sid.empty()) {
       log_message("[WebSocketSession] Unauthenticated client disconnected");
@@ -111,6 +113,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
     if (state_.exchange(state::closed, std::memory_order_acq_rel) == state::closed) {
       return;
     }
+    boost::beast::error_code timer_ec;
+    deadline_.cancel(timer_ec);
     std::string sid = get_session_id_safe();
     if (sid.empty()) {
       log_error(std::string("[WebSocketSession] Read error (unauthenticated): ") + ec.message());
@@ -597,6 +601,11 @@ void websocket_session::do_close() noexcept {
                     });
   } catch (const std::exception& e) {
     log_error(std::string("[WebSocketSession] Exception in do_close: ") + e.what());
+    // Fallback: force-close the TCP socket to prevent FD leak if async_close threw
+    try {
+      ws_.next_layer().close();
+    } catch (...) {
+    }
   }
 }
 
