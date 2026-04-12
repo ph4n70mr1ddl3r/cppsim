@@ -1,9 +1,12 @@
 #include "connection_manager.hpp"
 
+#include <array>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <limits>
-#include <random>
+#include <mutex>
 #include <thread>
 
 #include "config.hpp"
@@ -12,30 +15,68 @@
 
 namespace {
 
-std::mt19937& get_thread_local_generator() {
-  static thread_local std::mt19937 gen{[] {
-    std::random_device rd;
-    std::seed_seq seq{rd(), rd(), rd(), rd(), rd()};
-    return std::mt19937{seq};
-  }()};
-  return gen;
+// Generate cryptographically secure random bytes from /dev/urandom (Linux) or arc4random (BSD/macOS).
+// Falls back to a hash-mixed entropy source if OS CPRNG is unavailable.
+bool get_secure_random(unsigned char* buf, size_t len) noexcept {
+#ifdef __linux__
+  std::FILE* f = std::fopen("/dev/urandom", "rb");
+  if (!f) {
+    return false;
+  }
+  size_t read = std::fread(buf, 1, len, f);
+  std::fclose(f);
+  return read == len;
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+  arc4random_buf(buf, len);
+  return true;
+#else
+  return false;
+#endif
 }
 
-uint32_t compute_fallback_random(uint64_t timestamp, uint64_t id) {
-  // MurmurHash3 finalizer mixing constants for better bit distribution
-  // These constants are derived from MurmurHash3's finalization step
+// Fallback entropy source when OS CPRNG is unavailable.
+// Uses mixed timestamps, addresses, and counter as entropy.
+std::string generate_fallback_session_id() {
+  static std::atomic<uint64_t> fallback_counter{0};
+  static std::mutex fallback_mutex;
+
+  uint64_t counter = fallback_counter.fetch_add(1, std::memory_order_relaxed);
+  auto steady = std::chrono::steady_clock::now().time_since_epoch().count();
+  auto system = std::chrono::system_clock::now().time_since_epoch().count();
   auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
-  auto steady_hash = std::hash<typename std::chrono::steady_clock::rep>{}
-      (std::chrono::steady_clock::now().time_since_epoch().count());
-  uint32_t result = static_cast<uint32_t>(timestamp ^ id ^ 
-      static_cast<uint64_t>(thread_hash) ^ static_cast<uint64_t>(steady_hash));
-  // MurmurHash3 finalizer: improves avalanche behavior
-  result ^= (result >> 16);
-  result *= 0x85ebca6b;
-  result ^= (result >> 13);
-  result *= 0xc2b2ae35;
-  result ^= (result >> 16);
-  return result;
+
+  // Mix entropy through MurmurHash3 finalizer
+  uint64_t h = counter ^ static_cast<uint64_t>(steady) ^ static_cast<uint64_t>(system) ^
+               static_cast<uint64_t>(thread_hash);
+  h ^= h >> 33;
+  h *= 0xff51afd7ed558ccdULL;
+  h ^= h >> 33;
+  h *= 0xc4ceb9fe1a85ec53ULL;
+  h ^= h >> 33;
+
+  std::array<char, 33> buf;
+  std::snprintf(buf.data(), buf.size(), "%016llx", static_cast<unsigned long long>(h));
+  return "sess_" + std::string(buf.data());
+}
+
+// Generate a cryptographically random session ID: sess_{32 hex chars} = 128 bits of entropy.
+std::string generate_crypto_session_id() {
+  std::array<unsigned char, 16> random_bytes{};  // 128 bits
+
+  if (!get_secure_random(random_bytes.data(), random_bytes.size())) {
+    cppsim::server::log_error("[ConnectionManager] CSPRNG unavailable, using fallback session ID");
+    return generate_fallback_session_id();
+  }
+
+  std::array<char, 33> hex;
+  static constexpr char hex_chars[] = "0123456789abcdef";
+  for (size_t i = 0; i < random_bytes.size(); ++i) {
+    hex[i * 2] = hex_chars[(random_bytes[i] >> 4) & 0x0f];
+    hex[i * 2 + 1] = hex_chars[random_bytes[i] & 0x0f];
+  }
+  hex[32] = '\0';
+
+  return "sess_" + std::string(hex.data());
 }
 
 }  // namespace
@@ -140,28 +181,10 @@ size_t connection_manager::session_count() const noexcept {
 }
 
 std::string connection_manager::generate_session_id() {
-  uint64_t id = session_counter_.fetch_add(1, std::memory_order_acq_rel);
-
-  auto now = std::chrono::system_clock::now();
-  auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-      now.time_since_epoch()).count();
-  
-  uint32_t random_part = 0;
-
   try {
-    std::uniform_int_distribution<uint32_t> dis(
-        std::numeric_limits<uint32_t>::min(),
-        std::numeric_limits<uint32_t>::max());
-    random_part = dis(get_thread_local_generator());
-  } catch (...) {
-    log_error("[ConnectionManager] Random device failed, using fallback");
-    random_part = compute_fallback_random(static_cast<uint64_t>(timestamp), id);
-  }
-
-  try {
-    return "sess_" + std::to_string(timestamp) + "_" + std::to_string(id) + "_" + std::to_string(random_part);
+    return generate_crypto_session_id();
   } catch (const std::exception& e) {
-    log_error(std::string("[ConnectionManager] Failed to generate session ID string: ") + e.what());
+    log_error(std::string("[ConnectionManager] Failed to generate session ID: ") + e.what());
     return "";
   }
 }

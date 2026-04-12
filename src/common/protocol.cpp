@@ -73,6 +73,14 @@ void log_protocol_error(std::string_view msg) noexcept {
 }  // namespace
 
 std::optional<std::string> extract_message_type(std::string_view json_str) noexcept {
+  auto result = extract_message_type_and_json(json_str);
+  if (result) {
+    return std::move(result->message_type);
+  }
+  return std::nullopt;
+}
+
+std::optional<parsed_message_header> extract_message_type_and_json(std::string_view json_str) noexcept {
   try {
     auto j = nlohmann::json::parse(json_str);
     if (j.contains("message_type") && j["message_type"].is_string()) {
@@ -81,7 +89,7 @@ std::optional<std::string> extract_message_type(std::string_view json_str) noexc
         log_protocol_error("[Protocol] message_type exceeds maximum length");
         return std::nullopt;
       }
-      return msg_type;
+      return parsed_message_header{std::move(msg_type), std::move(j)};
     }
     log_protocol_error("[Protocol] Missing or invalid 'message_type' field in message");
     return std::nullopt;
@@ -250,8 +258,8 @@ std::optional<reload_request_message> parse_reload_request(std::string_view json
     return std::nullopt;
   }
 
-  if (msg.requested_amount < 0 || !std::isfinite(msg.requested_amount) || msg.requested_amount > MAX_AMOUNT) {
-    log_protocol_error("[Protocol] Invalid reload amount: must be non-negative, finite, and within bounds");
+  if (msg.requested_amount <= 0 || !std::isfinite(msg.requested_amount) || msg.requested_amount > MAX_AMOUNT) {
+    log_protocol_error("[Protocol] Invalid reload amount: must be positive, finite, and within bounds");
     return std::nullopt;
   }
 

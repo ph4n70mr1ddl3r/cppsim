@@ -178,7 +178,9 @@ void websocket_session::handle_handshake_message(const std::string& message) {
   const auto& handshake_msg = *handshake_opt;
 
   if (handshake_msg.protocol_version != protocol::PROTOCOL_VERSION) {
-    log_error(std::string("[WebSocketSession] Handshake error: Incompatible version ") + handshake_msg.protocol_version);
+    // Truncate version for logging to prevent log injection
+    std::string safe_version = handshake_msg.protocol_version.substr(0, 32);
+    log_error(std::string("[WebSocketSession] Handshake error: Incompatible version ") + safe_version);
     send_protocol_error(protocol::error_codes::INCOMPATIBLE_VERSION,
                         std::string("Expected ") + protocol::PROTOCOL_VERSION);
     close();
@@ -229,16 +231,16 @@ void websocket_session::handle_handshake_message(const std::string& message) {
 }
 
 void websocket_session::handle_authenticated_message(const std::string& message) {
-  auto msg_type_opt = protocol::extract_message_type(message);
+  auto header_opt = protocol::extract_message_type_and_json(message);
 
-  if (!msg_type_opt) {
+  if (!header_opt) {
     log_message(std::string("[WebSocketSession] Invalid message format from ") + get_session_id_safe() + ": missing message_type");
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Missing or invalid message_type field");
     close();
     return;
   }
 
-  const auto& msg_type = *msg_type_opt;
+  const auto& msg_type = header_opt->message_type;
   std::string sid = get_session_id_safe();
 
   if (msg_type == protocol::message_types::ACTION) {
@@ -383,6 +385,7 @@ void websocket_session::on_write(boost::beast::error_code ec,
     {
       std::lock_guard<std::mutex> lock(write_queue_mutex_);
       writing_ = false;
+      close_requested_.store(true, std::memory_order_release);
       write_queue_ = std::queue<std::string>();
     }
     do_close();
@@ -547,6 +550,11 @@ void websocket_session::do_close() noexcept {
                     [self = shared_from_this()](boost::beast::error_code ec) {
                       if (ec) {
                         log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
+                        // Fallback: force-close the TCP socket to prevent FD leak
+                        try {
+                          self->ws_.next_layer().close();
+                        } catch (...) {
+                        }
                       }
                     });
   } catch (const std::exception& e) {

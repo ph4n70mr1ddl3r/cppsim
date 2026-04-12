@@ -133,6 +133,14 @@ struct message_envelope {
 
 [[nodiscard]] std::optional<std::string> extract_message_type(std::string_view json_str) noexcept;
 
+/// Extract message type and pre-parsed JSON to avoid double-parsing.
+/// Returns nullopt on parse failure.
+struct parsed_message_header {
+  std::string message_type;
+  nlohmann::json envelope_json;
+};
+[[nodiscard]] std::optional<parsed_message_header> extract_message_type_and_json(std::string_view json_str) noexcept;
+
 [[nodiscard]] std::string serialize_state_update(const state_update_message& msg);
 [[nodiscard]] std::string serialize_error(const error_message& msg);
 [[nodiscard]] std::string serialize_handshake_response(const handshake_response& msg);

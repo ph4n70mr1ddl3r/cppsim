@@ -1,6 +1,5 @@
 #pragma once
 
-#include <atomic>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -34,7 +33,6 @@ class connection_manager final {
 
   mutable std::mutex sessions_mutex_;
   std::map<std::string, std::shared_ptr<websocket_session>, std::less<>> sessions_;
-  std::atomic<uint64_t> session_counter_{0};
 };
 
 }  // namespace server

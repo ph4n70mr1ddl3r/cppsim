@@ -398,7 +398,7 @@ TEST(ProtocolTest, NegativeReloadAmount) {
   EXPECT_FALSE(result.has_value());
 }
 
-// Test: Reload request - valid zero amount (edge case, should pass)
+// Test: Reload request - zero amount should fail
 TEST(ProtocolTest, ZeroReloadAmount) {
   message_envelope env;
   env.message_type = message_types::RELOAD_REQUEST;
@@ -412,8 +412,7 @@ TEST(ProtocolTest, ZeroReloadAmount) {
   to_json(j, env);
   auto result = parse_reload_request(j.dump());
 
-  ASSERT_TRUE(result.has_value());
-  EXPECT_DOUBLE_EQ(result->requested_amount, 0.0);
+  EXPECT_FALSE(result.has_value());
 }
 
 // Test: Action validation - ALL_IN without amount should fail
