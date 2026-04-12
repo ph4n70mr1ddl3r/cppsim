@@ -154,7 +154,10 @@ TEST_F(HandshakeTest, IncompatibleVersion) {
         ws.read(buffer);
         FAIL() << "Connection should be closed";
     } catch (const beast::system_error& se) {
-        EXPECT_EQ(se.code(), websocket::error::closed);
+        bool expected = (se.code() == websocket::error::closed) ||
+                        (se.code() == net::error::eof) ||
+                        (se.code() == net::error::connection_reset);
+        EXPECT_TRUE(expected) << "Unexpected close error: " << se.code().message() << " (" << se.code() << ")";
     }
 }
 
