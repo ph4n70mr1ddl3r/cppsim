@@ -2,6 +2,7 @@
 #include <functional>
 #include <memory>
 #include <thread>
+#include <unistd.h>  // getpid
 #include <vector>
 
 #include "server/boost_wrapper.hpp"
@@ -47,7 +48,7 @@ TEST(WebSocketServerTest, AcceptsConnection) {
   net::io_context ioc_server;
   net::io_context ioc_client;
 
-  uint16_t port = cppsim::server::config::DEFAULT_TEST_PORT + 1;
+  uint16_t port = static_cast<uint16_t>(40000 + (getpid() % 10000));
 
   auto server = std::make_shared<cppsim::server::websocket_server>(ioc_server, port);
   server->run();
@@ -103,7 +104,7 @@ TEST(WebSocketServerTest, AcceptsConnection) {
 
 TEST(WebSocketServerTest, StopIsIdempotent) {
   net::io_context ioc;
-  uint16_t port = cppsim::server::config::DEFAULT_TEST_PORT + 2;
+  uint16_t port = static_cast<uint16_t>(50000 + (getpid() % 10000));
 
   auto server = std::make_shared<cppsim::server::websocket_server>(ioc, port);
   server->run();

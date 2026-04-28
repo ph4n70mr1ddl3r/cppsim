@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <chrono>
+#include <unistd.h>  // getpid
 #include "common/protocol.hpp"
 #include "test_utils.hpp"
 
@@ -23,7 +24,12 @@ protected:
     net::io_context server_ioc;
     std::thread server_thread;
     std::shared_ptr<cppsim::server::websocket_server> server;
-    static constexpr unsigned short TEST_PORT = cppsim::server::config::DEFAULT_TEST_PORT;
+
+    // Each ctest process runs a single test case, so all HandshakeTest
+    // instances share the same PID. Use getpid() to pick a unique port
+    // that won't collide with other parallel ctest processes.
+    unsigned short test_port = static_cast<unsigned short>(
+        30000 + (getpid() % 20000));
 
     // Most tests use the default timeout; override in derived fixtures as needed.
     virtual std::chrono::seconds handshake_timeout() const { return TEST_HANDSHAKE_TIMEOUT; }
@@ -32,7 +38,7 @@ protected:
         // Start server on test port
         try {
             server = std::make_shared<cppsim::server::websocket_server>(
-                server_ioc, TEST_PORT, handshake_timeout());
+                server_ioc, test_port, handshake_timeout());
             server->run();
             
             server_thread = std::thread([this]{ 
@@ -40,7 +46,7 @@ protected:
                 server_ioc.run(); 
             });
             
-            ASSERT_TRUE(wait_for_server(TEST_PORT)) << "Failed to connect to server within 5 seconds";
+            ASSERT_TRUE(wait_for_server(test_port)) << "Failed to connect to server within 5 seconds";
         } catch (const std::exception& e) {
             FAIL() << "Failed to start server: " << e.what();
         }
@@ -65,7 +71,7 @@ TEST_F(HandshakeTest, SuccessfulHandshake) {
     tcp::resolver resolver(ioc);
     websocket::stream<tcp::socket> ws(ioc);
 
-    auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
+    auto const results = resolver.resolve("localhost", std::to_string(test_port));
     net::connect(ws.next_layer(), results.begin(), results.end());
     perform_handshake(ws);
 
@@ -107,7 +113,7 @@ TEST_F(HandshakeTest, IncompatibleVersion) {
     tcp::resolver resolver(ioc);
     websocket::stream<tcp::socket> ws(ioc);
 
-    auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
+    auto const results = resolver.resolve("localhost", std::to_string(test_port));
     net::connect(ws.next_layer(), results.begin(), results.end());
     perform_handshake(ws);
 
@@ -157,7 +163,7 @@ TEST_F(HandshakeTest, MalformedData) {
     tcp::resolver resolver(ioc);
     websocket::stream<tcp::socket> ws(ioc);
 
-    auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
+    auto const results = resolver.resolve("localhost", std::to_string(test_port));
     net::connect(ws.next_layer(), results.begin(), results.end());
     perform_handshake(ws);
 
@@ -185,7 +191,7 @@ TEST_F(HandshakeTest, ProtocolError) {
     tcp::resolver resolver(ioc);
     websocket::stream<tcp::socket> ws(ioc);
 
-    auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
+    auto const results = resolver.resolve("localhost", std::to_string(test_port));
     net::connect(ws.next_layer(), results.begin(), results.end());
     perform_handshake(ws);
 
@@ -217,7 +223,7 @@ TEST_F(HandshakeTest, HandshakeTimeout) {
     tcp::resolver resolver(ioc);
     websocket::stream<tcp::socket> ws(ioc);
 
-    auto const results = resolver.resolve("localhost", std::to_string(TEST_PORT));
+    auto const results = resolver.resolve("localhost", std::to_string(test_port));
     net::connect(ws.next_layer(), results.begin(), results.end());
     perform_handshake(ws);
 

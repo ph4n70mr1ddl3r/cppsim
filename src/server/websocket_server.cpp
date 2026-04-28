@@ -31,20 +31,23 @@ websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port,
 
   acceptor_.set_option(boost::asio::socket_base::reuse_address(true), ec);
   if (ec) {
-    acceptor_.close(ec);
+    boost::beast::error_code close_ec;
+    acceptor_.close(close_ec);
     throw std::runtime_error(std::string("[WebSocketServer] Failed to set reuse_address: ") + ec.message());
   }
 
   acceptor_.bind(endpoint, ec);
   if (ec) {
-    acceptor_.close(ec);
+    boost::beast::error_code close_ec;
+    acceptor_.close(close_ec);
     throw std::runtime_error(
         std::string("[WebSocketServer] Failed to bind to port ") + std::to_string(port) + ": " + ec.message());
   }
 
   acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
   if (ec) {
-    acceptor_.close(ec);
+    boost::beast::error_code close_ec;
+    acceptor_.close(close_ec);
     throw std::runtime_error(std::string("[WebSocketServer] Failed to listen: ") + ec.message());
   }
 
