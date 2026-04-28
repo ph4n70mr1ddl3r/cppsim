@@ -132,18 +132,22 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
       backoff_timer_ = std::make_shared<boost::asio::steady_timer>(ioc_);
       backoff_timer_->expires_after(std::chrono::seconds(backoff));
       auto retry_self = shared_from_this();
-      backoff_timer_->async_wait([retry_self, timer_ptr = backoff_timer_, backoff](boost::beast::error_code timer_ec) {
-        if (!timer_ec && retry_self->alive_.load(std::memory_order_acquire)) {
-          bool should_retry = false;
-          {
-            std::lock_guard<std::mutex> timer_lock(retry_self->timer_mutex_);
-            should_retry = retry_self->acceptor_.is_open() && timer_ptr == retry_self->backoff_timer_;
-          }
-          if (should_retry) {
-            retry_self->do_accept();
-          }
-        }
-      });
+      auto weak_self = std::weak_ptr<websocket_server>(retry_self);
+      backoff_timer_->async_wait(
+          [weak_self, timer_ptr = backoff_timer_, backoff](boost::beast::error_code timer_ec) {
+            auto self = weak_self.lock();
+            if (!self) return;  // Server destroyed
+            if (!timer_ec && self->alive_.load(std::memory_order_acquire)) {
+              bool should_retry = false;
+              {
+                std::lock_guard<std::mutex> timer_lock(self->timer_mutex_);
+                should_retry = self->acceptor_.is_open() && timer_ptr == self->backoff_timer_;
+              }
+              if (should_retry) {
+                self->do_accept();
+              }
+            }
+          });
     }
     // Increase backoff for next attempt, cap at configured max
     int new_backoff = std::min(backoff * 2, static_cast<int>(config::MAX_BACKOFF.count()));
