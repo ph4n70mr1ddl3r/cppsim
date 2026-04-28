@@ -221,14 +221,7 @@ inline void from_json(const nlohmann::json& j, state_update_message& m) {
   j.at("pot_size").get_to(m.pot_size);
   j.at("current_bet").get_to(m.current_bet);
 
-  const auto& stacks_json = j.at("player_stacks");
-  m.player_stacks.clear();
-  m.player_stacks.reserve(stacks_json.size());
-  for (const auto& stack_json : stacks_json) {
-    player_stack ps;
-    from_json(stack_json, ps);
-    m.player_stacks.push_back(ps);
-  }
+  j.at("player_stacks").get_to(m.player_stacks);
 
   j.at("valid_actions").get_to(m.valid_actions);
   if (j.contains("community_cards") && !j["community_cards"].is_null()) {

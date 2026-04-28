@@ -5,3 +5,6 @@ cd "${SCRIPT_DIR}"
 rm -rf build
 cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
+echo ""
+echo "Running tests..."
+./build/tests/poker_tests

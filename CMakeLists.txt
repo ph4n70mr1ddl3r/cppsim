@@ -81,16 +81,13 @@ add_subdirectory(src/client)
 enable_testing()
 add_subdirectory(tests)
 
-# Apply project-wide options and warnings to all targets
-# Using PRIVATE linkage because these are executables (server, client, tests) that don't
-# export their interface. If creating new libraries, consider PUBLIC linkage to propagate
-# warnings to consumers.
+# Apply project-wide warnings to all targets.
+# poker_common propagates project_options PUBLIC, so poker_client and poker_tests
+# inherit it transitively. project_warnings is PRIVATE to poker_common and
+# poker_server_lib, so it must be linked explicitly here for each executable.
 target_link_libraries(poker_server PRIVATE project_options project_warnings)
-target_link_libraries(poker_client PRIVATE project_options project_warnings)
-# poker_common is a STATIC library
-# Consumers (server/client) already link project_warnings above, which is sufficient
-# poker_common links project_warnings internally
-target_link_libraries(poker_tests PRIVATE project_options project_warnings)
+target_link_libraries(poker_client PRIVATE project_warnings)
+target_link_libraries(poker_tests PRIVATE project_warnings)
 
 # =============================================================================
 # Summary

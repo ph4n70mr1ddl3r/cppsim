@@ -1,7 +1,7 @@
 #!/bin/bash
 # validate_clang_format.sh
-# Validates that .clang-format configuration works correctly
-# Checks formatting and include ordering as defined in architecture
+# Validates that all project source files are properly formatted.
+# Run from the project root or via: bash scripts/validate_clang_format.sh
 
 set -euo pipefail
 
@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CLANG_FORMAT_CONFIG="${PROJECT_ROOT}/.clang-format"
 
-echo "🔍 Validating clang-format configuration..."
+echo "🔍 Validating clang-format for project source files..."
 
 # Check if clang-format is installed
 if ! command -v clang-format &> /dev/null; then
@@ -23,79 +23,54 @@ if [[ ! -f "${CLANG_FORMAT_CONFIG}" ]]; then
     exit 1
 fi
 
-# Create a temporary test file with deliberate formatting violations
-TEMP_FILE="$(mktemp --suffix=.cpp)"
-trap 'rm -f "${TEMP_FILE}"' EXIT
+CLANG_FORMAT_VERSION="$(clang-format --version)"
+echo "   Using: ${CLANG_FORMAT_VERSION}"
 
-cat > "${TEMP_FILE}" << 'EOF'
-// Test file for clang-format validation
-// Includes are deliberately out of order to test sorting
-#include "some_project_header.hpp"
-#include <vector>
-#include <cstdio>
-#include <boost/asio.hpp>
-#include "another_header.hpp"
-#include <chrono>
-#include <cstring>
+# Collect all C++ source files (excluding build directories and vendored code)
+MAPFILE -t SOURCE_FILES < <( \
+  find "${PROJECT_ROOT}/src" "${PROJECT_ROOT}/tests" \
+    \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \) \
+    -not -path '*/build/*' \
+    -not -path '*/_deps/*' \
+    | sort
+)
 
-int    main(   ){int x=5;return    0;}
-EOF
-
-echo "📝 Created test file with formatting violations:"
-echo "--- Original test file ---"
-cat "${TEMP_FILE}"
-echo "--- End original ---"
-echo ""
-
-# Run clang-format
-echo "🔄 Running clang-format..."
-clang-format -i "${TEMP_FILE}"
-
-echo "📝 Formatted test file:"
-echo "--- Formatted test file ---"
-cat "${TEMP_FILE}"
-echo "--- End formatted ---"
-echo ""
-
-# Validate formatting (basic checks)
-echo "✅ clang-format applied successfully."
-
-# Check include ordering (basic validation)
-# Expected order: own headers first (project headers), then C headers, then C++ std, then boost, then others
-# Since we have two project headers, they should be grouped together
-# C headers: <cstdio>, <cstring> (should be before C++ std)
-# C++ std: <vector>, <chrono> (should be after C headers)
-# Boost: <boost/asio.hpp> (should be after C++ std)
-
-echo "🔍 Validating include ordering..."
-
-# Extract includes and check ordering
-INCLUDES=$(grep -E '^#include' "${TEMP_FILE}")
-
-# Check that project headers appear before standard headers
-PROJECT_HEADER_COUNT=$(echo "${INCLUDES}" | grep -c '^#include "')
-if [[ "${PROJECT_HEADER_COUNT}" -gt 0 ]]; then
-    # Find line numbers of project headers vs standard headers
-    # Simple validation: ensure no standard header appears before first project header
-    # (clang-format groups all project headers together at priority 1)
-    echo "✅ Project headers are grouped together (priority 1)."
+if [[ ${#SOURCE_FILES[@]} -eq 0 ]]; then
+    echo "❌ No source files found in src/ or tests/"
+    exit 1
 fi
 
-# Check that C headers appear before C++ standard headers
-# This is a heuristic; we just verify that <c...> headers are present and not mixed with C++ headers
-C_HEADERS=$(echo "${INCLUDES}" | grep -E '^#include <c[^/]+>$' || true)
-if [[ -n "${C_HEADERS}" ]]; then
-    echo "✅ C standard library headers detected and properly classified."
-fi
-
-# Check that Boost headers are present
-BOOST_HEADERS=$(echo "${INCLUDES}" | grep -c '^#include <boost/' || true)
-if [[ "${BOOST_HEADERS}" -gt 0 ]]; then
-    echo "✅ Boost headers detected and properly classified."
-fi
-
+echo "   Checking ${#SOURCE_FILES[@]} source file(s)..."
 echo ""
-echo "🎉 clang-format validation passed!"
+
+# Run clang-format in dry-run mode to detect formatting violations
+# --dry-run / --Werror exits non-zero if any file needs changes
+HAS_VIOLATIONS=false
+NEEDS_FORMAT=()
+
+for file in "${SOURCE_FILES[@]}"; do
+  RELATIVE="${file#${PROJECT_ROOT}/}"
+  if ! clang-format --dry-run --Werror --style=file "${file}" 2>/dev/null; then
+    HAS_VIOLATIONS=true
+    NEEDS_FORMAT+=("${RELATIVE}")
+  fi
+done
+
+if [[ "${HAS_VIOLATIONS}" == "true" ]]; then
+  echo "❌ The following files have formatting violations:"
+  for f in "${NEEDS_FORMAT[@]}"; do
+    echo "   - ${f}"
+  done
+  echo ""
+  echo "   Run the following to fix:"
+  echo "   find src tests \\( -name '*.cpp' -o -name '*.hpp' \\) -exec clang-format -i {} +"
+  echo ""
+  echo "⚠️  Note: clang-format cannot enforce snake_case naming conventions."
+  echo "   Developers must manually follow architecture naming rules."
+  exit 1
+fi
+
+echo "✅ All ${#SOURCE_FILES[@]} source files are properly formatted."
 echo ""
 echo "⚠️  Note: clang-format cannot enforce snake_case naming conventions."
 echo "   Developers must manually follow architecture naming rules:"

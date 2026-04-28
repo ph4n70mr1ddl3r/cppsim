@@ -29,7 +29,7 @@ class connection_manager final {
   void stop_all() noexcept;
 
  private:
-  [[nodiscard]] std::string generate_session_id();
+  [[nodiscard]] static std::string generate_session_id();
 
   mutable std::mutex sessions_mutex_;
   std::map<std::string, std::shared_ptr<websocket_session>, std::less<>> sessions_;
