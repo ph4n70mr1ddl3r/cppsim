@@ -17,7 +17,7 @@ constexpr size_t MAX_CLIENT_NAME_LENGTH = 128;
 constexpr size_t MAX_LOG_FIELD_LENGTH = 64;
 constexpr size_t MAX_DISCONNECT_REASON_LENGTH = 256;
 
-std::string trunc_field(std::string_view s) noexcept {
+std::string trunc_field(std::string_view s) {
   if (s.size() <= MAX_LOG_FIELD_LENGTH) return std::string(s);
   return std::string(s.substr(0, MAX_LOG_FIELD_LENGTH)) + "...";
 }

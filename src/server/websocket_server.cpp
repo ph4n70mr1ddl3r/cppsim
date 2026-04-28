@@ -109,6 +109,11 @@ void websocket_server::do_accept() {
 
 void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::tcp::socket socket) {
   if (ec) {
+    // Suppress noise from normal shutdown — operation_aborted fires when stop() closes the acceptor
+    if (ec == boost::asio::error::operation_aborted) {
+      return;
+    }
+
     log_error(std::string("[WebSocketServer] Accept failed: ") + ec.message());
 
     // Check for fatal errors that should stop the server
@@ -129,7 +134,7 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
         boost::beast::error_code cancel_ec;
         backoff_timer_->cancel(cancel_ec);
       }
-      backoff_timer_ = std::make_shared<boost::asio::steady_timer>(ioc_);
+      backoff_timer_ = std::make_shared<boost::asio::steady_timer>(acceptor_.get_executor());
       backoff_timer_->expires_after(std::chrono::seconds(backoff));
       auto retry_self = shared_from_this();
       auto weak_self = std::weak_ptr<websocket_server>(retry_self);

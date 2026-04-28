@@ -209,8 +209,6 @@ void websocket_session::handle_handshake_message(const std::string& message) {
     log_message(std::string("[WebSocketSession] Client Name: ") + handshake_msg.client_name->substr(0, 32));
   }
 
-  deadline_.expires_after(config::IDLE_TIMEOUT);
-
   std::string new_session_id;
   if (auto mgr = conn_mgr_.lock()) {
     new_session_id = mgr->register_session(shared_from_this());
