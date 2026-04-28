@@ -145,9 +145,11 @@ void websocket_session::on_read(boost::beast::error_code ec,
     log_error(std::string("[WebSocketSession] Unhandled exception in message handler: ") + e.what());
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Internal server error");
     close();
+    return;
   } catch (...) {
     log_error("[WebSocketSession] Unknown exception in message handler");
     close();
+    return;
   }
 
   if (state_.load(std::memory_order_acquire) != state::closed &&
