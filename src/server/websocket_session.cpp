@@ -5,19 +5,10 @@
 #include "connection_manager.hpp"
 #include "logger.hpp"
 #include "protocol.hpp"
+#include "sanitize.hpp"
 
 namespace cppsim {
 namespace server {
-
-namespace {
-
-// Truncate session ID for safe logging (show only first 8 chars of hex part)
-std::string sanitize_sid(const std::string& sid) {
-  if (sid.size() <= 13) return sid;
-  return sid.substr(0, 13) + "...";
-}
-
-}  // namespace
 
 websocket_session::websocket_session(
     boost::asio::ip::tcp::socket socket,
@@ -105,7 +96,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     if (sid.empty()) {
       log_message("[WebSocketSession] Unauthenticated client disconnected");
     } else {
-      log_message(std::string("[WebSocketSession] Client disconnected: ") + sanitize_sid(sid));
+      log_message(std::string("[WebSocketSession] Client disconnected: ") + sanitize_session_id(sid));
     }
     if (auto mgr = conn_mgr_.lock()) {
       mgr->unregister_session(std::move(sid));
@@ -123,7 +114,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     if (sid.empty()) {
       log_error(std::string("[WebSocketSession] Read error (unauthenticated): ") + ec.message());
     } else {
-      log_error(std::string("[WebSocketSession] Read error for ") + sanitize_sid(sid) + ": " + ec.message());
+      log_error(std::string("[WebSocketSession] Read error for ") + sanitize_session_id(sid) + ": " + ec.message());
     }
     if (auto mgr = conn_mgr_.lock()) {
       mgr->unregister_session(std::move(sid));
@@ -183,7 +174,7 @@ bool websocket_session::check_rate_limit() {
 
   if (rate_exceeded) {
     log_error("[WebSocketSession] Rate limit exceeded (max " +
-        std::to_string(config::MAX_MESSAGES_PER_WINDOW) + " messages per window) for session " + sanitize_sid(get_session_id_safe()));
+        std::to_string(config::MAX_MESSAGES_PER_WINDOW) + " messages per window) for session " + sanitize_session_id(get_session_id_safe()));
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Rate limit exceeded");
     close();
     return false;
@@ -254,7 +245,7 @@ void websocket_session::handle_handshake_message(const std::string& message) {
 
   state_.store(state::authenticated, std::memory_order_release);
 
-  log_message(std::string("[WebSocketSession] Handshake successful for session: ") + sanitize_sid(new_session_id));
+  log_message(std::string("[WebSocketSession] Handshake successful for session: ") + sanitize_session_id(new_session_id));
 }
 
 void websocket_session::handle_authenticated_message(const std::string& message) {
@@ -365,7 +356,7 @@ bool websocket_session::queue_message(std::string&& message) {
       return false;
     }
     if (write_queue_.size() >= config::MAX_WRITE_QUEUE_SIZE) {
-      log_error(std::string("[WebSocketSession] Write queue full for session ") + sanitize_sid(get_session_id_safe()) + ", dropping message");
+      log_error(std::string("[WebSocketSession] Write queue full for session ") + sanitize_session_id(get_session_id_safe()) + ", dropping message");
       return false;
     }
     write_queue_.push(std::move(message));
@@ -413,7 +404,7 @@ void websocket_session::do_write() {
 void websocket_session::on_write(boost::beast::error_code ec,
                                    [[maybe_unused]] std::size_t bytes_transferred) {
   if (ec) {
-    log_error(std::string("[WebSocketSession] Write error for ") + sanitize_sid(get_session_id_safe()) + ": " + ec.message());
+    log_error(std::string("[WebSocketSession] Write error for ") + sanitize_session_id(get_session_id_safe()) + ": " + ec.message());
     size_t dropped = 0;
     {
       std::lock_guard<std::mutex> lock(write_queue_mutex_);
@@ -484,7 +475,7 @@ void websocket_session::check_deadline() {
           log_error("[WebSocketSession] Handshake timeout");
           self->close();
         } else {
-          log_error(std::string("[WebSocketSession] Idle timeout for session ") + sanitize_sid(self->get_session_id_safe()));
+          log_error(std::string("[WebSocketSession] Idle timeout for session ") + sanitize_session_id(self->get_session_id_safe()));
           self->close();
         }
       });
@@ -560,8 +551,8 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
     std::string session_id_copy = get_session_id_safe();
 
     if (provided_session_id != session_id_copy) {
-      log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + sanitize_sid(session_id_copy) + ", got " +
-                  sanitize_sid(provided_session_id));
+      log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + sanitize_session_id(session_id_copy) + ", got " +
+                  sanitize_session_id(provided_session_id));
       send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Session ID mismatch");
       close();
       return false;
@@ -579,7 +570,7 @@ void websocket_session::send_protocol_error(const char* error_code, std::string_
     err.error_code = error_code;
     err.message = std::string(message);
     if (!send(protocol::serialize_error(err))) {
-      log_error("[WebSocketSession] Failed to send protocol error for session " + sanitize_sid(get_session_id_safe()));
+      log_error("[WebSocketSession] Failed to send protocol error for session " + sanitize_session_id(get_session_id_safe()));
     }
   } catch (...) {
     log_error("[WebSocketSession] Exception in send_protocol_error");

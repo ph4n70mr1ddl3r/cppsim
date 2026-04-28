@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <unordered_set>
 
 namespace cppsim {
@@ -37,6 +38,7 @@ bool validate_session_id_format(const std::string& sid) noexcept {
   return true;
 }
 
+std::mutex error_logger_mutex;
 auto error_logger = std::make_shared<std::function<void(std::string_view)>>(
     [](std::string_view msg) {
       constexpr size_t max_safe_size = static_cast<size_t>(std::numeric_limits<int>::max());
@@ -76,7 +78,11 @@ const string_view_set& get_amount_forbidden_types() noexcept {
 
 void log_protocol_error(std::string_view msg) noexcept {
   try {
-    auto logger_copy = std::atomic_load(&error_logger);
+    std::shared_ptr<std::function<void(std::string_view)>> logger_copy;
+    {
+      std::lock_guard<std::mutex> lock(error_logger_mutex);
+      logger_copy = error_logger;
+    }
     if (logger_copy && *logger_copy) {
       (*logger_copy)(msg);
     }
@@ -187,7 +193,8 @@ std::optional<T> parse_from_envelope(const nlohmann::json& envelope_json, std::s
 
 void set_error_logger(std::function<void(std::string_view)> logger) {
   auto new_logger = std::make_shared<std::function<void(std::string_view)>>(std::move(logger));
-  std::atomic_store(&error_logger, std::move(new_logger));
+  std::lock_guard<std::mutex> lock(error_logger_mutex);
+  error_logger = std::move(new_logger);
 }
 
 std::optional<handshake_message> parse_handshake(std::string_view json_str) {

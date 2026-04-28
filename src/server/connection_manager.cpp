@@ -1,6 +1,7 @@
 #include "connection_manager.hpp"
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cinttypes>
 #include <cstdint>
@@ -12,15 +13,12 @@
 
 #include "config.hpp"
 #include "logger.hpp"
+#include "sanitize.hpp"
 #include "websocket_session.hpp"
 
 namespace {
 
-// Truncate session ID for safe logging (show only first 8 chars of the hex part)
-std::string sanitize_session_id(std::string_view sid) {
-  if (sid.size() <= 13) return std::string(sid);  // "sess_" + 8 hex chars minimum
-  return std::string(sid.substr(0, 13)) + "...";
-}
+using cppsim::server::sanitize_session_id;
 
 // Generate cryptographically secure random bytes from /dev/urandom (Linux) or arc4random (BSD/macOS).
 // Falls back to a hash-mixed entropy source if OS CPRNG is unavailable.

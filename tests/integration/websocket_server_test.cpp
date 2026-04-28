@@ -9,6 +9,7 @@
 #include "server/connection_manager.hpp"
 #include "server/config.hpp"
 #include "common/protocol.hpp"
+#include "test_utils.hpp"
 #include <nlohmann/json.hpp>
 
 namespace net = boost::asio;
@@ -16,27 +17,7 @@ namespace beast = boost::beast;
 namespace websocket = beast::websocket;
 using tcp = net::ip::tcp;
 
-// Wait for a TCP server to become reachable by polling with probe connections.
-// Returns true on success, false on timeout.
-static bool wait_for_server(uint16_t port,
-                             std::chrono::steady_clock::duration timeout = std::chrono::seconds(5)) {
-  auto deadline = std::chrono::steady_clock::now() + timeout;
-  while (std::chrono::steady_clock::now() < deadline) {
-    try {
-      net::io_context ioc;
-      tcp::socket s(ioc);
-      tcp::resolver resolver(ioc);
-      auto const results = resolver.resolve("localhost", std::to_string(port));
-      net::connect(s, results.begin(), results.end());
-      boost::system::error_code ec;
-      s.close(ec);
-      return true;
-    } catch (...) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-  }
-  return false;
-}
+using cppsim::testing::wait_for_server;
 
 TEST(ConnectionManagerTest, BasicLifecycle) {
   auto mgr = std::make_shared<cppsim::server::connection_manager>();

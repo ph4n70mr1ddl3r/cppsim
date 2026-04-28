@@ -6,6 +6,7 @@
 #include <thread>
 #include <chrono>
 #include "common/protocol.hpp"
+#include "test_utils.hpp"
 
 namespace beast = boost::beast;
 namespace websocket = beast::websocket;
@@ -15,26 +16,7 @@ using tcp = boost::asio::ip::tcp;
 // Use a very short handshake timeout for the timeout test (500ms instead of 10s)
 static constexpr auto TEST_HANDSHAKE_TIMEOUT = std::chrono::seconds{1};
 
-// Wait for a TCP server to become reachable by polling with probe connections.
-static bool wait_for_server(uint16_t port,
-                             std::chrono::steady_clock::duration timeout = std::chrono::seconds(5)) {
-  auto deadline = std::chrono::steady_clock::now() + timeout;
-  while (std::chrono::steady_clock::now() < deadline) {
-    try {
-      net::io_context ioc;
-      tcp::socket s(ioc);
-      tcp::resolver resolver(ioc);
-      auto const results = resolver.resolve("localhost", std::to_string(port));
-      net::connect(s, results.begin(), results.end());
-      boost::system::error_code ec;
-      s.close(ec);
-      return true;
-    } catch (...) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-  }
-  return false;
-}
+using cppsim::testing::wait_for_server;
 
 class HandshakeTest : public ::testing::Test {
 protected:
