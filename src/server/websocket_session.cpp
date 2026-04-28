@@ -56,6 +56,11 @@ void websocket_session::do_accept() {
 
 void websocket_session::on_accept(boost::beast::error_code ec) {
   if (ec) {
+    // Probe connections (e.g. health checks) close before completing the WS
+    // handshake — this is normal, not a real error.
+    if (ec == boost::beast::websocket::error::closed) {
+      return;
+    }
     log_error(std::string("[WebSocketSession] Accept failed: ") + ec.message());
     boost::beast::error_code timer_ec;
     deadline_.cancel(timer_ec);
@@ -70,7 +75,8 @@ void websocket_session::on_accept(boost::beast::error_code ec) {
 
 void websocket_session::do_read() {
   boost::asio::dispatch(ws_.get_executor(), [self = shared_from_this()]() {
-    if (self->state_.load(std::memory_order_acquire) == state::closed) {
+    if (self->state_.load(std::memory_order_acquire) == state::closed ||
+        self->close_requested_.load(std::memory_order_acquire)) {
       return;
     }
     self->ws_.async_read(self->buffer_, boost::beast::bind_front_handler(
@@ -388,7 +394,6 @@ void websocket_session::do_write() {
       return;
     }
 
-    writing_ = true;
     message = std::make_shared<std::string>(std::move(write_queue_.front()));
     write_queue_.pop();
   }

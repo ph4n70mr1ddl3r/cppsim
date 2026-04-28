@@ -26,7 +26,7 @@ struct config {
     static constexpr size_t MAX_TIMESTAMPS_TO_TRACK = 50;
     
     static constexpr size_t MAX_CONNECTIONS = 1000;
-    static constexpr size_t MAX_SESSION_ID_LENGTH = 256;
+    static constexpr size_t MAX_SESSION_ID_LENGTH = 128;  // Must match protocol::validate_session_id_format limit
     static constexpr auto MAX_BACKOFF = std::chrono::seconds{30};
     
     static constexpr int PLACEHOLDER_SEAT = -1;
