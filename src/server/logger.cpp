@@ -1,11 +1,11 @@
 #include "logger.hpp"
 #include <array>
-#include <cstdio>
-#include <ctime>
 #include <chrono>
+#include <ctime>
 #include <iostream>
 #include <limits>
 #include <mutex>
+#include <ostream>
 
 namespace cppsim {
 namespace server {

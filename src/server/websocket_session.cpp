@@ -325,13 +325,17 @@ void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, c
   }
   if (validate_session_id(reload_opt->session_id)) {
     log_message(std::string("[WebSocketSession] Validated RELOAD_REQUEST from ") + sid);
+
+    // Compute the new stack but only commit after the response is queued.
+    double new_stack = std::min(current_stack_ + reload_opt->requested_amount, protocol::MAX_AMOUNT);
     protocol::reload_response_message resp;
     resp.granted = true;
-    current_stack_ = std::min(current_stack_ + reload_opt->requested_amount, protocol::MAX_AMOUNT);
-    resp.new_stack = current_stack_;
+    resp.new_stack = new_stack;
     if (!send(protocol::serialize_reload_response(resp))) {
       log_error("[WebSocketSession] Failed to send RELOAD_RESPONSE to " + sid);
       close();
+    } else {
+      current_stack_ = new_stack;
     }
   }
 }
@@ -499,7 +503,7 @@ void websocket_session::close() noexcept {
   }
 
   try {
-    boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
+    boost::asio::dispatch(ws_.get_executor(), [self = shared_from_this()]() {
        bool write_in_flight = false;
        {
          std::lock_guard<std::mutex> lock(self->write_queue_mutex_);

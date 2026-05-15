@@ -23,7 +23,6 @@ struct config {
     
     static constexpr size_t MAX_MESSAGES_PER_WINDOW = 10;
     static constexpr std::chrono::milliseconds RATE_LIMIT_WINDOW{1000};
-    static constexpr size_t MAX_TIMESTAMPS_TO_TRACK = 50;
     
     static constexpr size_t MAX_CONNECTIONS = 1000;
     static constexpr size_t MAX_SESSION_ID_LENGTH = 128;  // Must match protocol::validate_session_id_format limit
@@ -34,8 +33,7 @@ struct config {
     
     static constexpr int64_t MAX_SEQUENCE_GAP = 10000;
     
-    static_assert(MAX_TIMESTAMPS_TO_TRACK >= MAX_MESSAGES_PER_WINDOW,
-                  "MAX_TIMESTAMPS_TO_TRACK must be >= MAX_MESSAGES_PER_WINDOW for rate limiting to work correctly");
+
 };
 
 } // namespace server
