@@ -22,7 +22,7 @@ using cppsim::server::sanitize_session_id;
 // Generate cryptographically secure random bytes from /dev/urandom (Linux) or arc4random (BSD/macOS).
 // Falls back to a hash-mixed entropy source if OS CPRNG is unavailable.
 bool get_secure_random(unsigned char* buf, size_t len) noexcept {
-#ifdef __linux__
+#if defined(__linux__)
   std::FILE* f = std::fopen("/dev/urandom", "rb");
   if (!f) {
     return false;
@@ -35,6 +35,18 @@ bool get_secure_random(unsigned char* buf, size_t len) noexcept {
   return read == len;
 #elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
   arc4random_buf(buf, len);
+  return true;
+#elif defined(_WIN32)
+  // Use rand_s() which calls RtlGenRandom (aka SystemFunction036) —
+  // a user-mode CSPRNG backed by the Windows kernel. Available since
+  // MSVC 2005 on all supported Windows versions.
+  for (size_t i = 0; i < len; ++i) {
+    unsigned int val = 0;
+    if (rand_s(&val) != 0) {
+      return false;
+    }
+    buf[i] = static_cast<unsigned char>(val & 0xFF);
+  }
   return true;
 #else
   return false;
@@ -119,9 +131,9 @@ std::string connection_manager::register_session(
             std::to_string(config::MAX_CONNECTIONS) + ")");
         return "";
       }
-      // Use the raw shared_ptr for try_emplace so the caller's copy
-      // survives collision retries.  Only move on successful insertion.
-      auto result = sessions_.try_emplace(session_id, session);
+      auto result = (attempt < max_retries - 1)
+                         ? sessions_.try_emplace(session_id, session)        // copy: keep caller's ptr alive for retries
+                         : sessions_.try_emplace(session_id, std::move(session));  // last shot: move
       if (!result.second) {
         if (attempt < max_retries - 1) {
           log_error("[ConnectionManager] Session ID collision (attempt " +

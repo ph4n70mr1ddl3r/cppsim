@@ -137,12 +137,12 @@ std::string serialize_message(const MessageType& msg, const char* message_type) 
   return j.dump();
 }
 
+// Parse from pre-parsed envelope JSON (avoids double JSON parse)
 template <typename T>
-std::optional<T> parse_message(std::string_view json_str, std::string_view expected_type,
-                                 std::string_view message_name) {
+std::optional<T> parse_from_envelope(const nlohmann::json& envelope_json, std::string_view expected_type,
+                                      std::string_view message_name) {
   try {
-    auto j = nlohmann::json::parse(json_str);
-    auto envelope = j.get<message_envelope>();
+    auto envelope = envelope_json.get<message_envelope>();
     if (envelope.message_type != expected_type) {
       return std::nullopt;
     }
@@ -163,23 +163,12 @@ std::optional<T> parse_message(std::string_view json_str, std::string_view expec
   }
 }
 
-// Parse from pre-parsed envelope JSON (avoids double JSON parse)
 template <typename T>
-std::optional<T> parse_from_envelope(const nlohmann::json& envelope_json, std::string_view expected_type,
-                                      std::string_view message_name) {
+std::optional<T> parse_message(std::string_view json_str, std::string_view expected_type,
+                                 std::string_view message_name) {
   try {
-    auto envelope = envelope_json.get<message_envelope>();
-    if (envelope.message_type != expected_type) {
-      return std::nullopt;
-    }
-    if (envelope.protocol_version != PROTOCOL_VERSION) {
-      log_protocol_error(std::string("[Protocol] ") + std::string(message_name) + " version mismatch: expected " +
-                         PROTOCOL_VERSION + ", got " + envelope.protocol_version);
-      return std::nullopt;
-    }
-    T msg;
-    from_json(envelope.payload, msg);
-    return msg;
+    auto j = nlohmann::json::parse(json_str);
+    return parse_from_envelope<T>(j, expected_type, message_name);
   } catch (const std::exception& e) {
     try {
       log_protocol_error(std::string("[Protocol] ") + std::string(message_name) + " Parse Error: " + e.what());

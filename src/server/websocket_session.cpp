@@ -36,17 +36,29 @@ websocket_session::~websocket_session() noexcept {
 }
 
 void websocket_session::run() noexcept {
-  ws_.set_option(boost::beast::websocket::stream_base::timeout{
-      std::chrono::hours(24),
-      std::chrono::hours(24),
-      false});
+  try {
+    ws_.set_option(boost::beast::websocket::stream_base::timeout{
+        std::chrono::hours(24),
+        std::chrono::hours(24),
+        false});
 
-  ws_.read_message_max(config::MAX_MESSAGE_SIZE);
+    ws_.read_message_max(config::MAX_MESSAGE_SIZE);
 
-  deadline_.expires_after(handshake_timeout_);
-  check_deadline();
+    deadline_.expires_after(handshake_timeout_);
+    check_deadline();
 
-  do_accept();
+    do_accept();
+  } catch (const std::exception& e) {
+    log_error(std::string("[WebSocketSession] run() initialization error: ") + e.what());
+    state_.store(state::closed, std::memory_order_release);
+    boost::beast::error_code ec;
+    deadline_.cancel(ec);
+  } catch (...) {
+    log_error("[WebSocketSession] run() unknown initialization error");
+    state_.store(state::closed, std::memory_order_release);
+    boost::beast::error_code ec;
+    deadline_.cancel(ec);
+  }
 }
 
 void websocket_session::do_accept() {
