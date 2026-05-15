@@ -1,7 +1,6 @@
 #include "protocol.hpp"
 
 #include <cmath>
-#include <cstdio>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -197,6 +196,10 @@ void set_error_logger(std::function<void(std::string_view)> logger) {
   error_logger = std::move(new_logger);
 }
 
+// NOTE: Unlike parse_message<>, parse_handshake does NOT validate the envelope
+// protocol_version.  The caller (handle_handshake_message) performs version
+// checking so it can send a version-specific error response before closing.
+// This is intentional — see HandshakeEnvelopeVersionMismatch test.
 std::optional<handshake_message> parse_handshake(std::string_view json_str) {
   try {
     auto j = nlohmann::json::parse(json_str);
@@ -247,7 +250,8 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
   }
 }
 
-// Validate action_message fields after deserialization
+// Validate action_message fields after deserialization.
+// Takes by value (move) to avoid dangling references after std::move from caller.
 std::optional<action_message> validate_action(std::optional<action_message> result) {
   if (!result) return std::nullopt;
   const auto& msg = *result;
@@ -296,7 +300,8 @@ std::optional<action_message> parse_action_from_envelope(const nlohmann::json& e
   return validate_action(parse_from_envelope<action_message>(envelope_json, message_types::ACTION, "Action"));
 }
 
-// Validate reload_request_message fields after deserialization
+// Validate reload_request_message fields after deserialization.
+// Takes by value (move) to avoid dangling references after std::move from caller.
 std::optional<reload_request_message> validate_reload(std::optional<reload_request_message> result) {
   if (!result) return std::nullopt;
   const auto& msg = *result;
@@ -324,7 +329,8 @@ std::optional<reload_request_message> parse_reload_from_envelope(const nlohmann:
                                                 "Reload Request"));
 }
 
-// Validate disconnect_message fields after deserialization
+// Validate disconnect_message fields after deserialization.
+// Takes by value (move) to avoid dangling references after std::move from caller.
 std::optional<disconnect_message> validate_disconnect(std::optional<disconnect_message> result) {
   if (!result) return std::nullopt;
 

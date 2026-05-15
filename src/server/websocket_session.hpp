@@ -28,7 +28,7 @@ class websocket_session final
 
   ~websocket_session() noexcept;
 
-  void run();
+  void run() noexcept;
 
   [[nodiscard]] bool send(std::string message);
 
@@ -95,7 +95,9 @@ class websocket_session final
   std::deque<std::chrono::steady_clock::time_point> message_timestamps_;
   mutable std::mutex rate_limit_mutex_;
 
-  // Mutable by handlers running on the session's strand only — no concurrent access.
+  // Mutable state — only accessed from the session's strand (single-threaded).
+  // No mutex needed: all reads/writes happen in handlers dispatched to the
+  // strand executor (do_read -> on_read -> handle_* -> do_write -> on_write).
   double current_stack_{config::PLACEHOLDER_STACK};
   std::chrono::seconds handshake_timeout_;
 };

@@ -35,7 +35,7 @@ websocket_session::~websocket_session() noexcept {
   }
 }
 
-void websocket_session::run() {
+void websocket_session::run() noexcept {
   ws_.set_option(boost::beast::websocket::stream_base::timeout{
       std::chrono::hours(24),
       std::chrono::hours(24),
@@ -563,10 +563,10 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
       return false;
     }
 
-    std::string session_id_copy = get_session_id_safe();
+    std::string expected_id = get_session_id_safe();
 
-    if (provided_session_id != session_id_copy) {
-      log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + sanitize_session_id(session_id_copy) + ", got " +
+    if (provided_session_id != expected_id) {
+      log_error(std::string("[WebSocketSession] Session ID mismatch: expected ") + sanitize_session_id(expected_id) + ", got " +
                   sanitize_session_id(provided_session_id));
       send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Session ID mismatch");
       close();
