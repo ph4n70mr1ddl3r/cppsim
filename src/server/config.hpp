@@ -32,8 +32,6 @@ struct config {
     static constexpr double PLACEHOLDER_STACK = 0.0;
     
     static constexpr int64_t MAX_SEQUENCE_GAP = 10000;
-    
-
 };
 
 } // namespace server

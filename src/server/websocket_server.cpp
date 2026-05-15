@@ -33,6 +33,9 @@ websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port,
   if (ec) {
     boost::beast::error_code close_ec;
     acceptor_.close(close_ec);
+    if (close_ec) {
+      log_error(std::string("[WebSocketServer] Additional error closing acceptor: ") + close_ec.message());
+    }
     throw std::runtime_error(std::string("[WebSocketServer] Failed to set reuse_address: ") + ec.message());
   }
 
@@ -40,6 +43,9 @@ websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port,
   if (ec) {
     boost::beast::error_code close_ec;
     acceptor_.close(close_ec);
+    if (close_ec) {
+      log_error(std::string("[WebSocketServer] Additional error closing acceptor: ") + close_ec.message());
+    }
     throw std::runtime_error(
         std::string("[WebSocketServer] Failed to bind to port ") + std::to_string(port) + ": " + ec.message());
   }
@@ -48,6 +54,9 @@ websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port,
   if (ec) {
     boost::beast::error_code close_ec;
     acceptor_.close(close_ec);
+    if (close_ec) {
+      log_error(std::string("[WebSocketServer] Additional error closing acceptor: ") + close_ec.message());
+    }
     throw std::runtime_error(std::string("[WebSocketServer] Failed to listen: ") + ec.message());
   }
 

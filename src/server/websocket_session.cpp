@@ -147,7 +147,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     close();
     return;
   } catch (...) {
-    log_error("[WebSocketSession] Unknown exception in message handler");
+    log_error("[WebSocketSession] Unknown exception in message handler for session " + sanitize_session_id(get_session_id_safe()));
     close();
     return;
   }
@@ -178,8 +178,10 @@ bool websocket_session::check_rate_limit() {
   }
 
   if (rate_exceeded) {
+    auto sid = get_session_id_safe();
+    std::string id_str = sid.empty() ? "(unauthenticated)" : sanitize_session_id(sid);
     log_error("[WebSocketSession] Rate limit exceeded (max " +
-        std::to_string(config::MAX_MESSAGES_PER_WINDOW) + " messages per window) for session " + sanitize_session_id(get_session_id_safe()));
+        std::to_string(config::MAX_MESSAGES_PER_WINDOW) + " messages per window) for session " + id_str);
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Rate limit exceeded");
     close();
     return false;

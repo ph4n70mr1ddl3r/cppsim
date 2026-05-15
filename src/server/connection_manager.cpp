@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <mutex>
+#include <string_view>
 #include <thread>
 
 #include "config.hpp"
