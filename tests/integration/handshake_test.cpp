@@ -29,7 +29,7 @@ protected:
     // instances share the same PID. Use getpid() to pick a unique port
     // that won't collide with other parallel ctest processes.
     unsigned short test_port = static_cast<unsigned short>(
-        30000 + (getpid() % 20000));
+        30000 + (getpid() % 10000));
 
     // Most tests use the default timeout; override in derived fixtures as needed.
     virtual std::chrono::seconds handshake_timeout() const { return TEST_HANDSHAKE_TIMEOUT; }

@@ -173,9 +173,6 @@ bool websocket_session::check_rate_limit() {
     if (message_timestamps_.size() >= config::MAX_MESSAGES_PER_WINDOW) {
       rate_exceeded = true;
     } else {
-      while (message_timestamps_.size() >= config::MAX_TIMESTAMPS_TO_TRACK) {
-        message_timestamps_.pop_front();
-      }
       message_timestamps_.push_back(now);
     }
   }
@@ -396,8 +393,15 @@ void websocket_session::do_write() {
       return;
     }
 
-    message = std::make_shared<std::string>(std::move(write_queue_.front()));
-    write_queue_.pop();
+    try {
+      message = std::make_shared<std::string>(std::move(write_queue_.front()));
+      write_queue_.pop();
+    } catch (...) {
+      writing_ = false;
+      log_error("[WebSocketSession] Exception in do_write - write pipeline stalled for session " +
+                sanitize_session_id(get_session_id_safe()));
+      return;
+    }
   }
 
   ws_.async_write(boost::asio::buffer(*message),
