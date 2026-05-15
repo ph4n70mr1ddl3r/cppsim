@@ -119,7 +119,9 @@ std::string connection_manager::register_session(
             std::to_string(config::MAX_CONNECTIONS) + ")");
         return "";
       }
-      auto result = sessions_.try_emplace(session_id, std::move(session));
+      // Use the raw shared_ptr for try_emplace so the caller's copy
+      // survives collision retries.  Only move on successful insertion.
+      auto result = sessions_.try_emplace(session_id, session);
       if (!result.second) {
         if (attempt < max_retries - 1) {
           log_error("[ConnectionManager] Session ID collision (attempt " +

@@ -178,7 +178,7 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
   backoff_seconds_.store(1, std::memory_order_release);
 
   // Guard: don't create sessions if server is shutting down
-  if (!alive_.load(std::memory_order_acquire)) {
+  if (stopped_.load(std::memory_order_acquire) || !alive_.load(std::memory_order_acquire)) {
     return;
   }
 
