@@ -148,8 +148,7 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
       }
       backoff_timer_ = std::make_shared<boost::asio::steady_timer>(acceptor_.get_executor());
       backoff_timer_->expires_after(std::chrono::seconds(backoff));
-      auto retry_self = shared_from_this();
-      auto weak_self = std::weak_ptr<websocket_server>(retry_self);
+      auto weak_self = weak_from_this();
       backoff_timer_->async_wait(
           [weak_self, timer_ptr = backoff_timer_, backoff](boost::beast::error_code timer_ec) {
             auto self = weak_self.lock();

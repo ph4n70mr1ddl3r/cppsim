@@ -303,6 +303,8 @@ void websocket_session::handle_action(const nlohmann::json& envelope_json, const
     close();
     return;
   }
+  // When last_seq is -1 (initial sentinel), casting to uint64_t wraps to UINT64_MAX,
+  // so the subtraction yields seq + 1 — the correct gap from "no prior sequence".
   uint64_t gap = static_cast<uint64_t>(seq) - static_cast<uint64_t>(last_seq);
   if (gap > static_cast<uint64_t>(config::MAX_SEQUENCE_GAP)) {
     log_error("[WebSocketSession] Sequence number too far ahead: " +

@@ -188,7 +188,8 @@ std::optional<T> parse_from_envelope(const nlohmann::json& envelope_json, std::s
     return std::nullopt;
   }
 }
-}
+
+}  // namespace
 
 void set_error_logger(std::function<void(std::string_view)> logger) {
   auto new_logger = std::make_shared<std::function<void(std::string_view)>>(std::move(logger));
