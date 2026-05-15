@@ -34,5 +34,4 @@ target_link_libraries(poker_server
     poker_server_lib
 )
 
-# Set compile features
-target_compile_features(poker_server PRIVATE cxx_std_17)
+

@@ -18,8 +18,6 @@ target_link_libraries(poker_tests
     Boost::headers
 )
 
-# Set compile features
-target_compile_features(poker_tests PRIVATE cxx_std_17)
 
 target_include_directories(poker_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR})
 

@@ -27,8 +27,11 @@ bool get_secure_random(unsigned char* buf, size_t len) noexcept {
   if (!f) {
     return false;
   }
+  struct file_closer {
+    std::FILE* fp;
+    ~file_closer() { if (fp) std::fclose(fp); }
+  } closer{f};
   size_t read = std::fread(buf, 1, len, f);
-  std::fclose(f);
   return read == len;
 #elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
   arc4random_buf(buf, len);
@@ -116,7 +119,7 @@ std::string connection_manager::register_session(
             std::to_string(config::MAX_CONNECTIONS) + ")");
         return "";
       }
-      auto result = sessions_.try_emplace(session_id, session);
+      auto result = sessions_.try_emplace(session_id, std::move(session));
       if (!result.second) {
         if (attempt < max_retries - 1) {
           log_error("[ConnectionManager] Session ID collision (attempt " +

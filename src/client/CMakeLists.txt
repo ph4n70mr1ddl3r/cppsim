@@ -14,5 +14,3 @@ target_link_libraries(poker_client
     project_warnings
 )
 
-# Set compile features
-target_compile_features(poker_client PRIVATE cxx_std_17)

@@ -177,6 +177,11 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
   // Reset backoff on successful accept
   backoff_seconds_.store(1, std::memory_order_release);
 
+  // Guard: don't create sessions if server is shutting down
+  if (!alive_.load(std::memory_order_acquire)) {
+    return;
+  }
+
   // Create a new session for this connection
   auto session = std::make_shared<websocket_session>(std::move(socket), conn_mgr_, handshake_timeout_);
 
