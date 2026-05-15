@@ -1,6 +1,6 @@
 #pragma once
 
-#include <boost/asio.hpp>
+#include "server/boost_wrapper.hpp"
 #include <chrono>
 #include <cstdint>
 #include <thread>

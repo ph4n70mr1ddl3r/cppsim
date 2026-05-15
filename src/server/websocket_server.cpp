@@ -179,6 +179,7 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
 
   // Guard: don't create sessions if server is shutting down
   if (stopped_.load(std::memory_order_acquire) || !alive_.load(std::memory_order_acquire)) {
+    log_message("[WebSocketServer] Discarding accepted connection during shutdown");
     return;
   }
 

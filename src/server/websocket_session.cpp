@@ -105,7 +105,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
       log_message(std::string("[WebSocketSession] Client disconnected: ") + sanitize_session_id(sid));
     }
     if (auto mgr = conn_mgr_.lock()) {
-      mgr->unregister_session(std::move(sid));
+      mgr->unregister_session(sid);
     }
     return;
   }
@@ -123,7 +123,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
       log_error(std::string("[WebSocketSession] Read error for ") + sanitize_session_id(sid) + ": " + ec.message());
     }
     if (auto mgr = conn_mgr_.lock()) {
-      mgr->unregister_session(std::move(sid));
+      mgr->unregister_session(sid);
     }
     return;
   }
@@ -528,7 +528,7 @@ void websocket_session::close() noexcept {
       std::string sid = get_session_id_safe();
       if (!sid.empty()) {
         if (auto mgr = conn_mgr_.lock()) {
-          mgr->unregister_session(std::move(sid));
+          mgr->unregister_session(sid);
         }
       }
     } catch (...) {
@@ -584,6 +584,8 @@ void websocket_session::send_protocol_error(const char* error_code, std::string_
     protocol::error_message err;
     err.error_code = error_code;
     err.message = std::string(message);
+    err.session_id = get_session_id_safe();
+    if (err.session_id->empty()) err.session_id.reset();
     if (!send(protocol::serialize_error(err))) {
       log_error("[WebSocketSession] Failed to send protocol error for session " + sanitize_session_id(get_session_id_safe()));
     }
@@ -611,7 +613,7 @@ void websocket_session::do_close() noexcept {
 
     if (!session_id_copy.empty()) {
       if (auto mgr = conn_mgr_.lock()) {
-        mgr->unregister_session(std::move(session_id_copy));
+        mgr->unregister_session(session_id_copy);
       }
     }
 

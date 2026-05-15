@@ -248,7 +248,7 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
 }
 
 // Validate action_message fields after deserialization
-std::optional<action_message> validate_action(const std::optional<action_message>& result) {
+std::optional<action_message> validate_action(std::optional<action_message> result) {
   if (!result) return std::nullopt;
   const auto& msg = *result;
 
@@ -297,7 +297,7 @@ std::optional<action_message> parse_action_from_envelope(const nlohmann::json& e
 }
 
 // Validate reload_request_message fields after deserialization
-std::optional<reload_request_message> validate_reload(const std::optional<reload_request_message>& result) {
+std::optional<reload_request_message> validate_reload(std::optional<reload_request_message> result) {
   if (!result) return std::nullopt;
   const auto& msg = *result;
 
@@ -325,7 +325,7 @@ std::optional<reload_request_message> parse_reload_from_envelope(const nlohmann:
 }
 
 // Validate disconnect_message fields after deserialization
-std::optional<disconnect_message> validate_disconnect(const std::optional<disconnect_message>& result) {
+std::optional<disconnect_message> validate_disconnect(std::optional<disconnect_message> result) {
   if (!result) return std::nullopt;
 
   if (result->session_id.empty() || !validate_session_id_format(result->session_id)) {
