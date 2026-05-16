@@ -69,8 +69,12 @@ void websocket_session::do_accept() {
 void websocket_session::on_accept(boost::beast::error_code ec) {
   if (ec) {
     // Probe connections (e.g. health checks) close before completing the WS
-    // handshake — this is normal, not a real error.
+    // handshake — this is normal, not a real error.  Clean up timer and state
+    // to avoid a spurious "Handshake timeout" log when the deadline fires.
     if (ec == boost::beast::websocket::error::closed) {
+      boost::beast::error_code timer_ec;
+      deadline_.cancel(timer_ec);
+      state_.store(state::closed, std::memory_order_release);
       return;
     }
     log_error(std::string("[WebSocketSession] Accept failed: ") + ec.message());
@@ -603,8 +607,8 @@ void websocket_session::send_protocol_error(const char* error_code, std::string_
     protocol::error_message err;
     err.error_code = error_code;
     err.message = std::string(message);
-    err.session_id = get_session_id_safe();
-    if (err.session_id->empty()) err.session_id.reset();
+    auto sid = get_session_id_safe();
+    if (!sid.empty()) err.session_id = std::move(sid);
     if (!send(protocol::serialize_error(err))) {
       log_error("[WebSocketSession] Failed to send protocol error for session " + sanitize_session_id(get_session_id_safe()));
     }

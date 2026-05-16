@@ -28,7 +28,7 @@ constexpr bool is_valid_session_id_char(char c) noexcept {
 
 bool validate_session_id_format(const std::string& sid) noexcept {
   // Minimum: "sess_" + at least 1 hex char
-  if (sid.size() < 6 || sid.size() > 128) return false;
+  if (sid.size() < 6 || sid.size() > MAX_SESSION_ID_LENGTH) return false;
   if (sid[0] != 's' || sid[1] != 'e' || sid[2] != 's' || sid[3] != 's' || sid[4] != '_') return false;
   for (size_t i = 5; i < sid.size(); ++i) {
     if (!is_valid_session_id_char(sid[i])) return false;

@@ -22,6 +22,7 @@ constexpr const char* PROTOCOL_VERSION = "v1.0";
 
 // Validation constants
 constexpr double MAX_AMOUNT = 1e15;  // Maximum valid amount for bets/reloads
+constexpr size_t MAX_SESSION_ID_LENGTH = 128;  // Must be used consistently with server config
 
 // Error Codes
 namespace error_codes {

@@ -25,7 +25,8 @@ struct config {
     static constexpr std::chrono::milliseconds RATE_LIMIT_WINDOW{1000};
     
     static constexpr size_t MAX_CONNECTIONS = 1000;
-    static constexpr size_t MAX_SESSION_ID_LENGTH = 128;  // Must match protocol::validate_session_id_format limit
+    static constexpr size_t MAX_SESSION_ID_LENGTH = 128;  // Must match protocol::MAX_SESSION_ID_LENGTH
+    static_assert(MAX_SESSION_ID_LENGTH == 128, "Must match protocol::MAX_SESSION_ID_LENGTH in protocol.hpp");
     static constexpr auto MAX_BACKOFF = std::chrono::seconds{30};
     
     static constexpr int PLACEHOLDER_SEAT = -1;
