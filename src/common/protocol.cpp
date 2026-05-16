@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <limits>
-#include <memory>
 #include <mutex>
 #include <unordered_set>
 
@@ -38,12 +37,12 @@ bool validate_session_id_format(const std::string& sid) noexcept {
 }
 
 std::mutex error_logger_mutex;
-auto error_logger = std::make_shared<std::function<void(std::string_view)>>(
+std::function<void(std::string_view)> error_logger =
     [](std::string_view msg) {
       constexpr size_t max_safe_size = static_cast<size_t>(std::numeric_limits<int>::max());
       auto safe_size = static_cast<int>(std::min(msg.size(), max_safe_size));
       std::fprintf(stderr, "%.*s\n", safe_size, msg.data());
-    });
+    };
 
 using string_view_set = std::unordered_set<std::string_view>;
 
@@ -77,13 +76,13 @@ const string_view_set& get_amount_forbidden_types() noexcept {
 
 void log_protocol_error(std::string_view msg) noexcept {
   try {
-    std::shared_ptr<std::function<void(std::string_view)>> logger_copy;
+    std::function<void(std::string_view)> logger_copy;
     {
       std::lock_guard<std::mutex> lock(error_logger_mutex);
       logger_copy = error_logger;
     }
-    if (logger_copy && *logger_copy) {
-      (*logger_copy)(msg);
+    if (logger_copy) {
+      logger_copy(msg);
     }
   } catch (...) {
   }
@@ -181,9 +180,8 @@ std::optional<T> parse_message(std::string_view json_str, std::string_view expec
 }  // namespace
 
 void set_error_logger(std::function<void(std::string_view)> logger) {
-  auto new_logger = std::make_shared<std::function<void(std::string_view)>>(std::move(logger));
   std::lock_guard<std::mutex> lock(error_logger_mutex);
-  error_logger = std::move(new_logger);
+  error_logger = std::move(logger);
 }
 
 // NOTE: Unlike parse_message<>, parse_handshake does NOT validate the envelope

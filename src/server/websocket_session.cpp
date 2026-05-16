@@ -343,6 +343,8 @@ void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, c
     log_message(std::string("[WebSocketSession] Validated RELOAD_REQUEST from ") + sid);
 
     // Compute the new stack but only commit after the response is queued.
+    // Safe without atomics: current_stack_ is only accessed from the session's
+    // strand (single-threaded), so the read-then-write is not a data race.
     double new_stack = std::min(current_stack_ + reload_opt->requested_amount, protocol::MAX_AMOUNT);
     protocol::reload_response_message resp;
     resp.granted = true;
@@ -478,6 +480,9 @@ void websocket_session::check_deadline() {
   deadline_.async_wait(
       [self = shared_from_this()](boost::beast::error_code ec) {
         if (ec == boost::asio::error::operation_aborted) {
+          // Only reschedule if the session is still alive and no close has been
+          // requested.  When do_close() or close() cancels the timer we want to
+          // stop the timer chain, not reschedule.
           if (self->state_.load(std::memory_order_acquire) != state::closed &&
               !self->close_requested_.load(std::memory_order_acquire)) {
             self->check_deadline();

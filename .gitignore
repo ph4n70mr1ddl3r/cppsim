@@ -31,4 +31,6 @@ cmake_output.log
 
 # Windows
 Thumbs.db
-build-review
+
+# Review artifacts
+build-review/

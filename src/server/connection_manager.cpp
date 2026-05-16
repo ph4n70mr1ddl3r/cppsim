@@ -131,17 +131,13 @@ std::string connection_manager::register_session(
             std::to_string(config::MAX_CONNECTIONS) + ")");
         return "";
       }
-      auto result = (attempt < max_retries - 1)
-                         ? sessions_.try_emplace(session_id, session)        // copy: keep caller's ptr alive for retries
-                         : sessions_.try_emplace(session_id, std::move(session));  // last shot: move
+      // session is a shared_ptr copy — try_emplace copies it into the map,
+      // so the caller always retains their reference regardless of attempt count.
+      auto result = sessions_.try_emplace(session_id, session);
       if (!result.second) {
-        if (attempt < max_retries - 1) {
-          log_error("[ConnectionManager] Session ID collision (attempt " +
-              std::to_string(attempt + 1) + "), retrying: " + sanitize_session_id(session_id));
-          continue;
-        }
-        log_error("[ConnectionManager] Session ID collision after retries: " + sanitize_session_id(session_id));
-        return "";
+        log_error("[ConnectionManager] Session ID collision (attempt " +
+            std::to_string(attempt + 1) + "), retrying: " + sanitize_session_id(session_id));
+        continue;
       }
       count = sessions_.size();
     }
@@ -151,6 +147,7 @@ std::string connection_manager::register_session(
     return session_id;
   }
 
+  log_error("[ConnectionManager] Session ID collision after all retries");
   return "";
 }
 

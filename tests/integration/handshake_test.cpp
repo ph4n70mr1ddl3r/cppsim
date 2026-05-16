@@ -3,9 +3,9 @@
 #include "server/websocket_server.hpp"
 #include "server/config.hpp"
 #include <nlohmann/json.hpp>
-#include <thread>
 #include <chrono>
-#include <unistd.h>  // getpid
+#include <random>
+#include <thread>
 #include "common/protocol.hpp"
 #include "test_utils.hpp"
 
@@ -25,11 +25,10 @@ protected:
     std::thread server_thread;
     std::shared_ptr<cppsim::server::websocket_server> server;
 
-    // Each ctest process runs a single test case, so all HandshakeTest
-    // instances share the same PID. Use getpid() to pick a unique port
-    // that won't collide with other parallel ctest processes.
+    // Use a random port in the IANA dynamic range to avoid collisions
+    // when tests run in parallel (ctest --parallel).
     unsigned short test_port = static_cast<unsigned short>(
-        30000 + (getpid() % 10000));
+        30000 + (std::random_device{}() % 20000));
 
     // Most tests use the default timeout; override in derived fixtures as needed.
     virtual std::chrono::seconds handshake_timeout() const { return TEST_HANDSHAKE_TIMEOUT; }
