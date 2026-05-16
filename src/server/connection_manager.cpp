@@ -72,7 +72,7 @@ std::string generate_fallback_session_id() {
   h *= 0xc4ceb9fe1a85ec53ULL;
   h ^= h >> 33;
 
-  std::array<char, 33> buf;
+  std::array<char, 17> buf;  // 16 hex chars + null terminator
   std::snprintf(buf.data(), buf.size(), "%016" PRIx64, h);
   return "sess_" + std::string(buf.data());
 }

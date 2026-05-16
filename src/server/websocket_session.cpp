@@ -164,6 +164,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
     return;
   } catch (...) {
     log_error("[WebSocketSession] Unknown exception in message handler for session " + sanitize_session_id(get_session_id_safe()));
+    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Internal server error");
     close();
     return;
   }
@@ -618,7 +619,9 @@ void websocket_session::send_protocol_error(const char* error_code, std::string_
 }
 
 void websocket_session::do_close() noexcept {
-  // Use close_initiated_ to prevent double async_close even on same strand
+  // Two-guard pattern: close_initiated_ CAS prevents double async_close on the
+  // same strand; state_ exchange prevents double unregister_session when the
+  // close path is entered from different origins (e.g. on_read error vs close()).
   bool expected = false;
   if (!close_initiated_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
     return;

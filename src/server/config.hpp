@@ -22,7 +22,7 @@ struct config {
     static constexpr unsigned short DEFAULT_TEST_PORT = 18080;
     
     static constexpr size_t MAX_MESSAGES_PER_WINDOW = 10;
-    static constexpr std::chrono::milliseconds RATE_LIMIT_WINDOW{1000};
+    static constexpr auto RATE_LIMIT_WINDOW = std::chrono::seconds{1};
     
     static constexpr size_t MAX_CONNECTIONS = 1000;
     static constexpr size_t MAX_SESSION_ID_LENGTH = 128;  // Must match protocol::MAX_SESSION_ID_LENGTH
