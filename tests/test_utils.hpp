@@ -3,6 +3,7 @@
 #include "server/boost_wrapper.hpp"
 #include <chrono>
 #include <cstdint>
+#include <random>
 #include <thread>
 
 namespace cppsim {
@@ -31,6 +32,23 @@ inline bool wait_for_server(uint16_t port,
     }
   }
   return false;
+}
+
+// Pick a random port in the IANA dynamic range, with optional retry on bind failure.
+// Returns 0 if all attempts fail.
+template <typename ServerFactory>
+uint16_t find_free_port(ServerFactory factory, int max_attempts = 5) {
+  std::random_device rd;
+  for (int attempt = 0; attempt < max_attempts; ++attempt) {
+    uint16_t port = static_cast<uint16_t>(30000 + (rd() % 20000));
+    try {
+      factory(port);
+      return port;
+    } catch (const std::exception&) {
+      // Port in use — try another
+    }
+  }
+  return 0;
 }
 
 }  // namespace testing

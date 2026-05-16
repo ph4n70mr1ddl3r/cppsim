@@ -73,7 +73,7 @@ class websocket_session final
   void send_protocol_error(const char* error_code, std::string_view message) noexcept;
   void do_close() noexcept;
 
-  [[nodiscard]] bool check_rate_limit();
+  [[nodiscard]] bool check_rate_limit_or_close();
   void handle_handshake_message(const std::string& message);
   void handle_authenticated_message(const std::string& message);
   void handle_action(const nlohmann::json& envelope_json, const std::string& sid);

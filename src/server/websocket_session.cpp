@@ -147,7 +147,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
   std::string message = boost::beast::buffers_to_string(buffer_.data());
   buffer_.consume(buffer_.size());
 
-  if (!check_rate_limit()) {
+  if (!check_rate_limit_or_close()) {
     return;
   }
 
@@ -176,7 +176,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
   }
 }
 
-bool websocket_session::check_rate_limit() {
+bool websocket_session::check_rate_limit_or_close() {
   auto now = std::chrono::steady_clock::now();
   bool rate_exceeded = false;
 
@@ -333,7 +333,7 @@ void websocket_session::handle_action(const nlohmann::json& envelope_json, const
   }
   last_sequence_number_.store(seq, std::memory_order_release);
   log_message(std::string("[WebSocketSession] Validated ACTION from ") + sid + ": type=" +
-              action_opt->action_type + " seq=" + std::to_string(seq));
+              action_opt->action_type.substr(0, 32) + " seq=" + std::to_string(seq));
 }
 
 void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, const std::string& sid) {

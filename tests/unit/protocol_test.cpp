@@ -433,6 +433,23 @@ TEST(ProtocolTest, AllInWithoutAmount) {
   EXPECT_FALSE(result.has_value());
 }
 
+// Test: Reload request with invalid session_id format should fail
+TEST(ProtocolTest, ReloadInvalidSessionIdFormat) {
+  message_envelope env;
+  env.message_type = message_types::RELOAD_REQUEST;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "<script>alert(1)</script>"},
+      {"requested_amount", 100.0}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_reload_request(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
 // Test: Handshake response serialization
 TEST(ProtocolTest, HandshakeResponseSerialization) {
   handshake_response resp;

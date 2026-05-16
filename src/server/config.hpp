@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "protocol.hpp"
+
 namespace cppsim {
 namespace server {
 
@@ -25,8 +27,8 @@ struct config {
     static constexpr auto RATE_LIMIT_WINDOW = std::chrono::seconds{1};
     
     static constexpr size_t MAX_CONNECTIONS = 1000;
-    static constexpr size_t MAX_SESSION_ID_LENGTH = 128;  // Must match protocol::MAX_SESSION_ID_LENGTH
-    static_assert(MAX_SESSION_ID_LENGTH == 128, "Must match protocol::MAX_SESSION_ID_LENGTH in protocol.hpp");
+    // Reference the protocol constant directly — single source of truth.
+    static constexpr size_t MAX_SESSION_ID_LENGTH = protocol::MAX_SESSION_ID_LENGTH;
     static constexpr auto MAX_BACKOFF = std::chrono::seconds{30};
     
     static constexpr int PLACEHOLDER_SEAT = -1;

@@ -4,7 +4,6 @@
 #include "server/config.hpp"
 #include <nlohmann/json.hpp>
 #include <chrono>
-#include <random>
 #include <thread>
 #include "common/protocol.hpp"
 #include "test_utils.hpp"
@@ -25,30 +24,29 @@ protected:
     std::thread server_thread;
     std::shared_ptr<cppsim::server::websocket_server> server;
 
-    // Use a random port in the IANA dynamic range to avoid collisions
-    // when tests run in parallel (ctest --parallel).
-    unsigned short test_port = static_cast<unsigned short>(
-        30000 + (std::random_device{}() % 20000));
+    // Pick a random free port with retry to avoid collisions during parallel
+    // test runs (ctest --parallel).
+    unsigned short test_port = 0;
 
     // Most tests use the default timeout; override in derived fixtures as needed.
     virtual std::chrono::seconds handshake_timeout() const { return TEST_HANDSHAKE_TIMEOUT; }
 
     void SetUp() override {
-        // Start server on test port
-        try {
+        // Start server on a free port with retry on bind failure
+        test_port = cppsim::testing::find_free_port([&](uint16_t p) {
             server = std::make_shared<cppsim::server::websocket_server>(
-                server_ioc, test_port, handshake_timeout());
-            server->run();
-            
-            server_thread = std::thread([this]{ 
-                if (server_ioc.stopped()) server_ioc.restart();
-                server_ioc.run(); 
-            });
-            
-            ASSERT_TRUE(wait_for_server(test_port)) << "Failed to connect to server within 5 seconds";
-        } catch (const std::exception& e) {
-            FAIL() << "Failed to start server: " << e.what();
-        }
+                server_ioc, p, handshake_timeout());
+        });
+        ASSERT_NE(test_port, 0u) << "Failed to find a free port after 5 attempts";
+        ASSERT_TRUE(server != nullptr);
+        server->run();
+
+        server_thread = std::thread([this]{
+            if (server_ioc.stopped()) server_ioc.restart();
+            server_ioc.run();
+        });
+
+        ASSERT_TRUE(wait_for_server(test_port)) << "Failed to connect to server within 5 seconds";
     }
 
     void TearDown() override {

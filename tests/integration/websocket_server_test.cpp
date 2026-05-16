@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 #include <functional>
 #include <memory>
-#include <random>
 #include <thread>
 #include <vector>
 
@@ -48,11 +47,13 @@ TEST(WebSocketServerTest, AcceptsConnection) {
   net::io_context ioc_server;
   net::io_context ioc_client;
 
-  // Use a random port in the IANA dynamic range to avoid collisions
-  // when tests run in parallel (ctest --parallel).
-  uint16_t port = static_cast<uint16_t>(30000 + (std::random_device{}() % 20000));
-
-  auto server = std::make_shared<cppsim::server::websocket_server>(ioc_server, port);
+  // Use a random port with retry to avoid collisions during parallel test runs.
+  std::shared_ptr<cppsim::server::websocket_server> server;
+  uint16_t port = cppsim::testing::find_free_port([&](uint16_t p) {
+    server = std::make_shared<cppsim::server::websocket_server>(ioc_server, p);
+  });
+  ASSERT_NE(port, 0u) << "Failed to find a free port after 5 attempts";
+  ASSERT_TRUE(server != nullptr);
   server->run();
 
   std::thread server_thread([&ioc_server] {
@@ -106,9 +107,13 @@ TEST(WebSocketServerTest, AcceptsConnection) {
 
 TEST(WebSocketServerTest, StopIsIdempotent) {
   net::io_context ioc;
-  uint16_t port = static_cast<uint16_t>(30000 + (std::random_device{}() % 20000));
 
-  auto server = std::make_shared<cppsim::server::websocket_server>(ioc, port);
+  std::shared_ptr<cppsim::server::websocket_server> server;
+  uint16_t port = cppsim::testing::find_free_port([&](uint16_t p) {
+    server = std::make_shared<cppsim::server::websocket_server>(ioc, p);
+  });
+  ASSERT_NE(port, 0u) << "Failed to find a free port after 5 attempts";
+  ASSERT_TRUE(server != nullptr);
   server->run();
 
   std::thread server_thread([&ioc] { ioc.run(); });
