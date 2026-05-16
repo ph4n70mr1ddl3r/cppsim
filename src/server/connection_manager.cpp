@@ -197,7 +197,7 @@ size_t connection_manager::session_count() const noexcept {
   return sessions_.size();
 }
 
-std::string connection_manager::generate_session_id() {
+std::string connection_manager::generate_session_id() noexcept {
   try {
     return generate_crypto_session_id();
   } catch (const std::exception& e) {

@@ -12,7 +12,6 @@ namespace server {
 
 namespace {
     std::mutex log_mutex;
-    std::mutex fallback_mutex;
 
     std::array<char, 32> get_timestamp() {
       auto now = std::chrono::system_clock::now();
@@ -53,7 +52,8 @@ void log(log_level level, std::string_view msg) noexcept {
       stream << timestamp.data() << " " << level_to_string(level) << " " << msg << '\n';
       stream.flush();
     } catch (...) {
-      std::lock_guard<std::mutex> fallback_lock(fallback_mutex);
+      // Best-effort fallback — fprintf to stderr is atomic on POSIX,
+      // no additional synchronization needed.
       std::fprintf(stderr, "[FALLBACK] %s %.*s\n",
                    level_to_string(level),
                    static_cast<int>(msg.size() > 1024 ? 1024 : msg.size()),

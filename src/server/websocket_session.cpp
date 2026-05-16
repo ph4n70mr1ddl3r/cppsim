@@ -71,13 +71,9 @@ void websocket_session::on_accept(boost::beast::error_code ec) {
     // Probe connections (e.g. health checks) close before completing the WS
     // handshake — this is normal, not a real error.  Clean up timer and state
     // to avoid a spurious "Handshake timeout" log when the deadline fires.
-    if (ec == boost::beast::websocket::error::closed) {
-      boost::beast::error_code timer_ec;
-      deadline_.cancel(timer_ec);
-      state_.store(state::closed, std::memory_order_release);
-      return;
+    if (ec != boost::beast::websocket::error::closed) {
+      log_error(std::string("[WebSocketSession] Accept failed: ") + ec.message());
     }
-    log_error(std::string("[WebSocketSession] Accept failed: ") + ec.message());
     boost::beast::error_code timer_ec;
     deadline_.cancel(timer_ec);
     state_.store(state::closed, std::memory_order_release);
@@ -119,9 +115,9 @@ void websocket_session::on_read(boost::beast::error_code ec,
       log_message("[WebSocketSession] Unauthenticated client disconnected");
     } else {
       log_message(std::string("[WebSocketSession] Client disconnected: ") + sanitize_session_id(sid));
-    }
-    if (auto mgr = conn_mgr_.lock()) {
-      mgr->unregister_session(sid);
+      if (auto mgr = conn_mgr_.lock()) {
+        mgr->unregister_session(sid);
+      }
     }
     return;
   }
@@ -137,9 +133,9 @@ void websocket_session::on_read(boost::beast::error_code ec,
       log_error(std::string("[WebSocketSession] Read error (unauthenticated): ") + ec.message());
     } else {
       log_error(std::string("[WebSocketSession] Read error for ") + sanitize_session_id(sid) + ": " + ec.message());
-    }
-    if (auto mgr = conn_mgr_.lock()) {
-      mgr->unregister_session(sid);
+      if (auto mgr = conn_mgr_.lock()) {
+        mgr->unregister_session(sid);
+      }
     }
     return;
   }
@@ -221,7 +217,9 @@ void websocket_session::handle_handshake_message(const std::string& message) {
 
   if (handshake_msg.protocol_version != protocol::PROTOCOL_VERSION) {
     // Truncate version for logging to prevent log injection
-    std::string safe_version = handshake_msg.protocol_version.substr(0, 32);
+    std::string safe_version = handshake_msg.protocol_version.size() <= 32
+        ? handshake_msg.protocol_version
+        : handshake_msg.protocol_version.substr(0, 32) + "...";
     log_error(std::string("[WebSocketSession] Handshake error: Incompatible version ") + safe_version);
     send_protocol_error(protocol::error_codes::INCOMPATIBLE_VERSION,
                         std::string("Expected ") + protocol::PROTOCOL_VERSION);
@@ -230,7 +228,10 @@ void websocket_session::handle_handshake_message(const std::string& message) {
   }
 
   if (handshake_msg.client_name) {
-    log_message(std::string("[WebSocketSession] Client Name: ") + handshake_msg.client_name->substr(0, 32));
+    const auto& cname = *handshake_msg.client_name;
+    constexpr size_t max_name_log = 32;
+    std::string safe_name = cname.size() <= max_name_log ? cname : cname.substr(0, max_name_log) + "...";
+    log_message(std::string("[WebSocketSession] Client Name: ") + safe_name);
   }
 
   std::string new_session_id;
@@ -281,7 +282,7 @@ void websocket_session::handle_authenticated_message(const std::string& message)
   }
 
   const auto& msg_type = header_opt->message_type;
-  std::string sid = get_session_id_safe();
+  const std::string sid = get_session_id_safe();
 
   if (msg_type == protocol::message_types::ACTION) {
     handle_action(header_opt->envelope_json, sid);

@@ -22,6 +22,7 @@ class connection_manager final {
 
   [[nodiscard]] std::shared_ptr<websocket_session> get_session(std::string_view session_id) const noexcept;
 
+  // Note: Can throw std::bad_alloc on memory exhaustion.
   [[nodiscard]] std::vector<std::string> active_session_ids() const;
 
   [[nodiscard]] size_t session_count() const noexcept;
@@ -29,7 +30,7 @@ class connection_manager final {
   void stop_all() noexcept;
 
  private:
-  [[nodiscard]] static std::string generate_session_id();
+  [[nodiscard]] static std::string generate_session_id() noexcept;
 
   mutable std::mutex sessions_mutex_;
   std::map<std::string, std::shared_ptr<websocket_session>, std::less<>> sessions_;
