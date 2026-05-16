@@ -27,7 +27,7 @@ websocket_session::~websocket_session() noexcept {
       if (auto mgr = conn_mgr_.lock()) {
         std::string sid = get_session_id_safe();
         if (!sid.empty()) {
-          mgr->unregister_session(std::move(sid));
+          mgr->unregister_session(sid);
         }
       }
     }
@@ -609,9 +609,9 @@ void websocket_session::send_protocol_error(const char* error_code, std::string_
     err.error_code = error_code;
     err.message = std::string(message);
     auto sid = get_session_id_safe();
-    if (!sid.empty()) err.session_id = std::move(sid);
+    if (!sid.empty()) err.session_id = sid;
     if (!send(protocol::serialize_error(err))) {
-      log_error("[WebSocketSession] Failed to send protocol error for session " + sanitize_session_id(get_session_id_safe()));
+      log_error("[WebSocketSession] Failed to send protocol error for session " + sanitize_session_id(sid));
     }
   } catch (...) {
     log_error("[WebSocketSession] Exception in send_protocol_error");

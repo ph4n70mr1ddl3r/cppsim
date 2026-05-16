@@ -22,6 +22,16 @@ class connection_manager;
 class websocket_session final
     : public std::enable_shared_from_this<websocket_session> {
  public:
+  // Thread safety model:
+  //   - Strand-only state (no lock needed): current_stack_, handshake_timeout_
+  //     — accessed only from handlers dispatched to the session's strand.
+  //   - Mutex-protected state: session_id_ (session_id_mutex_), write_queue_ +
+  //     writing_ (write_queue_mutex_), message_timestamps_ (rate_limit_mutex_).
+  //   - Atomic state: state_, last_sequence_number_, close_requested_,
+  //     close_initiated_.
+  //   - All public methods (send, close, is_authenticated, session_id) are safe
+  //     to call from any thread; they either use atomics, mutexes, or dispatch
+  //     to the strand internally.
   websocket_session(boost::asio::ip::tcp::socket socket,
                     std::shared_ptr<connection_manager> mgr,
                     std::chrono::seconds handshake_timeout = config::HANDSHAKE_TIMEOUT);

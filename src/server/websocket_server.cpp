@@ -176,6 +176,12 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
   // Reset backoff on successful accept
   backoff_seconds_.store(1, std::memory_order_release);
 
+  // Release the backoff timer if one was created during a previous error
+  {
+    std::lock_guard<std::mutex> lock(timer_mutex_);
+    backoff_timer_.reset();
+  }
+
   // Guard: don't create sessions if server is shutting down
   if (stopped_.load(std::memory_order_acquire) || !alive_.load(std::memory_order_acquire)) {
     log_message("[WebSocketServer] Discarding accepted connection during shutdown");

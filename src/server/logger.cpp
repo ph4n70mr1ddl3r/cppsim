@@ -1,6 +1,7 @@
 #include "logger.hpp"
 #include <array>
 #include <chrono>
+#include <cstdio>
 #include <ctime>
 #include <iostream>
 #include <mutex>
