@@ -5,7 +5,9 @@
 #include <chrono>
 #include <cinttypes>
 #include <cstdint>
+#include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <mutex>
 #include <string_view>
 #include <thread>
@@ -40,12 +42,22 @@ bool get_secure_random(unsigned char* buf, size_t len) noexcept {
   // Use rand_s() which calls RtlGenRandom (aka SystemFunction036) —
   // a user-mode CSPRNG backed by the Windows kernel. Available since
   // MSVC 2005 on all supported Windows versions.
-  for (size_t i = 0; i < len; ++i) {
+  size_t i = 0;
+  while (i < len) {
     unsigned int val = 0;
     if (rand_s(&val) != 0) {
       return false;
     }
-    buf[i] = static_cast<unsigned char>(val & 0xFF);
+    // Use all 4 bytes from each rand_s() call
+    unsigned char bytes[4] = {
+      static_cast<unsigned char>(val & 0xFF),
+      static_cast<unsigned char>((val >> 8) & 0xFF),
+      static_cast<unsigned char>((val >> 16) & 0xFF),
+      static_cast<unsigned char>((val >> 24) & 0xFF)
+    };
+    size_t to_copy = std::min(len - i, size_t{4});
+    std::memcpy(buf + i, bytes, to_copy);
+    i += to_copy;
   }
   return true;
 #else

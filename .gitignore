@@ -2,9 +2,11 @@
 build/
 cmake-build-*/
 
-# IDE files
+# IDE / tooling files
 .vscode/
 .idea/
+.cache/
+compile_commands.json
 *.swp
 *.swo
 *~

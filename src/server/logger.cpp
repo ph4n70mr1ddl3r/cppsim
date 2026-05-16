@@ -28,8 +28,14 @@ namespace {
 
       std::array<char, 32> buf;
       size_t len = std::strftime(buf.data(), buf.size(), "%Y-%m-%d %H:%M:%S", &tm);
-      std::snprintf(buf.data() + len, buf.size() - len, ".%03d",
-                    static_cast<int>(ms.count()));
+      if (len == 0) {
+        // strftime failed — use a safe fallback (avoid trigraphs)
+        std::snprintf(buf.data(), buf.size(), "ts-err.%03d",
+                      static_cast<int>(ms.count()));
+      } else {
+        std::snprintf(buf.data() + len, buf.size() - len, ".%03d",
+                      static_cast<int>(ms.count()));
+      }
       return buf;
     }
 

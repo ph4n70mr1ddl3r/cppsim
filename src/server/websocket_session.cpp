@@ -154,12 +154,19 @@ void websocket_session::on_read(boost::beast::error_code ec,
       handle_authenticated_message(message);
     }
   } catch (const std::exception& e) {
-    log_error(std::string("[WebSocketSession] Unhandled exception in message handler: ") + e.what());
+    try {
+      log_error(std::string("[WebSocketSession] Unhandled exception in message handler: ") + e.what());
+    } catch (...) {
+    }
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Internal server error");
     close();
     return;
   } catch (...) {
-    log_error("[WebSocketSession] Unknown exception in message handler for session " + sanitize_session_id(get_session_id_safe()));
+    try {
+      log_error("[WebSocketSession] Unknown exception in message handler for session " +
+                sanitize_session_id(get_session_id_safe()));
+    } catch (...) {
+    }
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Internal server error");
     close();
     return;
