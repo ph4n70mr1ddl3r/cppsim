@@ -8,13 +8,7 @@ namespace server {
 enum class log_level { info, error };
 
 [[nodiscard]] constexpr const char* log_level_to_string(log_level level) noexcept {
-  switch (level) {
-    case log_level::error:
-      return "[ERROR]";
-    case log_level::info:
-      return "[INFO]";
-  }
-  return "[INFO]";
+  return level == log_level::error ? "[ERROR]" : "[INFO]";
 }
 
 void log_message(std::string_view msg) noexcept;

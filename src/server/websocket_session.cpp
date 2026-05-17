@@ -195,7 +195,6 @@ void websocket_session::on_read(boost::beast::error_code ec,
 bool websocket_session::check_rate_limit_or_close() {
   auto now = std::chrono::steady_clock::now();
   bool should_close = false;
-  std::string session_id_str;
 
   {
     std::lock_guard<std::mutex> lock(rate_limit_mutex_);
@@ -206,13 +205,15 @@ bool websocket_session::check_rate_limit_or_close() {
 
     if (message_timestamps_.size() >= config::MAX_MESSAGES_PER_WINDOW) {
       should_close = true;
-      session_id_str = get_session_id_safe();
     } else {
       message_timestamps_.push_back(now);
     }
   }
 
   if (should_close) {
+    // Read session_id outside the rate_limit_mutex_ to avoid nested lock
+    // acquisition (rate_limit_mutex_ -> session_id_mutex_).
+    std::string session_id_str = get_session_id_safe();
     std::string id_str = session_id_str.empty() ? "(unauthenticated)" : sanitize_session_id(session_id_str);
     log_error("[WebSocketSession] Rate limit exceeded (max " +
         std::to_string(config::MAX_MESSAGES_PER_WINDOW) + " messages per window) for session " + id_str);

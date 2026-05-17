@@ -25,7 +25,7 @@ using cppsim::server::sanitize_session_id;
 constexpr size_t SESSION_ID_ENTROPY_BYTES = 16;  // 128 bits of entropy
 constexpr size_t HEX_CHARS_PER_BYTE = 2;
 constexpr size_t HEX_BUFFER_SIZE = SESSION_ID_ENTROPY_BYTES * HEX_CHARS_PER_BYTE + 1;  // +1 for null terminator
-constexpr size_t FALLBACK_HEX_BUFFER_SIZE = 16 * HEX_CHARS_PER_BYTE + 1;  // 64-bit hex + null terminator
+constexpr size_t FALLBACK_HEX_BUFFER_SIZE = sizeof(uint64_t) * HEX_CHARS_PER_BYTE + 1;  // 64-bit hex + null terminator
 constexpr size_t RAND_S_BYTES_PER_CALL = 4;
 constexpr int MAX_SESSION_ID_RETRIES = 3;
 constexpr uint64_t MURMUR_HASH_CONSTANT1 = 0xff51afd7ed558ccdULL;
