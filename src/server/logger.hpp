@@ -12,9 +12,9 @@ enum class log_level { info, error };
     case log_level::error:
       return "[ERROR]";
     case log_level::info:
-    default:
       return "[INFO]";
   }
+  return "[INFO]";
 }
 
 void log_message(std::string_view msg) noexcept;

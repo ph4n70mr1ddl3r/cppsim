@@ -1,6 +1,7 @@
 #include "protocol.hpp"
 #include "string_utils.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <mutex>
@@ -324,13 +325,14 @@ std::optional<reload_request_message> parse_reload_from_envelope(const nlohmann:
 // Takes by value (move) to avoid dangling references after std::move from caller.
 std::optional<disconnect_message> validate_disconnect(std::optional<disconnect_message> result) {
   if (!result) return std::nullopt;
+  const auto& msg = *result;
 
-  if (result->session_id.empty() || !validate_session_id_format(result->session_id)) {
+  if (msg.session_id.empty() || !validate_session_id_format(msg.session_id)) {
     log_protocol_error("[Protocol] Invalid session_id in DISCONNECT message");
     return std::nullopt;
   }
 
-  if (result->reason && result->reason->size() > MAX_DISCONNECT_REASON_LENGTH) {
+  if (msg.reason && msg.reason->size() > MAX_DISCONNECT_REASON_LENGTH) {
     log_protocol_error("[Protocol] Disconnect reason exceeds maximum length");
     return std::nullopt;
   }
