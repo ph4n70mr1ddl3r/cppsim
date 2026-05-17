@@ -69,8 +69,9 @@ class websocket_session final
 
   void check_deadline();
 
-  // Thread safety: strand-only — must be called from a handler dispatched to
-  // the session's strand, so no additional locking is needed for the comparison.
+  // Validates the provided session_id against this session's stored ID.
+  // On failure: sends a PROTOCOL_ERROR to the client and calls close().
+  // Callers should return immediately if this returns false.
   [[nodiscard]] bool validate_session_id(const std::string& provided_session_id) noexcept;
   void send_protocol_error(const char* error_code, std::string_view message) noexcept;
   void do_close() noexcept;

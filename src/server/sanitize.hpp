@@ -18,8 +18,7 @@ constexpr size_t SESSION_ID_LOG_LENGTH = 13;
   return std::string(sid.substr(0, SESSION_ID_LOG_LENGTH)) + "...";
 }
 
-// trunc_field is provided by common/string_utils.hpp in the cppsim namespace.
-// It is accessible via unqualified lookup from cppsim::server (enclosing namespace).
+// trunc_field is inherited from common/string_utils.hpp via the include above.
 
 }  // namespace server
 }  // namespace cppsim

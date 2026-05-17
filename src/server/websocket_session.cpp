@@ -360,22 +360,24 @@ void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, c
     close();
     return;
   }
-  if (validate_session_id(reload_opt->session_id)) {
-    log_message(std::string("[WebSocketSession] Validated RELOAD_REQUEST from ") + sid);
+  if (!validate_session_id(reload_opt->session_id)) {
+    return;
+  }
 
-    // Compute the new stack but only commit after the response is queued.
-    // Safe without atomics: current_stack_ is only accessed from the session's
-    // strand (single-threaded), so the read-then-write is not a data race.
-    double new_stack = std::min(current_stack_ + reload_opt->requested_amount, protocol::MAX_AMOUNT);
-    protocol::reload_response_message resp;
-    resp.granted = true;
-    resp.new_stack = new_stack;
-    if (!send(protocol::serialize_reload_response(resp))) {
-      log_error("[WebSocketSession] Failed to send RELOAD_RESPONSE to " + sid);
-      close();
-    } else {
-      current_stack_ = new_stack;
-    }
+  log_message(std::string("[WebSocketSession] Validated RELOAD_REQUEST from ") + sid);
+
+  // Compute the new stack but only commit after the response is queued.
+  // Safe without atomics: current_stack_ is only accessed from the session's
+  // strand (single-threaded), so the read-then-write is not a data race.
+  double new_stack = std::min(current_stack_ + reload_opt->requested_amount, protocol::MAX_AMOUNT);
+  protocol::reload_response_message resp;
+  resp.granted = true;
+  resp.new_stack = new_stack;
+  if (!send(protocol::serialize_reload_response(resp))) {
+    log_error("[WebSocketSession] Failed to send RELOAD_RESPONSE to " + sid);
+    close();
+  } else {
+    current_stack_ = new_stack;
   }
 }
 
@@ -387,10 +389,12 @@ void websocket_session::handle_disconnect_msg(const nlohmann::json& envelope_jso
     close();
     return;
   }
-  if (validate_session_id(disconnect_opt->session_id)) {
-    log_message(std::string("[WebSocketSession] Validated DISCONNECT from ") + sid);
-    close();
+  if (!validate_session_id(disconnect_opt->session_id)) {
+    return;
   }
+
+  log_message(std::string("[WebSocketSession] Validated DISCONNECT from ") + sid);
+  close();
 }
 
 bool websocket_session::queue_message(std::string&& message) {

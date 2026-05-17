@@ -1,5 +1,5 @@
-#include <cstdlib>
 #include <csignal>
+#include <cstdlib>
 
 #include "boost_wrapper.hpp"
 #include "config.hpp"

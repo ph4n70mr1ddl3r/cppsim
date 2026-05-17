@@ -13,7 +13,6 @@ namespace {
 
 constexpr size_t MAX_MESSAGE_TYPE_LENGTH = 32;
 constexpr size_t MAX_CLIENT_NAME_LENGTH = 128;
-constexpr size_t MAX_LOG_FIELD_LENGTH = 64;
 constexpr size_t MAX_DISCONNECT_REASON_LENGTH = 256;
 
 // trunc_field is provided by common/string_utils.hpp in the cppsim namespace.
