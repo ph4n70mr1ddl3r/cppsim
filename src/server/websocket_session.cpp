@@ -237,10 +237,7 @@ void websocket_session::handle_handshake_message(const std::string& message) {
 
   if (handshake_msg.protocol_version != protocol::PROTOCOL_VERSION) {
     // Truncate version for logging to prevent log injection
-    std::string safe_version = handshake_msg.protocol_version.size() <= 32
-        ? handshake_msg.protocol_version
-        : handshake_msg.protocol_version.substr(0, 32) + "...";
-    log_error(std::string("[WebSocketSession] Handshake error: Incompatible version ") + safe_version);
+    log_error(std::string("[WebSocketSession] Handshake error: Incompatible version ") + trunc_field(handshake_msg.protocol_version, 32));
     send_protocol_error(protocol::error_codes::INCOMPATIBLE_VERSION,
                         std::string("Expected ") + protocol::PROTOCOL_VERSION);
     close();
@@ -249,9 +246,7 @@ void websocket_session::handle_handshake_message(const std::string& message) {
 
   if (handshake_msg.client_name) {
     const auto& cname = *handshake_msg.client_name;
-    constexpr size_t max_name_log = 32;
-    std::string safe_name = cname.size() <= max_name_log ? cname : cname.substr(0, max_name_log) + "...";
-    log_message(std::string("[WebSocketSession] Client Name: ") + safe_name);
+    log_message(std::string("[WebSocketSession] Client Name: ") + trunc_field(cname, 32));
   }
 
   std::string new_session_id;
@@ -610,9 +605,9 @@ bool websocket_session::validate_session_id(const std::string& provided_session_
       return false;
     }
 
-    if (provided_session_id.length() > config::MAX_SESSION_ID_LENGTH) {
+    if (provided_session_id.size() > config::MAX_SESSION_ID_LENGTH) {
       log_error(std::string("[WebSocketSession] Session ID too long: ") +
-                  std::to_string(provided_session_id.length()) + " > " +
+                  std::to_string(provided_session_id.size()) + " > " +
                   std::to_string(config::MAX_SESSION_ID_LENGTH));
       send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Session ID exceeds maximum length");
       close();

@@ -142,7 +142,7 @@ std::string connection_manager::register_session(
       return "";
     }
 
-    if (session_id.length() > config::MAX_SESSION_ID_LENGTH) {
+    if (session_id.size() > config::MAX_SESSION_ID_LENGTH) {
       log_error("[ConnectionManager] Generated session ID exceeds maximum length");
       return "";
     }

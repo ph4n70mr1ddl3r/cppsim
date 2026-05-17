@@ -39,8 +39,9 @@ inline bool wait_for_server(uint16_t port,
 template <typename ServerFactory>
 uint16_t find_free_port(ServerFactory factory, int max_attempts = 5) {
   std::random_device rd;
+  std::uniform_int_distribution<uint16_t> dist(30000, 49999);
   for (int attempt = 0; attempt < max_attempts; ++attempt) {
-    uint16_t port = static_cast<uint16_t>(30000 + (rd() % 20000));
+    uint16_t port = dist(rd);
     try {
       factory(port);
       return port;
