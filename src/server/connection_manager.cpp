@@ -1,11 +1,11 @@
 #include "connection_manager.hpp"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
 #include <cinttypes>
 #include <cstdint>
-#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <mutex>

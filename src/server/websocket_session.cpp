@@ -1,6 +1,7 @@
 #include "websocket_session.hpp"
 
 #include <algorithm>
+#include <cstdio>
 
 #include "connection_manager.hpp"
 #include "logger.hpp"
