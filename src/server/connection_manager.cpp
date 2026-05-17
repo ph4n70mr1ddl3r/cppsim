@@ -21,6 +21,15 @@ namespace {
 
 using cppsim::server::sanitize_session_id;
 
+// Cryptographic constants
+constexpr size_t SESSION_ID_ENTROPY_BYTES = 16;  // 128 bits of entropy
+constexpr size_t HEX_CHARS_PER_BYTE = 2;
+constexpr size_t HEX_BUFFER_SIZE = SESSION_ID_ENTROPY_BYTES * HEX_CHARS_PER_BYTE + 1;  // +1 for null terminator
+constexpr size_t RAND_S_BYTES_PER_CALL = 4;
+constexpr int MAX_SESSION_ID_RETRIES = 3;
+constexpr uint64_t MURMUR_HASH_CONSTANT1 = 0xff51afd7ed558ccdULL;
+constexpr uint64_t MURMUR_HASH_CONSTANT2 = 0xc4ceb9fe1a85ec53ULL;
+
 // Generate cryptographically secure random bytes from /dev/urandom (Linux) or arc4random (BSD/macOS).
 // Falls back to a hash-mixed entropy source if OS CPRNG is unavailable.
 bool get_secure_random(unsigned char* buf, size_t len) noexcept {
@@ -31,7 +40,11 @@ bool get_secure_random(unsigned char* buf, size_t len) noexcept {
   }
   struct file_closer {
     std::FILE* fp;
+    explicit file_closer(std::FILE* file) : fp(file) {}
     ~file_closer() { if (fp) std::fclose(fp); }
+    // Prevent copying
+    file_closer(const file_closer&) = delete;
+    file_closer& operator=(const file_closer&) = delete;
   } closer{f};
   size_t read = std::fread(buf, 1, len, f);
   return read == len;
@@ -48,14 +61,14 @@ bool get_secure_random(unsigned char* buf, size_t len) noexcept {
     if (rand_s(&val) != 0) {
       return false;
     }
-    // Use all 4 bytes from each rand_s() call
-    unsigned char bytes[4] = {
+    // Use all bytes from each rand_s() call
+    unsigned char bytes[RAND_S_BYTES_PER_CALL] = {
       static_cast<unsigned char>(val & 0xFF),
       static_cast<unsigned char>((val >> 8) & 0xFF),
       static_cast<unsigned char>((val >> 16) & 0xFF),
       static_cast<unsigned char>((val >> 24) & 0xFF)
     };
-    size_t to_copy = std::min(len - i, size_t{4});
+    size_t to_copy = std::min(len - i, static_cast<size_t>(RAND_S_BYTES_PER_CALL));
     std::memcpy(buf + i, bytes, to_copy);
     i += to_copy;
   }
@@ -79,32 +92,32 @@ std::string generate_fallback_session_id() {
   uint64_t h = counter ^ static_cast<uint64_t>(steady) ^ static_cast<uint64_t>(system) ^
                static_cast<uint64_t>(thread_hash);
   h ^= h >> 33;
-  h *= 0xff51afd7ed558ccdULL;
+  h *= MURMUR_HASH_CONSTANT1;
   h ^= h >> 33;
-  h *= 0xc4ceb9fe1a85ec53ULL;
+  h *= MURMUR_HASH_CONSTANT2;
   h ^= h >> 33;
 
-  std::array<char, 17> buf;  // 16 hex chars + null terminator
+  std::array<char, HEX_BUFFER_SIZE> buf;  // 16 hex chars + null terminator
   std::snprintf(buf.data(), buf.size(), "%016" PRIx64, h);
   return "sess_" + std::string(buf.data());
 }
 
 // Generate a cryptographically random session ID: sess_{32 hex chars} = 128 bits of entropy.
 std::string generate_crypto_session_id() {
-  std::array<unsigned char, 16> random_bytes{};  // 128 bits
+  std::array<unsigned char, SESSION_ID_ENTROPY_BYTES> random_bytes{};  // 128 bits
 
   if (!get_secure_random(random_bytes.data(), random_bytes.size())) {
     cppsim::server::log_error("[ConnectionManager] CSPRNG unavailable, using fallback session ID");
     return generate_fallback_session_id();
   }
 
-  std::array<char, 33> hex;
+  std::array<char, HEX_BUFFER_SIZE> hex;
   static constexpr char hex_chars[] = "0123456789abcdef";
   for (size_t i = 0; i < random_bytes.size(); ++i) {
-    hex[i * 2] = hex_chars[(random_bytes[i] >> 4) & 0x0f];
-    hex[i * 2 + 1] = hex_chars[random_bytes[i] & 0x0f];
+    hex[i * HEX_CHARS_PER_BYTE] = hex_chars[(random_bytes[i] >> 4) & 0x0f];
+    hex[i * HEX_CHARS_PER_BYTE + 1] = hex_chars[random_bytes[i] & 0x0f];
   }
-  hex[32] = '\0';
+  hex[SESSION_ID_ENTROPY_BYTES * HEX_CHARS_PER_BYTE] = '\0';
 
   return "sess_" + std::string(hex.data());
 }
@@ -120,9 +133,8 @@ std::string connection_manager::register_session(
     log_error("[ConnectionManager] Cannot register null session");
     return "";
   }
-  constexpr int max_retries = 3;
   
-  for (int attempt = 0; attempt < max_retries; ++attempt) {
+  for (int attempt = 0; attempt < MAX_SESSION_ID_RETRIES; ++attempt) {
     std::string session_id = generate_session_id();
 
     if (session_id.empty()) {

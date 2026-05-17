@@ -23,6 +23,10 @@ websocket_session::~websocket_session() noexcept {
   try {
     boost::beast::error_code ec;
     deadline_.cancel(ec);
+    if (ec) {
+      // Timer cancellation failed, but we're in destructor so continue cleanup
+    }
+    
     if (state_.load(std::memory_order_acquire) != state::closed) {
       if (auto mgr = conn_mgr_.lock()) {
         std::string sid = get_session_id_safe();
@@ -31,7 +35,15 @@ websocket_session::~websocket_session() noexcept {
         }
       }
     }
+  } catch (const std::exception& e) {
+    // Log the exception but don't throw from destructor
+    try {
+      std::fprintf(stderr, "[WebSocketSession] Destructor exception: %s\n", e.what());
+    } catch (...) {
+      // Last resort - can't do anything if fprintf fails
+    }
   } catch (...) {
+    // Unknown exception in destructor - suppress it
   }
 }
 
@@ -181,7 +193,8 @@ void websocket_session::on_read(boost::beast::error_code ec,
 
 bool websocket_session::check_rate_limit_or_close() {
   auto now = std::chrono::steady_clock::now();
-  bool rate_exceeded = false;
+  bool should_close = false;
+  std::string session_id_str;
 
   {
     std::lock_guard<std::mutex> lock(rate_limit_mutex_);
@@ -191,15 +204,15 @@ bool websocket_session::check_rate_limit_or_close() {
     message_timestamps_.erase(it, message_timestamps_.end());
 
     if (message_timestamps_.size() >= config::MAX_MESSAGES_PER_WINDOW) {
-      rate_exceeded = true;
+      should_close = true;
+      session_id_str = get_session_id_safe();
     } else {
       message_timestamps_.push_back(now);
     }
   }
 
-  if (rate_exceeded) {
-    auto sid = get_session_id_safe();
-    std::string id_str = sid.empty() ? "(unauthenticated)" : sanitize_session_id(sid);
+  if (should_close) {
+    std::string id_str = session_id_str.empty() ? "(unauthenticated)" : sanitize_session_id(session_id_str);
     log_error("[WebSocketSession] Rate limit exceeded (max " +
         std::to_string(config::MAX_MESSAGES_PER_WINDOW) + " messages per window) for session " + id_str);
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Rate limit exceeded");
@@ -547,14 +560,18 @@ void websocket_session::close() noexcept {
          self->do_close();
        }
     });
-  } catch (...) {
-    log_error("[WebSocketSession] Exception in close() - forcing state to closed");
+  } catch (const std::bad_weak_ptr&) {
+    // shared_from_this() failed - object is being destroyed, force cleanup
+    log_error("[WebSocketSession] close() called during destruction - forcing state to closed");
     state_.store(state::closed, std::memory_order_release);
     boost::beast::error_code timer_ec;
     deadline_.cancel(timer_ec);
     try {
       ws_.next_layer().close();
+    } catch (const std::exception& e) {
+      log_error(std::string("[WebSocketSession] Error closing socket during forced cleanup: ") + e.what());
     } catch (...) {
+      log_error("[WebSocketSession] Unknown error closing socket during forced cleanup");
     }
     try {
       std::string sid = get_session_id_safe();
@@ -563,8 +580,15 @@ void websocket_session::close() noexcept {
           mgr->unregister_session(sid);
         }
       }
+    } catch (const std::exception& e) {
+      log_error(std::string("[WebSocketSession] Error unregistering session during forced cleanup: ") + e.what());
     } catch (...) {
+      log_error("[WebSocketSession] Unknown error unregistering session during forced cleanup");
     }
+  } catch (const std::exception& e) {
+    log_error(std::string("[WebSocketSession] Exception in close(): ") + e.what());
+  } catch (...) {
+    log_error("[WebSocketSession] Unknown exception in close()");
   }
 }
 

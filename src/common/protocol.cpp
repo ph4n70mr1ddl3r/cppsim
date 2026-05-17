@@ -81,10 +81,15 @@ void log_protocol_error(std::string_view msg) noexcept {
       std::lock_guard<std::mutex> lock(error_logger_mutex);
       logger_copy = error_logger;
     }
+    // Call the logger while holding the copy to ensure thread safety
     if (logger_copy) {
       logger_copy(msg);
     }
   } catch (...) {
+    // Last resort: fprintf to stderr is atomic on POSIX
+    std::fprintf(stderr, "[Protocol Error] %.*s\n",
+                 static_cast<int>(std::min(msg.size(), static_cast<size_t>(1024))),
+                 msg.data());
   }
 }
 

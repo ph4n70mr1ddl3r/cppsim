@@ -1,8 +1,7 @@
 #include <cstdlib>
-
-#include "boost_wrapper.hpp"
 #include <csignal>
 
+#include "boost_wrapper.hpp"
 #include "config.hpp"
 #include "logger.hpp"
 #include "protocol.hpp"

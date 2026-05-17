@@ -13,7 +13,10 @@ namespace server {
 namespace {
     std::mutex log_mutex;
 
-    std::array<char, 32> get_timestamp() {
+    constexpr size_t TIMESTAMP_BUFFER_SIZE = 32;
+    constexpr size_t MS_PRECISION = 3;
+
+    std::array<char, TIMESTAMP_BUFFER_SIZE> get_timestamp() {
       auto now = std::chrono::system_clock::now();
       auto time_t = std::chrono::system_clock::to_time_t(now);
       auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -26,27 +29,17 @@ namespace {
       localtime_r(&time_t, &tm);
 #endif
 
-      std::array<char, 32> buf;
+      std::array<char, TIMESTAMP_BUFFER_SIZE> buf;
       size_t len = std::strftime(buf.data(), buf.size(), "%Y-%m-%d %H:%M:%S", &tm);
       if (len == 0) {
         // strftime failed — use a safe fallback (avoid trigraphs)
-        std::snprintf(buf.data(), buf.size(), "ts-err.%03d",
-                      static_cast<int>(ms.count()));
+        std::snprintf(buf.data(), buf.size(), "ts-err.%0*d",
+                      static_cast<int>(MS_PRECISION), static_cast<int>(ms.count()));
       } else {
-        std::snprintf(buf.data() + len, buf.size() - len, ".%03d",
-                      static_cast<int>(ms.count()));
+        std::snprintf(buf.data() + len, buf.size() - len, ".%0*d",
+                      static_cast<int>(MS_PRECISION), static_cast<int>(ms.count()));
       }
       return buf;
-    }
-
-    [[nodiscard]] const char* level_to_string(log_level level) noexcept {
-      switch (level) {
-        case log_level::error:
-          return "[ERROR]";
-        case log_level::info:
-        default:
-          return "[INFO]";
-      }
     }
 }
 
@@ -55,14 +48,15 @@ void log(log_level level, std::string_view msg) noexcept {
       auto timestamp = get_timestamp();
       std::lock_guard<std::mutex> lock(log_mutex);
       std::ostream& stream = (level == log_level::error) ? std::cerr : std::cout;
-      stream << timestamp.data() << " " << level_to_string(level) << " " << msg << '\n';
+      stream << timestamp.data() << " " << log_level_to_string(level) << " " << msg << '\n';
       stream.flush();
     } catch (...) {
       // Best-effort fallback — fprintf to stderr is atomic on POSIX,
       // no additional synchronization needed.
+      constexpr size_t MAX_FALLBACK_MSG_SIZE = 1024;
       std::fprintf(stderr, "[FALLBACK] %s %.*s\n",
-                   level_to_string(level),
-                   static_cast<int>(msg.size() > 1024 ? 1024 : msg.size()),
+                   log_level_to_string(level),
+                   static_cast<int>(std::min(msg.size(), MAX_FALLBACK_MSG_SIZE)),
                    msg.data());
     }
 }
