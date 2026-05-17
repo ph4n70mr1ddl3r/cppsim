@@ -354,7 +354,7 @@ void websocket_session::handle_action(const nlohmann::json& envelope_json, const
   }
   last_sequence_number_.store(seq, std::memory_order_release);
   log_message(std::string("[WebSocketSession] Validated ACTION from ") + sid + ": type=" +
-              action_opt->action_type.substr(0, 32) + " seq=" + std::to_string(seq));
+              action_opt->action_type + " seq=" + std::to_string(seq));
 }
 
 void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, const std::string& sid) {

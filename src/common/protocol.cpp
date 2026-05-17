@@ -98,7 +98,7 @@ void log_protocol_error(std::string_view msg) noexcept {
 std::optional<std::string> extract_message_type(std::string_view json_str) noexcept {
   auto result = extract_message_type_and_json(json_str);
   if (result) {
-    return std::move(result->message_type);
+    return result->message_type;
   }
   return std::nullopt;
 }
@@ -151,7 +151,7 @@ std::optional<T> parse_from_envelope(const nlohmann::json& envelope_json, std::s
       return std::nullopt;
     }
     if (envelope.protocol_version != PROTOCOL_VERSION) {
-      log_protocol_error(std::string("[Protocol] ") + std::string(message_name) + " version mismatch: expected " +
+      log_protocol_error("[Protocol] " + std::string(message_name) + " version mismatch: expected " +
                          PROTOCOL_VERSION + ", got " + envelope.protocol_version);
       return std::nullopt;
     }
@@ -160,7 +160,7 @@ std::optional<T> parse_from_envelope(const nlohmann::json& envelope_json, std::s
     return msg;
   } catch (const std::exception& e) {
     try {
-      log_protocol_error(std::string("[Protocol] ") + std::string(message_name) + " Parse Error: " + e.what());
+      log_protocol_error("[Protocol] " + std::string(message_name) + " Parse Error: " + e.what());
     } catch (...) {
     }
     return std::nullopt;
@@ -175,7 +175,7 @@ std::optional<T> parse_message(std::string_view json_str, std::string_view expec
     return parse_from_envelope<T>(j, expected_type, message_name);
   } catch (const std::exception& e) {
     try {
-      log_protocol_error(std::string("[Protocol] ") + std::string(message_name) + " Parse Error: " + e.what());
+      log_protocol_error("[Protocol] " + std::string(message_name) + " Parse Error: " + e.what());
     } catch (...) {
     }
     return std::nullopt;
