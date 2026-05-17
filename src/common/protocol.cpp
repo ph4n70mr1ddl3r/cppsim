@@ -1,4 +1,5 @@
 #include "protocol.hpp"
+#include "string_utils.hpp"
 
 #include <cmath>
 #include <limits>
@@ -15,10 +16,8 @@ constexpr size_t MAX_CLIENT_NAME_LENGTH = 128;
 constexpr size_t MAX_LOG_FIELD_LENGTH = 64;
 constexpr size_t MAX_DISCONNECT_REASON_LENGTH = 256;
 
-std::string trunc_field(std::string_view s) {
-  if (s.size() <= MAX_LOG_FIELD_LENGTH) return std::string(s);
-  return std::string(s.substr(0, MAX_LOG_FIELD_LENGTH)) + "...";
-}
+// trunc_field is provided by common/string_utils.hpp in the cppsim namespace.
+// It is accessible via unqualified lookup from cppsim::protocol (enclosing namespace).
 
 constexpr bool is_printable_ascii(char c) noexcept { return static_cast<unsigned char>(c) >= 0x20 && static_cast<unsigned char>(c) < 0x7f; }
 

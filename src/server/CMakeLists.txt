@@ -11,7 +11,6 @@ target_link_libraries(poker_server_lib
     poker_common
     Boost::headers
   PRIVATE
-    project_options
     project_warnings
 )
 

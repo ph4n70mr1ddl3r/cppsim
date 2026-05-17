@@ -34,19 +34,12 @@ constexpr uint64_t MURMUR_HASH_CONSTANT2 = 0xc4ceb9fe1a85ec53ULL;
 // Falls back to a hash-mixed entropy source if OS CPRNG is unavailable.
 bool get_secure_random(unsigned char* buf, size_t len) noexcept {
 #if defined(__linux__)
-  std::FILE* f = std::fopen("/dev/urandom", "rb");
+  using file_ptr = std::unique_ptr<std::FILE, int(*)(std::FILE*)>;
+  file_ptr f(std::fopen("/dev/urandom", "rb"), &std::fclose);
   if (!f) {
     return false;
   }
-  struct file_closer {
-    std::FILE* fp;
-    explicit file_closer(std::FILE* file) : fp(file) {}
-    ~file_closer() { if (fp) std::fclose(fp); }
-    // Prevent copying
-    file_closer(const file_closer&) = delete;
-    file_closer& operator=(const file_closer&) = delete;
-  } closer{f};
-  size_t read = std::fread(buf, 1, len, f);
+  size_t read = std::fread(buf, 1, len, f.get());
   return read == len;
 #elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
   arc4random_buf(buf, len);
