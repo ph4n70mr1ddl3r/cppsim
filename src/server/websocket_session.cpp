@@ -294,7 +294,7 @@ void websocket_session::handle_authenticated_message(const std::string& message)
   auto header_opt = protocol::extract_message_type_and_json(message);
 
   if (!header_opt) {
-    log_message(std::string("[WebSocketSession] Invalid message format from ") + get_session_id_safe() + ": missing message_type");
+    log_message(std::string("[WebSocketSession] Invalid message format from ") + sanitize_session_id(get_session_id_safe()) + ": missing message_type");
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Missing or invalid message_type field");
     close();
     return;
@@ -310,7 +310,7 @@ void websocket_session::handle_authenticated_message(const std::string& message)
   } else if (msg_type == protocol::message_types::DISCONNECT) {
     handle_disconnect_msg(header_opt->envelope_json, sid);
   } else {
-    log_message(std::string("[WebSocketSession] Unknown message type '") + msg_type + "' from " + sid);
+    log_message(std::string("[WebSocketSession] Unknown message type '") + trunc_field(msg_type) + "' from " + sanitize_session_id(sid));
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR,
                         std::string("Unknown message type: ") + msg_type);
     close();
@@ -320,7 +320,7 @@ void websocket_session::handle_authenticated_message(const std::string& message)
 void websocket_session::handle_action(const nlohmann::json& envelope_json, const std::string& sid) {
   auto action_opt = protocol::parse_action_from_envelope(envelope_json);
   if (!action_opt) {
-    log_error("[WebSocketSession] Failed to parse ACTION message from " + sid);
+    log_error("[WebSocketSession] Failed to parse ACTION message from " + sanitize_session_id(sid));
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid ACTION message format");
     close();
     return;
@@ -352,14 +352,14 @@ void websocket_session::handle_action(const nlohmann::json& envelope_json, const
     return;
   }
   last_sequence_number_.store(seq, std::memory_order_release);
-  log_message(std::string("[WebSocketSession] Validated ACTION from ") + sid + ": type=" +
+  log_message(std::string("[WebSocketSession] Validated ACTION from ") + sanitize_session_id(sid) + ": type=" +
               action_opt->action_type + " seq=" + std::to_string(seq));
 }
 
 void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, const std::string& sid) {
   auto reload_opt = protocol::parse_reload_from_envelope(envelope_json);
   if (!reload_opt) {
-    log_error("[WebSocketSession] Failed to parse RELOAD_REQUEST from " + sid);
+    log_error("[WebSocketSession] Failed to parse RELOAD_REQUEST from " + sanitize_session_id(sid));
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid RELOAD_REQUEST format");
     close();
     return;
@@ -368,7 +368,7 @@ void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, c
     return;
   }
 
-  log_message(std::string("[WebSocketSession] Validated RELOAD_REQUEST from ") + sid);
+  log_message(std::string("[WebSocketSession] Validated RELOAD_REQUEST from ") + sanitize_session_id(sid));
 
   // Compute the new stack but only commit after the response is queued.
   // Safe without atomics: current_stack_ is only accessed from the session's
@@ -378,7 +378,7 @@ void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, c
   resp.granted = true;
   resp.new_stack = new_stack;
   if (!send(protocol::serialize_reload_response(resp))) {
-    log_error("[WebSocketSession] Failed to send RELOAD_RESPONSE to " + sid);
+    log_error("[WebSocketSession] Failed to send RELOAD_RESPONSE to " + sanitize_session_id(sid));
     close();
   } else {
     current_stack_ = new_stack;
@@ -388,7 +388,7 @@ void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, c
 void websocket_session::handle_disconnect_msg(const nlohmann::json& envelope_json, const std::string& sid) {
   auto disconnect_opt = protocol::parse_disconnect_from_envelope(envelope_json);
   if (!disconnect_opt) {
-    log_error("[WebSocketSession] Failed to parse DISCONNECT from " + sid);
+    log_error("[WebSocketSession] Failed to parse DISCONNECT from " + sanitize_session_id(sid));
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid DISCONNECT format");
     close();
     return;
@@ -397,7 +397,7 @@ void websocket_session::handle_disconnect_msg(const nlohmann::json& envelope_jso
     return;
   }
 
-  log_message(std::string("[WebSocketSession] Validated DISCONNECT from ") + sid);
+  log_message(std::string("[WebSocketSession] Validated DISCONNECT from ") + sanitize_session_id(sid));
   close();
 }
 

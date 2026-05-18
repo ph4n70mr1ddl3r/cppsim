@@ -776,6 +776,23 @@ TEST(ProtocolTest, DisconnectReasonTooLong) {
   EXPECT_FALSE(result.has_value());
 }
 
+// Test: Disconnect with non-printable reason should fail
+TEST(ProtocolTest, DisconnectReasonNonPrintable) {
+  message_envelope env;
+  env.message_type = message_types::DISCONNECT;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "sess_aabbccdd11223344"},
+      {"reason", "good\001bad"}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_disconnect(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
 // Test: Handshake with envelope+payload versions matching each other (but not
 // the server's PROTOCOL_VERSION) parses successfully.
 // Version compatibility is the caller's responsibility.

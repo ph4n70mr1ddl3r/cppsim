@@ -344,9 +344,17 @@ std::optional<disconnect_message> validate_disconnect(std::optional<disconnect_m
     return std::nullopt;
   }
 
-  if (msg.reason && msg.reason->size() > MAX_DISCONNECT_REASON_LENGTH) {
-    log_protocol_error("[Protocol] Disconnect reason exceeds maximum length");
-    return std::nullopt;
+  if (msg.reason) {
+    if (msg.reason->size() > MAX_DISCONNECT_REASON_LENGTH) {
+      log_protocol_error("[Protocol] Disconnect reason exceeds maximum length");
+      return std::nullopt;
+    }
+    for (char c : *msg.reason) {
+      if (!is_printable_ascii(c)) {
+        log_protocol_error("[Protocol] Disconnect reason contains non-printable characters");
+        return std::nullopt;
+      }
+    }
   }
 
   return result;
