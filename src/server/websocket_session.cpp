@@ -7,6 +7,7 @@
 #include "logger.hpp"
 #include "protocol.hpp"
 #include "sanitize.hpp"
+#include "string_utils.hpp"
 
 namespace cppsim {
 namespace server {

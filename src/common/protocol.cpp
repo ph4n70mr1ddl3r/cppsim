@@ -92,6 +92,16 @@ void log_protocol_error(std::string_view msg) noexcept {
   }
 }
 
+// Validate session ID format for message types that require it.
+// Returns true if valid, logs an error and returns false otherwise.
+bool validate_session_id_field(const std::string& session_id, const char* message_name) noexcept {
+  if (session_id.empty() || !validate_session_id_format(session_id)) {
+    log_protocol_error("[Protocol] Invalid session_id in " + std::string(message_name) + " message");
+    return false;
+  }
+  return true;
+}
+
 }  // namespace
 
 std::optional<std::string> extract_message_type(std::string_view json_str) noexcept {
@@ -248,8 +258,7 @@ std::optional<action_message> validate_action(std::optional<action_message> resu
   if (!result) return std::nullopt;
   const auto& msg = *result;
 
-  if (msg.session_id.empty() || !validate_session_id_format(msg.session_id)) {
-    log_protocol_error("[Protocol] Invalid session_id in ACTION message");
+  if (!validate_session_id_field(msg.session_id, "ACTION")) {
     return std::nullopt;
   }
 
@@ -298,8 +307,7 @@ std::optional<reload_request_message> validate_reload(std::optional<reload_reque
   if (!result) return std::nullopt;
   const auto& msg = *result;
 
-  if (msg.session_id.empty() || !validate_session_id_format(msg.session_id)) {
-    log_protocol_error("[Protocol] Invalid session_id in RELOAD_REQUEST message");
+  if (!validate_session_id_field(msg.session_id, "RELOAD_REQUEST")) {
     return std::nullopt;
   }
 
@@ -327,8 +335,7 @@ std::optional<disconnect_message> validate_disconnect(std::optional<disconnect_m
   if (!result) return std::nullopt;
   const auto& msg = *result;
 
-  if (msg.session_id.empty() || !validate_session_id_format(msg.session_id)) {
-    log_protocol_error("[Protocol] Invalid session_id in DISCONNECT message");
+  if (!validate_session_id_field(msg.session_id, "DISCONNECT")) {
     return std::nullopt;
   }
 

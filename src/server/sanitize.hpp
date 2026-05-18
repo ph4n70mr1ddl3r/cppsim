@@ -4,8 +4,6 @@
 #include <string>
 #include <string_view>
 
-#include "string_utils.hpp"
-
 namespace cppsim {
 namespace server {
 
@@ -17,8 +15,6 @@ constexpr size_t SESSION_ID_LOG_LENGTH = 13;
   if (sid.size() <= SESSION_ID_LOG_LENGTH) return std::string(sid);
   return std::string(sid.substr(0, SESSION_ID_LOG_LENGTH)) + "...";
 }
-
-// trunc_field is inherited from common/string_utils.hpp via the include above.
 
 }  // namespace server
 }  // namespace cppsim
