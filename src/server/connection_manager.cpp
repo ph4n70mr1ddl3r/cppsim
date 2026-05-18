@@ -214,6 +214,11 @@ size_t connection_manager::session_count() const noexcept {
   return sessions_.size();
 }
 
+bool connection_manager::empty() const noexcept {
+  std::lock_guard<std::mutex> lock(sessions_mutex_);
+  return sessions_.empty();
+}
+
 std::string connection_manager::generate_session_id() noexcept {
   try {
     return generate_crypto_session_id();

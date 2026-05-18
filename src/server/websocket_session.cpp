@@ -304,11 +304,11 @@ void websocket_session::handle_authenticated_message(const std::string& message)
   const std::string sid = get_session_id_safe();
 
   if (msg_type == protocol::message_types::ACTION) {
-    handle_action(header_opt->envelope_json, sid);
+    handle_action(*header_opt, sid);
   } else if (msg_type == protocol::message_types::RELOAD_REQUEST) {
-    handle_reload_msg(header_opt->envelope_json, sid);
+    handle_reload_msg(*header_opt, sid);
   } else if (msg_type == protocol::message_types::DISCONNECT) {
-    handle_disconnect_msg(header_opt->envelope_json, sid);
+    handle_disconnect_msg(*header_opt, sid);
   } else {
     log_message(std::string("[WebSocketSession] Unknown message type '") + trunc_field(msg_type) + "' from " + sanitize_session_id(sid));
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR,
@@ -317,8 +317,8 @@ void websocket_session::handle_authenticated_message(const std::string& message)
   }
 }
 
-void websocket_session::handle_action(const nlohmann::json& envelope_json, const std::string& sid) {
-  auto action_opt = protocol::parse_action_from_envelope(envelope_json);
+void websocket_session::handle_action(const protocol::parsed_message_header& header, const std::string& sid) {
+  auto action_opt = protocol::parse_action_from_envelope(header.envelope_json);
   if (!action_opt) {
     log_error("[WebSocketSession] Failed to parse ACTION message from " + sanitize_session_id(sid));
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid ACTION message format");
@@ -356,8 +356,8 @@ void websocket_session::handle_action(const nlohmann::json& envelope_json, const
               action_opt->action_type + " seq=" + std::to_string(seq));
 }
 
-void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, const std::string& sid) {
-  auto reload_opt = protocol::parse_reload_from_envelope(envelope_json);
+void websocket_session::handle_reload_msg(const protocol::parsed_message_header& header, const std::string& sid) {
+  auto reload_opt = protocol::parse_reload_from_envelope(header.envelope_json);
   if (!reload_opt) {
     log_error("[WebSocketSession] Failed to parse RELOAD_REQUEST from " + sanitize_session_id(sid));
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid RELOAD_REQUEST format");
@@ -385,8 +385,8 @@ void websocket_session::handle_reload_msg(const nlohmann::json& envelope_json, c
   }
 }
 
-void websocket_session::handle_disconnect_msg(const nlohmann::json& envelope_json, const std::string& sid) {
-  auto disconnect_opt = protocol::parse_disconnect_from_envelope(envelope_json);
+void websocket_session::handle_disconnect_msg(const protocol::parsed_message_header& header, const std::string& sid) {
+  auto disconnect_opt = protocol::parse_disconnect_from_envelope(header.envelope_json);
   if (!disconnect_opt) {
     log_error("[WebSocketSession] Failed to parse DISCONNECT from " + sanitize_session_id(sid));
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Invalid DISCONNECT format");
@@ -553,7 +553,10 @@ void websocket_session::close() noexcept {
   }
 
   try {
-    boost::asio::dispatch(ws_.get_executor(), [self = shared_from_this()]() {
+    auto weak_self = weak_from_this();
+    boost::asio::dispatch(ws_.get_executor(), [weak_self]() {
+       auto self = weak_self.lock();
+       if (!self) return;  // Object being destroyed — destructor handles cleanup
        bool write_in_flight = false;
        {
          std::lock_guard<std::mutex> lock(self->write_queue_mutex_);
@@ -563,31 +566,6 @@ void websocket_session::close() noexcept {
          self->do_close();
        }
     });
-  } catch (const std::bad_weak_ptr&) {
-    // shared_from_this() failed - object is being destroyed, force cleanup
-    log_error("[WebSocketSession] close() called during destruction - forcing state to closed");
-    state_.store(state::closed, std::memory_order_release);
-    boost::beast::error_code timer_ec;
-    deadline_.cancel(timer_ec);
-    try {
-      ws_.next_layer().close();
-    } catch (const std::exception& e) {
-      log_error(std::string("[WebSocketSession] Error closing socket during forced cleanup: ") + e.what());
-    } catch (...) {
-      log_error("[WebSocketSession] Unknown error closing socket during forced cleanup");
-    }
-    try {
-      std::string sid = get_session_id_safe();
-      if (!sid.empty()) {
-        if (auto mgr = conn_mgr_.lock()) {
-          mgr->unregister_session(sid);
-        }
-      }
-    } catch (const std::exception& e) {
-      log_error(std::string("[WebSocketSession] Error unregistering session during forced cleanup: ") + e.what());
-    } catch (...) {
-      log_error("[WebSocketSession] Unknown error unregistering session during forced cleanup");
-    }
   } catch (const std::exception& e) {
     log_error(std::string("[WebSocketSession] Exception in close(): ") + e.what());
   } catch (...) {
