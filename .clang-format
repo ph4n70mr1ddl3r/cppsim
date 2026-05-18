@@ -1,8 +1,9 @@
 ---
 Language: Cpp
 BasedOnStyle: Google
-IndentWidth: 2
-ColumnLimit: 120
+IndentWidth: 4
+TabWidth: 4
+ColumnLimit: 100
 UseTab: Never
 PointerAlignment: Left
 ReferenceAlignment: Left
@@ -20,7 +21,7 @@ ReferenceAlignment: Left
 BreakBeforeBraces: Attach  # K&R style (opening brace on same line)
 
 # Include ordering
-SortIncludes: true
+SortIncludes: CaseInsensitive
 IncludeBlocks: Regroup
 IncludeCategories:
   - Regex:           '^".*\.hpp"$'
@@ -59,4 +60,5 @@ AllowShortFunctionsOnASingleLine: Inline
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 AlwaysBreakTemplateDeclarations: Yes
+Standard: c++17
 ---

@@ -19,19 +19,19 @@ namespace {
 
     std::array<char, TIMESTAMP_BUFFER_SIZE> get_timestamp() {
       auto now = std::chrono::system_clock::now();
-      auto time_t = std::chrono::system_clock::to_time_t(now);
+      auto now_time = std::chrono::system_clock::to_time_t(now);
       auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                     now.time_since_epoch()) % 1000;
 
-      std::tm tm;
+      std::tm tm_buf;
 #ifdef _WIN32
-      localtime_s(&tm, &time_t);
+      localtime_s(&tm_buf, &now_time);
 #else
-      localtime_r(&time_t, &tm);
+      localtime_r(&now_time, &tm_buf);
 #endif
 
       std::array<char, TIMESTAMP_BUFFER_SIZE> buf;
-      size_t len = std::strftime(buf.data(), buf.size(), "%Y-%m-%d %H:%M:%S", &tm);
+      size_t len = std::strftime(buf.data(), buf.size(), "%Y-%m-%d %H:%M:%S", &tm_buf);
       if (len == 0) {
         // strftime failed — use a safe fallback (avoid trigraphs)
         std::snprintf(buf.data(), buf.size(), "ts-err.%0*d",

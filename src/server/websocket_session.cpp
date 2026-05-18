@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <utility>
 
 #include "connection_manager.hpp"
 #include "logger.hpp"
@@ -52,8 +53,8 @@ websocket_session::~websocket_session() noexcept {
 void websocket_session::run() noexcept {
   try {
     ws_.set_option(boost::beast::websocket::stream_base::timeout{
-        std::chrono::hours(24),
-        std::chrono::hours(24),
+        config::WS_IDLE_TIMEOUT,
+        config::WS_READ_TIMEOUT,
         false});
 
     ws_.read_message_max(config::MAX_MESSAGE_SIZE);

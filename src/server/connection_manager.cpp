@@ -20,8 +20,6 @@
 
 namespace {
 
-using cppsim::server::sanitize_session_id;
-
 // Cryptographic constants
 constexpr size_t SESSION_ID_ENTROPY_BYTES = 16;  // 128 bits of entropy
 constexpr size_t HEX_CHARS_PER_BYTE = 2;
@@ -155,13 +153,13 @@ std::string connection_manager::register_session(
       auto result = sessions_.try_emplace(session_id, session);
       if (!result.second) {
         log_error("[ConnectionManager] Session ID collision (attempt " +
-            std::to_string(attempt + 1) + "), retrying: " + sanitize_session_id(session_id));
+            std::to_string(attempt + 1) + "), retrying: " + cppsim::server::sanitize_session_id(session_id));
         continue;
       }
       count = sessions_.size();
     }
 
-    log_message("[ConnectionManager] Registered session: " + sanitize_session_id(session_id) + " (total: " + std::to_string(count) + ")");
+    log_message("[ConnectionManager] Registered session: " + cppsim::server::sanitize_session_id(session_id) + " (total: " + std::to_string(count) + ")");
 
     return session_id;
   }
@@ -186,7 +184,7 @@ void connection_manager::unregister_session(std::string_view session_id) noexcep
     count = sessions_.size();
   }
   if (found) {
-    log_message("[ConnectionManager] Unregistered session: " + sanitize_session_id(session_id) + " (remaining: " +
+    log_message("[ConnectionManager] Unregistered session: " + cppsim::server::sanitize_session_id(session_id) + " (remaining: " +
                 std::to_string(count) + ")");
   }
 }

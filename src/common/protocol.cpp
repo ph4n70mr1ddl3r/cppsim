@@ -267,6 +267,11 @@ std::optional<action_message> validate_action(std::optional<action_message> resu
     return std::nullopt;
   }
 
+  if (msg.action_type.empty()) {
+    log_protocol_error("[Protocol] Empty action_type in ACTION message");
+    return std::nullopt;
+  }
+
   const auto& valid_types = get_valid_action_types();
   if (valid_types.find(msg.action_type) == valid_types.end()) {
     log_protocol_error("[Protocol] Invalid action_type: " + trunc_field(msg.action_type));

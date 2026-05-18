@@ -34,6 +34,11 @@ struct config {
     static constexpr int PLACEHOLDER_SEAT = -1;
     static constexpr double PLACEHOLDER_STACK = 0.0;
     
+    // WebSocket stream idle/read timeouts.
+    // Controls when Beast automatically closes connections with no activity.
+    static constexpr auto WS_IDLE_TIMEOUT = std::chrono::hours{24};
+    static constexpr auto WS_READ_TIMEOUT = std::chrono::hours{24};
+
     static constexpr int64_t MAX_SEQUENCE_GAP = 10000;
 };
 
