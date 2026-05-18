@@ -723,6 +723,59 @@ TEST(ProtocolTest, DisconnectEmptySessionId) {
   EXPECT_FALSE(result.has_value());
 }
 
+// Test: Action with empty session_id should fail
+TEST(ProtocolTest, EmptySessionIdInAction) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", ""},
+      {"action_type", "FOLD"},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Action with empty action_type should fail
+TEST(ProtocolTest, EmptyActionType) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", "sess_aabbccdd11223344"},
+      {"action_type", ""},
+      {"sequence_number", 1}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_action(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: Reload request with empty session_id should fail
+TEST(ProtocolTest, EmptySessionIdInReload) {
+  message_envelope env;
+  env.message_type = message_types::RELOAD_REQUEST;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"session_id", ""},
+      {"requested_amount", 100.0}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_reload_request(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
 // Test: Action with invalid session_id format should fail
 TEST(ProtocolTest, InvalidSessionIdFormat) {
   message_envelope env;

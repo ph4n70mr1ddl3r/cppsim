@@ -83,6 +83,11 @@ void websocket_session::do_accept() {
 
 void websocket_session::on_accept(boost::beast::error_code ec) {
   if (ec) {
+    // If the session was already closed (e.g. handshake timeout fired while
+    // async_accept was pending), do_close() already handled cleanup.
+    if (state_.load(std::memory_order_acquire) == state::closed) {
+      return;
+    }
     // Probe connections (e.g. health checks) close before completing the WS
     // handshake — this is normal, not a real error.  Clean up timer and state
     // to avoid a spurious "Handshake timeout" log when the deadline fires.
@@ -92,6 +97,13 @@ void websocket_session::on_accept(boost::beast::error_code ec) {
     boost::beast::error_code timer_ec;
     deadline_.cancel(timer_ec);
     state_.store(state::closed, std::memory_order_release);
+    return;
+  }
+
+  // Guard: session may have been closed (e.g. handshake timeout) while
+  // async_accept was in flight.
+  if (state_.load(std::memory_order_acquire) == state::closed ||
+      close_requested_.load(std::memory_order_acquire)) {
     return;
   }
 
@@ -640,7 +652,8 @@ void websocket_session::do_close() noexcept {
     return;
   }
 
-  if (state_.exchange(state::closed, std::memory_order_acq_rel) == state::closed) {
+  auto prev_state = state_.exchange(state::closed, std::memory_order_acq_rel);
+  if (prev_state == state::closed) {
     return;
   }
 
@@ -656,17 +669,29 @@ void websocket_session::do_close() noexcept {
       }
     }
 
-    ws_.async_close(boost::beast::websocket::close_code::normal,
-                    [self = shared_from_this()](boost::beast::error_code ec) {
-                      if (ec) {
-                        log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
-                        // Fallback: force-close the TCP socket to prevent FD leak
-                        try {
-                          self->ws_.next_layer().close();
-                        } catch (...) {
+    if (prev_state == state::unauthenticated) {
+      // WebSocket handshake was never completed — async_close() requires an
+      // open stream (per Beast docs).  Close the underlying TCP socket
+      // instead; any pending async_accept will complete with an error.
+      boost::beast::error_code close_ec;
+      ws_.next_layer().socket().close(close_ec);
+      if (close_ec) {
+        log_error(std::string("[WebSocketSession] TCP close error: ") + close_ec.message());
+      }
+    } else {
+      // Stream was accepted — send a proper WebSocket close frame.
+      ws_.async_close(boost::beast::websocket::close_code::normal,
+                      [self = shared_from_this()](boost::beast::error_code ec) {
+                        if (ec) {
+                          log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
+                          // Fallback: force-close the TCP socket to prevent FD leak
+                          try {
+                            self->ws_.next_layer().close();
+                          } catch (...) {
+                          }
                         }
-                      }
-                    });
+                      });
+    }
   } catch (const std::exception& e) {
     log_error(std::string("[WebSocketSession] Exception in do_close: ") + e.what());
     // Fallback: force-close the TCP socket to prevent FD leak if async_close threw
