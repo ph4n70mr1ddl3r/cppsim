@@ -143,23 +143,38 @@ std::string connection_manager::register_session(
       return "";
     }
 
-    size_t count;
+    // emplace_result distinguishes the three outcomes so logging can happen
+    // outside the lock, reducing sessions_mutex_ hold time on the hot path.
+    enum class emplace_result { success, max_connections, collision };
+    auto result = emplace_result::success;
+    size_t count = 0;
     {
       std::lock_guard<std::mutex> lock(sessions_mutex_);
       if (sessions_.size() >= config::MAX_CONNECTIONS) {
-        log_error("[ConnectionManager] Maximum connections reached (" + 
+        result = emplace_result::max_connections;
+      } else {
+        // session is a shared_ptr copy — try_emplace copies it into the map,
+        // so the caller always retains their reference regardless of attempt count.
+        auto [it, inserted] = sessions_.try_emplace(session_id, session);
+        if (!inserted) {
+          result = emplace_result::collision;
+        } else {
+          count = sessions_.size();
+        }
+      }
+    }
+
+    switch (result) {
+      case emplace_result::max_connections:
+        log_error("[ConnectionManager] Maximum connections reached (" +
             std::to_string(config::MAX_CONNECTIONS) + ")");
         return "";
-      }
-      // session is a shared_ptr copy — try_emplace copies it into the map,
-      // so the caller always retains their reference regardless of attempt count.
-      auto result = sessions_.try_emplace(session_id, session);
-      if (!result.second) {
+      case emplace_result::collision:
         log_error("[ConnectionManager] Session ID collision (attempt " +
             std::to_string(attempt + 1) + "), retrying: " + cppsim::server::sanitize_session_id(session_id));
         continue;
-      }
-      count = sessions_.size();
+      case emplace_result::success:
+        break;
     }
 
     log_message("[ConnectionManager] Registered session: " + cppsim::server::sanitize_session_id(session_id) + " (total: " + std::to_string(count) + ")");

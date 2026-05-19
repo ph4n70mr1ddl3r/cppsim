@@ -456,7 +456,12 @@ bool websocket_session::send(std::string message) {
 }
 
 void websocket_session::do_write() {
-  std::shared_ptr<std::string> message;
+  // Pop the message string under the lock, then allocate the shared_ptr
+  // outside the lock.  This reduces write_queue_mutex_ hold time and avoids
+  // leaving a moved-from element in the queue if make_shared throws (the old
+  // code moved from front() then called make_shared — if allocation failed,
+  // front() was already empty but pop() hadn't executed).
+  std::string msg_str;
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
     if (state_.load(std::memory_order_acquire) == state::closed) {
@@ -467,16 +472,19 @@ void websocket_session::do_write() {
       writing_ = false;
       return;
     }
+    msg_str = std::move(write_queue_.front());
+    write_queue_.pop();
+  }
 
-    try {
-      message = std::make_shared<std::string>(std::move(write_queue_.front()));
-      write_queue_.pop();
-    } catch (...) {
-      writing_ = false;
-      log_error("[WebSocketSession] Exception in do_write (allocation failure) - write pipeline reset for session " +
-                sanitize_session_id(get_session_id_safe()));
-      return;
-    }
+  std::shared_ptr<std::string> message;
+  try {
+    message = std::make_shared<std::string>(std::move(msg_str));
+  } catch (...) {
+    log_error("[WebSocketSession] Exception in do_write (allocation failure) - write pipeline reset for session " +
+              sanitize_session_id(get_session_id_safe()));
+    std::lock_guard<std::mutex> lock(write_queue_mutex_);
+    writing_ = false;
+    return;
   }
 
   ws_.async_write(boost::asio::buffer(*message),
