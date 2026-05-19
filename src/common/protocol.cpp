@@ -94,9 +94,17 @@ void log_protocol_error(std::string_view msg) noexcept {
 
 // Validate session ID format for message types that require it.
 // Returns true if valid, logs an error and returns false otherwise.
+// String construction is wrapped in try/catch because this function is
+// noexcept — an allocation failure in string concatenation would otherwise
+// call std::terminate.
 bool validate_session_id_field(const std::string& session_id, const char* message_name) noexcept {
   if (session_id.empty() || !validate_session_id_format(session_id)) {
-    log_protocol_error("[Protocol] Invalid session_id in " + std::string(message_name) + " message");
+    try {
+      log_protocol_error("[Protocol] Invalid session_id in " + std::string(message_name) + " message");
+    } catch (...) {
+      // Allocation failure in string construction — nothing useful to do.
+      // The caller will return nullopt regardless.
+    }
     return false;
   }
   return true;

@@ -203,8 +203,15 @@ void connection_manager::unregister_session(std::string_view session_id) noexcep
     count = sessions_.size();
   }
   if (found) {
-    log_message("[ConnectionManager] Unregistered session: " + cppsim::server::sanitize_session_id(session_id) + " (remaining: " +
-                std::to_string(count) + ")");
+    // Log message construction is wrapped in try/catch because this function
+    // is noexcept — an allocation failure in string concatenation would
+    // otherwise call std::terminate.
+    try {
+      log_message("[ConnectionManager] Unregistered session: " + cppsim::server::sanitize_session_id(session_id) + " (remaining: " +
+                  std::to_string(count) + ")");
+    } catch (...) {
+      // Allocation failure — session was still unregistered successfully.
+    }
   }
 }
 

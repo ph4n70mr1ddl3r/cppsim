@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdint>
 #include <random>
+#include <string>
 #include <thread>
 
 namespace cppsim {

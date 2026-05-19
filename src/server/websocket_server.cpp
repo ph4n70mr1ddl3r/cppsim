@@ -95,7 +95,13 @@ void websocket_server::stop() noexcept {
   boost::beast::error_code ec;
   acceptor_.close(ec);
   if (ec) {
-    log_error(std::string("[WebSocketServer] Error closing acceptor: ") + ec.message());
+    // Log construction is wrapped in try/catch because stop() is noexcept —
+    // an allocation failure in string concatenation would call std::terminate.
+    try {
+      log_error(std::string("[WebSocketServer] Error closing acceptor: ") + ec.message());
+    } catch (...) {
+      // Accept error logged, but server shutdown continues regardless.
+    }
   }
 
   // Stop all active sessions
