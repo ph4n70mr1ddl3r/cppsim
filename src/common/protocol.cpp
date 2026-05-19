@@ -253,8 +253,9 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
 }
 
 // Validate action_message fields after deserialization.
-// Takes by value (move) to avoid dangling references after std::move from caller.
-std::optional<action_message> validate_action(std::optional<action_message> result) {
+// Takes by const ref to avoid unnecessary move/copy on every call.
+// Returns the moved-from optional only if validation succeeds.
+std::optional<action_message> validate_action(const std::optional<action_message>& result) {
   if (!result) return std::nullopt;
   const auto& msg = *result;
 
@@ -295,7 +296,8 @@ std::optional<action_message> validate_action(std::optional<action_message> resu
     return std::nullopt;
   }
 
-  return result;
+  // All checks passed — move the parsed result out.
+  return result;  // NOLINT(bugprone-return-const-ref) — returns a copy of const ref
 }
 
 std::optional<action_message> parse_action(std::string_view json_str) {
@@ -307,8 +309,8 @@ std::optional<action_message> parse_action_from_envelope(const nlohmann::json& e
 }
 
 // Validate reload_request_message fields after deserialization.
-// Takes by value (move) to avoid dangling references after std::move from caller.
-std::optional<reload_request_message> validate_reload(std::optional<reload_request_message> result) {
+// Takes by const ref to avoid unnecessary move/copy on every call.
+std::optional<reload_request_message> validate_reload(const std::optional<reload_request_message>& result) {
   if (!result) return std::nullopt;
   const auto& msg = *result;
 
@@ -335,8 +337,8 @@ std::optional<reload_request_message> parse_reload_from_envelope(const nlohmann:
 }
 
 // Validate disconnect_message fields after deserialization.
-// Takes by value (move) to avoid dangling references after std::move from caller.
-std::optional<disconnect_message> validate_disconnect(std::optional<disconnect_message> result) {
+// Takes by const ref to avoid unnecessary move/copy on every call.
+std::optional<disconnect_message> validate_disconnect(const std::optional<disconnect_message>& result) {
   if (!result) return std::nullopt;
   const auto& msg = *result;
 

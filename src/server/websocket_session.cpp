@@ -187,6 +187,9 @@ void websocket_session::on_read(boost::beast::error_code ec,
     }
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Internal server error");
     close();
+    // Fall through is safe: close() synchronously sets close_requested_ before
+    // dispatching do_close() to the strand, so the post-try-catch guard below
+    // will prevent do_read() from being scheduled.
     return;
   } catch (...) {
     try {
@@ -196,9 +199,14 @@ void websocket_session::on_read(boost::beast::error_code ec,
     }
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Internal server error");
     close();
+    // See above: close() sets close_requested_ synchronously — safe to fall through.
     return;
   }
 
+  // Guard: only schedule the next read if the session is still alive.
+  // close() sets close_requested_ synchronously (before strand dispatch),
+  // and do_close() sets state_=closed under a CAS.  Either flag prevents
+  // do_read() from being scheduled, avoiding a use-after-close read.
   if (state_.load(std::memory_order_acquire) != state::closed &&
       !close_requested_.load(std::memory_order_acquire)) {
     deadline_.expires_after(config::IDLE_TIMEOUT);
@@ -393,6 +401,10 @@ void websocket_session::handle_reload_msg(const protocol::parsed_message_header&
     log_error("[WebSocketSession] Failed to send RELOAD_RESPONSE to " + sanitize_session_id(sid));
     close();
   } else {
+    // Only commit the stack update after the response is successfully queued.
+    // If the write ultimately fails in do_write, the stack will be inconsistent
+    // with the client's view.  This is acceptable because a write failure causes
+    // the session to close anyway — the inconsistency is not observable.
     current_stack_ = new_stack;
   }
 }

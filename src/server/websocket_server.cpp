@@ -108,6 +108,9 @@ void websocket_server::stop() noexcept {
 
 void websocket_server::do_accept() {
   try {
+    // shared_from_this() can throw bad_weak_ptr if run() is called when no
+    // shared_ptr to this server exists.  The catch block logs and stops
+    // accepting — the server is in an unrecoverable state anyway.
     auto self = shared_from_this();
     acceptor_.async_accept(
         boost::asio::make_strand(ioc_),

@@ -18,6 +18,9 @@
 #include "sanitize.hpp"
 #include "websocket_session.hpp"
 
+// Anonymous namespace: file-scope helpers for session ID generation.
+// Note: These functions use cppsim::server:: qualified calls for log_error/log_message
+// because they reside outside the cppsim::server namespace block below.
 namespace {
 
 // Cryptographic constants

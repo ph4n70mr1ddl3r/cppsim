@@ -865,3 +865,14 @@ TEST(ProtocolTest, HandshakeNonStandardVersionMatchingEnvelopeAndPayload) {
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->protocol_version, "v99.0");
 }
+
+// NOTE: Infinity and NaN amounts are serialized as `null` by nlohmann::json,
+// so they fail as "missing amount" (for RAISE/ALL_IN) or are simply absent.
+// The isfinite() guard in validate_action is a defense-in-depth check for
+// programmatic construction of action_message structs — it cannot be reached
+// through the JSON parsing path because the library converts non-finite
+// doubles to null during serialization.
+//
+// The InfinityAmount and NanAmount tests above validate the end-to-end
+// behavior (parse rejects them), but the specific rejection reason differs
+// from what one might expect ("requires amount" vs "invalid amount").
