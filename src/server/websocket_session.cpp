@@ -461,7 +461,7 @@ void websocket_session::do_write() {
       write_queue_.pop();
     } catch (...) {
       writing_ = false;
-      log_error("[WebSocketSession] Exception in do_write - write pipeline stalled for session " +
+      log_error("[WebSocketSession] Exception in do_write (allocation failure) - write pipeline reset for session " +
                 sanitize_session_id(get_session_id_safe()));
       return;
     }
@@ -684,21 +684,21 @@ void websocket_session::do_close() noexcept {
                       [self = shared_from_this()](boost::beast::error_code ec) {
                         if (ec) {
                           log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
-                          // Fallback: force-close the TCP socket to prevent FD leak
-                          try {
-                            self->ws_.next_layer().close();
-                          } catch (...) {
-                          }
+                          // Fallback: force-close the TCP socket to prevent FD leak.
+                          // Use non-throwing socket close ( Beast's tcp_stream::close()
+                          // can throw, but raw socket close with error_code cannot).
+                          boost::beast::error_code fallback_ec;
+                          self->ws_.next_layer().socket().close(fallback_ec);
                         }
                       });
     }
   } catch (const std::exception& e) {
     log_error(std::string("[WebSocketSession] Exception in do_close: ") + e.what());
-    // Fallback: force-close the TCP socket to prevent FD leak if async_close threw
-    try {
-      ws_.next_layer().close();
-    } catch (...) {
-    }
+    // Fallback: force-close the TCP socket to prevent FD leak if async_close threw.
+    // Use non-throwing socket close directly (Beast's tcp_stream::close() can
+    // throw, but raw socket close with error_code cannot).
+    boost::beast::error_code fallback_ec;
+    ws_.next_layer().socket().close(fallback_ec);
   }
 }
 
