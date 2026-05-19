@@ -322,7 +322,7 @@ void websocket_session::handle_authenticated_message(const std::string& message)
   auto header_opt = protocol::extract_message_type_and_json(message);
 
   if (!header_opt) {
-    log_message(std::string("[WebSocketSession] Invalid message format from ") + sanitize_session_id(get_session_id_safe()) + ": missing message_type");
+    log_error(std::string("[WebSocketSession] Invalid message format from ") + sanitize_session_id(get_session_id_safe()) + ": missing message_type");
     send_protocol_error(protocol::error_codes::MALFORMED_MESSAGE, "Missing or invalid message_type field");
     close();
     return;
@@ -338,7 +338,7 @@ void websocket_session::handle_authenticated_message(const std::string& message)
   } else if (msg_type == protocol::message_types::DISCONNECT) {
     handle_disconnect_msg(*header_opt, sid);
   } else {
-    log_message(std::string("[WebSocketSession] Unknown message type '") + trunc_field(msg_type) + "' from " + sanitize_session_id(sid));
+    log_error(std::string("[WebSocketSession] Unknown message type '") + trunc_field(msg_type) + "' from " + sanitize_session_id(sid));
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR,
                         std::string("Unknown message type: ") + msg_type);
     close();
@@ -492,8 +492,18 @@ void websocket_session::do_write() {
     // continuing with a broken write pipeline (client stuck waiting for a
     // response that will never arrive), close the session so the client
     // reconnects into a clean state.
-    log_error("[WebSocketSession] Exception in do_write (allocation failure) - closing session " +
-              sanitize_session_id(get_session_id_safe()));
+    //
+    // The log message construction is wrapped in a nested try/catch because
+    // we are already in an allocation-failure path — the string concatenation
+    // below could also fail with bad_alloc, and an uncaught exception from
+    // this strand-posted handler would propagate through io_context::run(),
+    // potentially crashing the entire server.
+    try {
+      log_error("[WebSocketSession] Exception in do_write (allocation failure) - closing session " +
+                sanitize_session_id(get_session_id_safe()));
+    } catch (...) {
+      // Double allocation failure — nothing useful to log.
+    }
     {
       std::lock_guard<std::mutex> lock(write_queue_mutex_);
       writing_ = false;

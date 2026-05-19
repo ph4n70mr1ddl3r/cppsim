@@ -11,10 +11,21 @@ namespace server {
 
 class websocket_session;
 
+// Thread safety:
+//   All public methods are safe to call from any thread.
+//   - Mutex-protected: register_session, unregister_session, get_session,
+//     active_session_ids, session_count, empty, stop_all.
+//   - Sessions are shared_ptr; callers must synchronize access to the
+//     session object itself (websocket_session handles its own thread safety).
 class connection_manager final {
  public:
   connection_manager() noexcept = default;
   ~connection_manager() noexcept = default;
+
+  connection_manager(const connection_manager&) = delete;
+  connection_manager& operator=(const connection_manager&) = delete;
+  connection_manager(connection_manager&&) = delete;
+  connection_manager& operator=(connection_manager&&) = delete;
 
   [[nodiscard]] std::string register_session(std::shared_ptr<websocket_session> session);
 
