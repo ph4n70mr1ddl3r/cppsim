@@ -253,9 +253,10 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
 }
 
 // Validate action_message fields after deserialization.
-// Takes by const ref to avoid unnecessary move/copy on every call.
-// Returns the moved-from optional only if validation succeeds.
-std::optional<action_message> validate_action(const std::optional<action_message>& result) {
+// Takes by value: C++17 guaranteed copy elision makes parameter construction
+// from a prvalue zero-cost, and std::move on the success path avoids string
+// copies (pointer swaps vs. heap allocations).
+std::optional<action_message> validate_action(std::optional<action_message> result) {
   if (!result) return std::nullopt;
   const auto& msg = *result;
 
@@ -296,8 +297,7 @@ std::optional<action_message> validate_action(const std::optional<action_message
     return std::nullopt;
   }
 
-  // All checks passed — move the parsed result out.
-  return result;  // NOLINT(bugprone-return-const-ref) — returns a copy of const ref
+  return result;
 }
 
 std::optional<action_message> parse_action(std::string_view json_str) {
@@ -309,8 +309,8 @@ std::optional<action_message> parse_action_from_envelope(const nlohmann::json& e
 }
 
 // Validate reload_request_message fields after deserialization.
-// Takes by const ref to avoid unnecessary move/copy on every call.
-std::optional<reload_request_message> validate_reload(const std::optional<reload_request_message>& result) {
+// Takes by value for zero-copy success path (C++17 guaranteed copy elision).
+std::optional<reload_request_message> validate_reload(std::optional<reload_request_message> result) {
   if (!result) return std::nullopt;
   const auto& msg = *result;
 
@@ -337,8 +337,8 @@ std::optional<reload_request_message> parse_reload_from_envelope(const nlohmann:
 }
 
 // Validate disconnect_message fields after deserialization.
-// Takes by const ref to avoid unnecessary move/copy on every call.
-std::optional<disconnect_message> validate_disconnect(const std::optional<disconnect_message>& result) {
+// Takes by value for zero-copy success path (C++17 guaranteed copy elision).
+std::optional<disconnect_message> validate_disconnect(std::optional<disconnect_message> result) {
   if (!result) return std::nullopt;
   const auto& msg = *result;
 

@@ -12,6 +12,7 @@
 #include <mutex>
 #include <string_view>
 #include <thread>
+#include <utility>
 
 #include "config.hpp"
 #include "logger.hpp"
@@ -252,7 +253,7 @@ void connection_manager::stop_all() noexcept {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
     sessions_to_stop.reserve(sessions_.size());
     for (auto& pair : sessions_) {
-      sessions_to_stop.push_back(pair.second);
+      sessions_to_stop.push_back(std::move(pair.second));
     }
     sessions_.clear();
   }
