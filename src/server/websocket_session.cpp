@@ -88,6 +88,14 @@ void websocket_session::on_accept(boost::beast::error_code ec) {
     if (state_.load(std::memory_order_acquire) == state::closed) {
       return;
     }
+    // close() may have been called but do_close() hasn't run yet on the
+    // strand — suppress the log to avoid noise during graceful shutdown.
+    if (close_requested_.load(std::memory_order_acquire)) {
+      boost::beast::error_code timer_ec;
+      deadline_.cancel(timer_ec);
+      state_.store(state::closed, std::memory_order_release);
+      return;
+    }
     // Probe connections (e.g. health checks) close before completing the WS
     // handshake — this is normal, not a real error.  Clean up timer and state
     // to avoid a spurious "Handshake timeout" log when the deadline fires.
@@ -480,10 +488,17 @@ void websocket_session::do_write() {
   try {
     message = std::make_shared<std::string>(std::move(msg_str));
   } catch (...) {
-    log_error("[WebSocketSession] Exception in do_write (allocation failure) - write pipeline reset for session " +
+    // Allocation failed — the dequeued message is lost.  Rather than
+    // continuing with a broken write pipeline (client stuck waiting for a
+    // response that will never arrive), close the session so the client
+    // reconnects into a clean state.
+    log_error("[WebSocketSession] Exception in do_write (allocation failure) - closing session " +
               sanitize_session_id(get_session_id_safe()));
-    std::lock_guard<std::mutex> lock(write_queue_mutex_);
-    writing_ = false;
+    {
+      std::lock_guard<std::mutex> lock(write_queue_mutex_);
+      writing_ = false;
+    }
+    close();
     return;
   }
 

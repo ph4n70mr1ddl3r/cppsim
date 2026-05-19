@@ -248,17 +248,16 @@ std::string connection_manager::generate_session_id() noexcept {
 }
 
 void connection_manager::stop_all() noexcept {
-  std::vector<std::shared_ptr<websocket_session>> sessions_to_stop;
+  decltype(sessions_) sessions_to_stop;
   {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
-    sessions_to_stop.reserve(sessions_.size());
-    for (auto& pair : sessions_) {
-      sessions_to_stop.push_back(std::move(pair.second));
-    }
-    sessions_.clear();
+    sessions_to_stop.swap(sessions_);
+    // swap is O(1) — moves the entire red-black tree root instead of
+    // iterating and moving each element individually.
   }
 
-  for (auto& session : sessions_to_stop) {
+  for (auto& [id, session] : sessions_to_stop) {
+    (void)id;
     session->close();
   }
 
