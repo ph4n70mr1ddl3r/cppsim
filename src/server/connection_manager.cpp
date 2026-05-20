@@ -176,6 +176,9 @@ std::string connection_manager::register_session(
         continue;
       case emplace_result::success:
         break;
+      default:
+        log_error("[ConnectionManager] Unexpected emplace result");
+        return "";
     }
 
     log_message("[ConnectionManager] Registered session: " + cppsim::server::sanitize_session_id(session_id) + " (total: " + std::to_string(count) + ")");

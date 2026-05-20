@@ -25,9 +25,9 @@ namespace {
 
       std::tm tm_buf;
 #ifdef _WIN32
-      localtime_s(&tm_buf, &now_time);
+      gmtime_s(&tm_buf, &now_time);
 #else
-      localtime_r(&now_time, &tm_buf);
+      gmtime_r(&now_time, &tm_buf);
 #endif
 
       std::array<char, TIMESTAMP_BUFFER_SIZE> buf;

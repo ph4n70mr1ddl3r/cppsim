@@ -35,22 +35,30 @@ include(FetchContent)
 # Dependency Management
 # =============================================================================
 
-# Boost - Use FetchContent for cross-platform builds (per AC requirement)
+# Boost - Prefer system installation, fall back to FetchContent
 set(BOOST_VERSION "1.83.0")
-set(BOOST_VERSION_UNDERSCORE "1_83_0")
-message(STATUS "Fetching Boost ${BOOST_VERSION}...")
-FetchContent_Declare(
-  Boost
-  URL https://archives.boost.io/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_UNDERSCORE}.tar.gz
-  URL_HASH SHA256=c0685b68dd44cc46574cce86c4e17c0f611b15e195be9848dfd0769a0a207628
-  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-)
-FetchContent_MakeAvailable(Boost)
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 OLD)
+endif()
+find_package(Boost ${BOOST_VERSION} QUIET)
+if(Boost_FOUND AND TARGET Boost::headers)
+  message(STATUS "Using system Boost ${Boost_VERSION}")
+else()
+  message(STATUS "System Boost not found, fetching Boost ${BOOST_VERSION}...")
+  set(BOOST_VERSION_UNDERSCORE "1_83_0")
+  FetchContent_Declare(
+    Boost
+    URL https://archives.boost.io/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_UNDERSCORE}.tar.gz
+    URL_HASH SHA256=c0685b68dd44cc46574cce86c4e17c0f611b15e195be9848dfd0769a0a207628
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  )
+  FetchContent_MakeAvailable(Boost)
 
-if(NOT TARGET Boost::headers)
-  add_library(boost_headers_interface INTERFACE)
-  target_include_directories(boost_headers_interface INTERFACE ${boost_SOURCE_DIR})
-  add_library(Boost::headers ALIAS boost_headers_interface)
+  if(NOT TARGET Boost::headers)
+    add_library(boost_headers_interface INTERFACE)
+    target_include_directories(boost_headers_interface INTERFACE ${boost_SOURCE_DIR})
+    add_library(Boost::headers ALIAS boost_headers_interface)
+  endif()
 endif()
 
 # nlohmann/json
@@ -102,7 +110,7 @@ message(STATUS "cppsim - C++ Poker Server Simulation")
 message(STATUS "===================================")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
-message(STATUS "Boost Version: ${Boost_VERSION}")
+message(STATUS "Boost Version: ${Boost_VERSION}${BOOST_VERSION}")
 message(STATUS "Targets:")
 message(STATUS "  - poker_server (server executable)")
 message(STATUS "  - poker_server_lib (server static library)")

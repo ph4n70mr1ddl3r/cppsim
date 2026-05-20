@@ -35,7 +35,10 @@ struct config {
     static constexpr double PLACEHOLDER_STACK = 0.0;
     
     // WebSocket stream idle/read timeouts.
-    // Controls when Beast automatically closes connections with no activity.
+    // Set to 24 hours so the application-level timeouts (HANDSHAKE_TIMEOUT,
+    // IDLE_TIMEOUT) control all disconnection logic. Beast's stream-level
+    // timeout acts only as a backstop for cases where the app timer chain
+    // is disrupted (e.g. a bug in check_deadline).
     static constexpr auto WS_IDLE_TIMEOUT = std::chrono::hours{24};
     static constexpr auto WS_READ_TIMEOUT = std::chrono::hours{24};
 

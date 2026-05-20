@@ -866,6 +866,67 @@ TEST(ProtocolTest, HandshakeNonStandardVersionMatchingEnvelopeAndPayload) {
   EXPECT_EQ(result->protocol_version, "v99.0");
 }
 
+// Test: extract_message_type_and_json with valid message
+TEST(ProtocolTest, ExtractMessageTypeAndJsonValid) {
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{{"session_id", "sess_aabbccdd11223344"}, {"action_type", "FOLD"}, {"sequence_number", 1}};
+
+  nlohmann::json j;
+  to_json(j, env);
+
+  auto result = extract_message_type_and_json(j.dump());
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->message_type, message_types::ACTION);
+  EXPECT_TRUE(result->envelope_json.contains("payload"));
+  EXPECT_EQ(result->envelope_json["payload"]["action_type"], "FOLD");
+}
+
+// Test: extract_message_type_and_json with invalid JSON
+TEST(ProtocolTest, ExtractMessageTypeAndJsonInvalidJson) {
+  auto result = extract_message_type_and_json("not valid json");
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: extract_message_type_and_json with missing message_type
+TEST(ProtocolTest, ExtractMessageTypeAndJsonMissingType) {
+  std::string json_str = R"({"protocol_version":"v1.0","payload":{}})";
+  auto result = extract_message_type_and_json(json_str);
+  EXPECT_FALSE(result.has_value());
+}
+
+// Test: extract_message_type_and_json preserves full envelope for reuse
+TEST(ProtocolTest, ExtractMessageTypeAndJsonReuseInParseAction) {
+  action_message original;
+  original.session_id = "sess_aabbccdd11223344";
+  original.action_type = "FOLD";
+  original.sequence_number = 42;
+
+  message_envelope env;
+  env.message_type = message_types::ACTION;
+  env.protocol_version = PROTOCOL_VERSION;
+  nlohmann::json payload;
+  to_json(payload, original);
+  env.payload = payload;
+
+  nlohmann::json j;
+  to_json(j, env);
+  std::string json_str = j.dump();
+
+  // Extract header (single JSON parse)
+  auto header = extract_message_type_and_json(json_str);
+  ASSERT_TRUE(header.has_value());
+  EXPECT_EQ(header->message_type, message_types::ACTION);
+
+  // Use pre-parsed envelope to avoid double-parsing
+  auto action = parse_action_from_envelope(header->envelope_json);
+  ASSERT_TRUE(action.has_value());
+  EXPECT_EQ(action->session_id, "sess_aabbccdd11223344");
+  EXPECT_EQ(action->action_type, "FOLD");
+  EXPECT_EQ(action->sequence_number, 42);
+}
+
 // NOTE: Infinity and NaN amounts are serialized as `null` by nlohmann::json,
 // so they fail as "missing amount" (for RAISE/ALL_IN) or are simply absent.
 // The isfinite() guard in validate_action is a defense-in-depth check for

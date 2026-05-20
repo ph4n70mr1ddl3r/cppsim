@@ -27,6 +27,8 @@ class connection_manager final {
   connection_manager(connection_manager&&) = delete;
   connection_manager& operator=(connection_manager&&) = delete;
 
+  // Returns empty string on failure (null session, max connections reached,
+  // or session ID collision after all retries).
   [[nodiscard]] std::string register_session(std::shared_ptr<websocket_session> session);
 
   void unregister_session(std::string_view session_id) noexcept;
