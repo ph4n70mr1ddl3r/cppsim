@@ -197,15 +197,23 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
     return;
   }
 
-  // Create a new session for this connection
-  auto session = std::make_shared<websocket_session>(std::move(socket), conn_mgr_, handshake_timeout_);
+  // Create a new session for this connection.  Wrap in try/catch so that
+  // a bad_alloc from make_shared doesn't propagate through io_context::run()
+  // and crash the server.  The individual connection is lost but the accept
+  // loop must continue.
+  try {
+    auto session = std::make_shared<websocket_session>(std::move(socket), conn_mgr_, handshake_timeout_);
+    session->run();
+    log_message("[WebSocketServer] New connection accepted");
+  } catch (const std::exception& e) {
+    log_error(std::string("[WebSocketServer] Failed to create session: ") + e.what());
+    // socket is moved-from on success; on exception it's still valid but we
+    // let it close naturally when the temporary is destroyed.
+  } catch (...) {
+    log_error("[WebSocketServer] Unknown error creating session");
+  }
 
-  // Start the session (perform WebSocket handshake and begin reading)
-  session->run();
-
-  log_message("[WebSocketServer] New connection accepted");
-
-  // Accept the next connection
+  // Accept the next connection regardless of whether this session was created.
   do_accept();
 }
 

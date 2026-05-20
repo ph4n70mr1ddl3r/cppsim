@@ -115,9 +115,16 @@ void websocket_session::on_accept(boost::beast::error_code ec) {
     return;
   }
 
-  log_message("[WebSocketSession] Connection accepted. Waiting for handshake...");
-
-  do_read();
+  try {
+    log_message("[WebSocketSession] Connection accepted. Waiting for handshake...");
+    do_read();
+  } catch (const std::exception& e) {
+    log_error(std::string("[WebSocketSession] Exception in on_accept: ") + e.what());
+    close();
+  } catch (...) {
+    log_error("[WebSocketSession] Unknown exception in on_accept");
+    close();
+  }
 }
 
 void websocket_session::do_read() {
@@ -520,45 +527,68 @@ void websocket_session::do_write() {
 
 void websocket_session::on_write(boost::beast::error_code ec,
                                    [[maybe_unused]] std::size_t bytes_transferred) {
-  if (ec) {
-    log_error(std::string("[WebSocketSession] Write error for ") + sanitize_session_id(get_session_id_safe()) + ": " + ec.message());
-    size_t dropped = 0;
+  try {
+    if (ec) {
+      // String construction for log messages happens before the noexcept
+      // log_error() is entered — wrap in try/catch so a bad_alloc from
+      // concatenation doesn't propagate through io_context::run().
+      try {
+        log_error(std::string("[WebSocketSession] Write error for ") + sanitize_session_id(get_session_id_safe()) + ": " + ec.message());
+      } catch (...) {
+        // Allocation failure — best-effort fallback
+        log_error("[WebSocketSession] Write error (allocation failure constructing log message)");
+      }
+      size_t dropped = 0;
+      {
+        std::lock_guard<std::mutex> lock(write_queue_mutex_);
+        writing_ = false;
+        close_requested_.store(true, std::memory_order_release);
+        dropped = write_queue_.size();
+        write_queue_ = std::queue<std::string>();
+      }
+      if (dropped > 0) {
+        try {
+          log_error("[WebSocketSession] Dropped " + std::to_string(dropped) + " queued message(s) on write error");
+        } catch (...) {
+          // Allocation failure — queue was still cleared successfully.
+        }
+      }
+      do_close();
+      return;
+    }
+
+    bool should_close = false;
+    bool has_more = false;
     {
       std::lock_guard<std::mutex> lock(write_queue_mutex_);
       writing_ = false;
-      close_requested_.store(true, std::memory_order_release);
-      dropped = write_queue_.size();
-      write_queue_ = std::queue<std::string>();
+      if (close_requested_.load(std::memory_order_acquire) && write_queue_.empty()) {
+        should_close = true;
+      } else if (!write_queue_.empty()) {
+        writing_ = true;
+        has_more = true;
+      }
     }
-    if (dropped > 0) {
-      log_error("[WebSocketSession] Dropped " + std::to_string(dropped) + " queued message(s) on write error");
+
+    if (should_close) {
+      do_close();
+      return;
+    }
+
+    if (has_more) {
+      boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
+        self->do_write();
+      });
+    }
+  } catch (const std::exception& e) {
+    try {
+      log_error(std::string("[WebSocketSession] Exception in on_write: ") + e.what());
+    } catch (...) {
     }
     do_close();
-    return;
-  }
-
-  bool should_close = false;
-  bool has_more = false;
-  {
-    std::lock_guard<std::mutex> lock(write_queue_mutex_);
-    writing_ = false;
-    if (close_requested_.load(std::memory_order_acquire) && write_queue_.empty()) {
-      should_close = true;
-    } else if (!write_queue_.empty()) {
-      writing_ = true;
-      has_more = true;
-    }
-  }
-
-  if (should_close) {
+  } catch (...) {
+    log_error("[WebSocketSession] Unknown exception in on_write");
     do_close();
-    return;
-  }
-
-  if (has_more) {
-    boost::asio::post(ws_.get_executor(), [self = shared_from_this()]() {
-      self->do_write();
-    });
   }
 }
 
@@ -581,7 +611,17 @@ void websocket_session::check_deadline() {
             return;
           }
 
-          log_error(std::string("[WebSocketSession] Timer error: ") + ec.message());
+          try {
+            log_error(std::string("[WebSocketSession] Timer error: ") + ec.message());
+          } catch (...) {
+          }
+          // Reschedule the deadline check on transient timer errors so the
+          // session isn't left without timeout protection.  Without this, any
+          // non-aborted timer error would permanently kill the timer chain,
+          // leaving only Beast's 24-hour stream timeout as a backstop.
+          if (!self->close_requested_.load(std::memory_order_acquire)) {
+            self->check_deadline();
+          }
           return;
         }
 
