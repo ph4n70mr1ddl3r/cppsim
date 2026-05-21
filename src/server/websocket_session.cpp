@@ -100,7 +100,11 @@ void websocket_session::on_accept(boost::beast::error_code ec) {
     // handshake — this is normal, not a real error.  Clean up timer and state
     // to avoid a spurious "Handshake timeout" log when the deadline fires.
     if (ec != boost::beast::websocket::error::closed) {
-      log_error(std::string("[WebSocketSession] Accept failed: ") + ec.message());
+      try {
+        log_error(std::string("[WebSocketSession] Accept failed: ") + ec.message());
+      } catch (...) {
+        // Allocation failure in async handler — log is best-effort.
+      }
     }
     boost::beast::error_code timer_ec;
     deadline_.cancel(timer_ec);
@@ -152,14 +156,20 @@ void websocket_session::on_read(boost::beast::error_code ec,
     }
     boost::beast::error_code timer_ec;
     deadline_.cancel(timer_ec);
-    std::string sid = get_session_id_safe();
-    if (sid.empty()) {
-      log_message("[WebSocketSession] Unauthenticated client disconnected");
-    } else {
-      log_message(std::string("[WebSocketSession] Client disconnected: ") + sanitize_session_id(sid));
-      if (auto mgr = conn_mgr_.lock()) {
-        mgr->unregister_session(sid);
+    try {
+      std::string sid = get_session_id_safe();
+      if (sid.empty()) {
+        log_message("[WebSocketSession] Unauthenticated client disconnected");
+      } else {
+        log_message(std::string("[WebSocketSession] Client disconnected: ") + sanitize_session_id(sid));
+        if (auto mgr = conn_mgr_.lock()) {
+          mgr->unregister_session(sid);
+        }
       }
+    } catch (...) {
+      // Allocation failure in async handler — session state was already
+      // transitioned to closed and the timer cancelled.  unregister_session
+      // will happen when stop_all() runs or the session is destroyed.
     }
     return;
   }
@@ -170,14 +180,18 @@ void websocket_session::on_read(boost::beast::error_code ec,
     }
     boost::beast::error_code timer_ec;
     deadline_.cancel(timer_ec);
-    std::string sid = get_session_id_safe();
-    if (sid.empty()) {
-      log_error(std::string("[WebSocketSession] Read error (unauthenticated): ") + ec.message());
-    } else {
-      log_error(std::string("[WebSocketSession] Read error for ") + sanitize_session_id(sid) + ": " + ec.message());
-      if (auto mgr = conn_mgr_.lock()) {
-        mgr->unregister_session(sid);
+    try {
+      std::string sid = get_session_id_safe();
+      if (sid.empty()) {
+        log_error(std::string("[WebSocketSession] Read error (unauthenticated): ") + ec.message());
+      } else {
+        log_error(std::string("[WebSocketSession] Read error for ") + sanitize_session_id(sid) + ": " + ec.message());
+        if (auto mgr = conn_mgr_.lock()) {
+          mgr->unregister_session(sid);
+        }
       }
+    } catch (...) {
+      // Allocation failure in async handler — same reasoning as above.
     }
     return;
   }
@@ -440,7 +454,7 @@ void websocket_session::handle_disconnect_msg(const protocol::parsed_message_hea
   close();
 }
 
-bool websocket_session::queue_message(std::string&& message) {
+bool websocket_session::queue_message(std::string&& message) noexcept {
   bool should_post = false;
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
@@ -635,7 +649,12 @@ void websocket_session::check_deadline() {
           log_error("[WebSocketSession] Handshake timeout");
           self->close();
         } else {
-          log_error(std::string("[WebSocketSession] Idle timeout for session ") + sanitize_session_id(self->get_session_id_safe()));
+          try {
+            log_error(std::string("[WebSocketSession] Idle timeout for session ") + sanitize_session_id(self->get_session_id_safe()));
+          } catch (...) {
+            // Allocation failure in async handler — log is best-effort.
+            log_error("[WebSocketSession] Idle timeout");
+          }
           self->close();
         }
       });
@@ -664,7 +683,11 @@ void websocket_session::close() noexcept {
        }
     });
   } catch (const std::exception& e) {
-    log_error(std::string("[WebSocketSession] Exception in close(): ") + e.what());
+    try {
+      log_error(std::string("[WebSocketSession] Exception in close(): ") + e.what());
+    } catch (...) {
+      // Allocation failure in noexcept context — nothing useful to do.
+    }
   } catch (...) {
     log_error("[WebSocketSession] Unknown exception in close()");
   }
@@ -768,7 +791,11 @@ void websocket_session::do_close() noexcept {
       ws_.async_close(boost::beast::websocket::close_code::normal,
                       [self = shared_from_this()](boost::beast::error_code ec) {
                         if (ec) {
-                          log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
+                          try {
+                            log_error(std::string("[WebSocketSession] Close error: ") + ec.message());
+                          } catch (...) {
+                            // Allocation failure in async handler — log is best-effort.
+                          }
                           // Fallback: force-close the TCP socket to prevent FD leak.
                           // Use non-throwing socket close ( Beast's tcp_stream::close()
                           // can throw, but raw socket close with error_code cannot).
@@ -778,7 +805,11 @@ void websocket_session::do_close() noexcept {
                       });
     }
   } catch (const std::exception& e) {
-    log_error(std::string("[WebSocketSession] Exception in do_close: ") + e.what());
+    try {
+      log_error(std::string("[WebSocketSession] Exception in do_close: ") + e.what());
+    } catch (...) {
+      // Allocation failure in noexcept context — nothing useful to do.
+    }
     // Fallback: force-close the TCP socket to prevent FD leak if async_close threw.
     // Use non-throwing socket close directly (Beast's tcp_stream::close() can
     // throw, but raw socket close with error_code cannot).

@@ -83,7 +83,7 @@ class websocket_session final
   void handle_reload_msg(const protocol::parsed_message_header& header, const std::string& sid);
   void handle_disconnect_msg(const protocol::parsed_message_header& header, const std::string& sid);
 
-  [[nodiscard]] bool queue_message(std::string&& message);
+  [[nodiscard]] bool queue_message(std::string&& message) noexcept;
   [[nodiscard]] std::string get_session_id_safe() const noexcept;
 
   boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;

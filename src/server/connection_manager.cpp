@@ -154,9 +154,11 @@ std::string connection_manager::register_session(
       if (sessions_.size() >= config::MAX_CONNECTIONS) {
         result = emplace_result::max_connections;
       } else {
-        // session is a shared_ptr copy — try_emplace copies it into the map,
-        // so the caller always retains their reference regardless of attempt count.
-        auto [it, inserted] = sessions_.try_emplace(session_id, session);
+        // session is moved via try_emplace — on collision the forwarded arg is
+        // untouched (C++17 guarantee), so the local parameter remains valid for
+        // retry.  On success, ownership transfers into the map without an extra
+        // atomic refcount increment/decrement pair.
+        auto [it, inserted] = sessions_.try_emplace(session_id, std::move(session));
         if (!inserted) {
           result = emplace_result::collision;
         } else {

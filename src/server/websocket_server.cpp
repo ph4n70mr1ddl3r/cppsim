@@ -124,7 +124,11 @@ void websocket_server::do_accept() {
           self->on_accept(ec, std::move(socket));
         });
   } catch (const std::exception& e) {
-    log_error(std::string("[WebSocketServer] do_accept error: ") + e.what());
+    try {
+      log_error(std::string("[WebSocketServer] do_accept error: ") + e.what());
+    } catch (...) {
+      // Allocation failure in async handler — log is best-effort.
+    }
   }
 }
 
@@ -135,7 +139,11 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
       return;
     }
 
-    log_error(std::string("[WebSocketServer] Accept failed: ") + ec.message());
+    try {
+      log_error(std::string("[WebSocketServer] Accept failed: ") + ec.message());
+    } catch (...) {
+      // Allocation failure in async handler — log is best-effort.
+    }
 
     // Check for fatal errors that should stop the server
     bool is_fatal = (ec == boost::asio::error::access_denied ||
