@@ -289,7 +289,12 @@ std::optional<action_message> validate_action(std::optional<action_message> resu
 
   const auto& valid_types = get_valid_action_types();
   if (valid_types.find(msg.action_type) == valid_types.end()) {
-    log_protocol_error("[Protocol] Invalid action_type: " + trunc_field(msg.action_type));
+    try {
+      log_protocol_error("[Protocol] Invalid action_type: " + trunc_field(msg.action_type));
+    } catch (...) {
+      // Allocation failure in string concatenation — validation result is
+      // unaffected (still nullopt).
+    }
     return std::nullopt;
   }
 
@@ -300,13 +305,21 @@ std::optional<action_message> validate_action(std::optional<action_message> resu
 
   const auto& amount_required = get_amount_required_types();
   if (amount_required.find(msg.action_type) != amount_required.end() && !msg.amount) {
-    log_protocol_error("[Protocol] " + trunc_field(msg.action_type) + " action requires amount field");
+    try {
+      log_protocol_error("[Protocol] " + trunc_field(msg.action_type) + " action requires amount field");
+    } catch (...) {
+      // Allocation failure — validation result is unaffected.
+    }
     return std::nullopt;
   }
 
   const auto& amount_forbidden = get_amount_forbidden_types();
   if (amount_forbidden.find(msg.action_type) != amount_forbidden.end() && msg.amount) {
-    log_protocol_error("[Protocol] " + trunc_field(msg.action_type) + " action should not have amount field");
+    try {
+      log_protocol_error("[Protocol] " + trunc_field(msg.action_type) + " action should not have amount field");
+    } catch (...) {
+      // Allocation failure — validation result is unaffected.
+    }
     return std::nullopt;
   }
 

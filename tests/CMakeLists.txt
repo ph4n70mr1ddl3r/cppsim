@@ -9,13 +9,14 @@ target_sources(poker_tests
 )
 
 # Link dependencies
+# Boost::headers is propagated transitively via poker_server_lib (PUBLIC),
+# so it does not need to be linked explicitly here.
 target_link_libraries(poker_tests
   PRIVATE
     poker_common
     poker_server_lib
     GTest::gtest
     GTest::gtest_main
-    Boost::headers
 )
 
 
