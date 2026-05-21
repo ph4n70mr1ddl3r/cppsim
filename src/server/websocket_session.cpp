@@ -373,9 +373,18 @@ void websocket_session::handle_authenticated_message(const std::string& message)
   } else if (msg_type == protocol::message_types::DISCONNECT) {
     handle_disconnect_msg(*header_opt, sid);
   } else {
-    log_error(std::string("[WebSocketSession] Unknown message type '") + trunc_field(msg_type) + "' from " + sanitize_session_id(sid));
-    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR,
-                        std::string("Unknown message type: ") + msg_type);
+    try {
+      log_error(std::string("[WebSocketSession] Unknown message type '") + trunc_field(msg_type) + "' from " + sanitize_session_id(sid));
+    } catch (...) {
+      // Allocation failure in log — session will still be closed below.
+    }
+    try {
+      send_protocol_error(protocol::error_codes::PROTOCOL_ERROR,
+                          std::string("Unknown message type: ") + trunc_field(msg_type));
+    } catch (...) {
+      // Allocation failure — close without sending the specific error.
+      // on_read's catch block won't help here because we're not throwing.
+    }
     close();
   }
 }
@@ -396,9 +405,13 @@ void websocket_session::handle_action(const protocol::parsed_message_header& hea
   int64_t seq = action_opt->sequence_number;
   int64_t last_seq = last_sequence_number_.load(std::memory_order_acquire);
   if (seq <= last_seq) {
-    log_error("[WebSocketSession] Invalid sequence number " +
-              std::to_string(seq) + " (expected > " +
-              std::to_string(last_seq) + ")");
+    try {
+      log_error("[WebSocketSession] Invalid sequence number " +
+                std::to_string(seq) + " (expected > " +
+                std::to_string(last_seq) + ")");
+    } catch (...) {
+      // Allocation failure in log — session will still be closed below.
+    }
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Invalid sequence number - possible replay attack");
     close();
     return;
@@ -407,9 +420,13 @@ void websocket_session::handle_action(const protocol::parsed_message_header& hea
   // so the subtraction yields seq + 1 — the correct gap from "no prior sequence".
   uint64_t gap = static_cast<uint64_t>(seq) - static_cast<uint64_t>(last_seq);
   if (gap > static_cast<uint64_t>(config::MAX_SEQUENCE_GAP)) {
-    log_error("[WebSocketSession] Sequence number too far ahead: " +
-              std::to_string(seq) + " (gap: " + std::to_string(gap) +
-              ", max allowed: " + std::to_string(config::MAX_SEQUENCE_GAP) + ")");
+    try {
+      log_error("[WebSocketSession] Sequence number too far ahead: " +
+                std::to_string(seq) + " (gap: " + std::to_string(gap) +
+                ", max allowed: " + std::to_string(config::MAX_SEQUENCE_GAP) + ")");
+    } catch (...) {
+      // Allocation failure in log — session will still be closed below.
+    }
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Sequence number gap too large");
     close();
     return;

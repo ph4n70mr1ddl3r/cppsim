@@ -236,3 +236,245 @@ TEST_F(HandshakeTest, HandshakeTimeout) {
         EXPECT_TRUE(expected) << "Unexpected error code: " << se.code().message() << " (" << se.code() << ")";
     }
 }
+
+// ===========================================================================
+// Authenticated message flow integration tests
+// ===========================================================================
+
+// Helper: perform a full handshake and return the session_id.
+// The ws reference is out-parameter (already connected and handshaked).
+static std::string do_handshake(websocket::stream<tcp::socket>& ws, uint16_t port) {
+    tcp::resolver resolver(ws.get_executor());
+    auto const results = resolver.resolve("localhost", std::to_string(port));
+    net::connect(ws.next_layer(), results.begin(), results.end());
+    ws.handshake("localhost", "/");
+
+    cppsim::protocol::message_envelope env;
+    env.message_type = cppsim::protocol::message_types::HANDSHAKE;
+    env.protocol_version = cppsim::protocol::PROTOCOL_VERSION;
+    env.payload = nlohmann::json{{"protocol_version", cppsim::protocol::PROTOCOL_VERSION},
+                                  {"client_name", "ActionTestBot"}};
+    nlohmann::json j;
+    cppsim::protocol::to_json(j, env);
+    ws.write(net::buffer(j.dump()));
+
+    beast::flat_buffer buf;
+    ws.read(buf);
+    std::string resp = beast::buffers_to_string(buf.data());
+    auto resp_json = nlohmann::json::parse(resp);
+    return resp_json["payload"]["session_id"].get<std::string>();
+}
+
+class ActionTest : public ::testing::Test {
+protected:
+    net::io_context server_ioc;
+    std::thread server_thread;
+    std::shared_ptr<cppsim::server::websocket_server> server;
+    unsigned short test_port = 0;
+
+    void SetUp() override {
+        test_port = cppsim::testing::find_free_port([&](uint16_t p) {
+            server = std::make_shared<cppsim::server::websocket_server>(server_ioc, p);
+        });
+        ASSERT_NE(test_port, 0u);
+        ASSERT_TRUE(server != nullptr);
+        server->run();
+        server_thread = std::thread([this] {
+            if (server_ioc.stopped()) server_ioc.restart();
+            server_ioc.run();
+        });
+        ASSERT_TRUE(wait_for_server(test_port));
+    }
+
+    void TearDown() override {
+        server->stop();
+        server_ioc.stop();
+        if (server_thread.joinable()) server_thread.join();
+        server.reset();
+    }
+};
+
+// Test: Valid ACTION (FOLD) through the server
+TEST_F(ActionTest, ValidFoldAction) {
+    net::io_context ioc;
+    websocket::stream<tcp::socket> ws(ioc);
+    std::string session_id = do_handshake(ws, test_port);
+    ASSERT_FALSE(session_id.empty());
+
+    // Send FOLD action
+    cppsim::protocol::message_envelope env;
+    env.message_type = cppsim::protocol::message_types::ACTION;
+    env.protocol_version = cppsim::protocol::PROTOCOL_VERSION;
+    env.payload = nlohmann::json{
+        {"session_id", session_id},
+        {"action_type", "FOLD"},
+        {"sequence_number", 1}
+    };
+    nlohmann::json j;
+    cppsim::protocol::to_json(j, env);
+    ws.write(net::buffer(j.dump()));
+
+    // Server should NOT close the connection — the action was valid.
+    // Send a second action to prove the session is still alive.
+    env.payload = nlohmann::json{
+        {"session_id", session_id},
+        {"action_type", "CHECK"},
+        {"sequence_number", 2}
+    };
+    cppsim::protocol::to_json(j, env);
+    ws.write(net::buffer(j.dump()));
+
+    // Clean disconnect
+    ws.close(websocket::close_code::normal);
+}
+
+// Test: Valid RELOAD_REQUEST through the server
+TEST_F(ActionTest, ValidReloadRequest) {
+    net::io_context ioc;
+    websocket::stream<tcp::socket> ws(ioc);
+    std::string session_id = do_handshake(ws, test_port);
+    ASSERT_FALSE(session_id.empty());
+
+    // Send RELOAD_REQUEST
+    cppsim::protocol::message_envelope env;
+    env.message_type = cppsim::protocol::message_types::RELOAD_REQUEST;
+    env.protocol_version = cppsim::protocol::PROTOCOL_VERSION;
+    env.payload = nlohmann::json{
+        {"session_id", session_id},
+        {"requested_amount", 500.0}
+    };
+    nlohmann::json j;
+    cppsim::protocol::to_json(j, env);
+    ws.write(net::buffer(j.dump()));
+
+    // Read RELOAD_RESPONSE
+    beast::flat_buffer buf;
+    ws.read(buf);
+    std::string resp = beast::buffers_to_string(buf.data());
+    auto resp_json = nlohmann::json::parse(resp);
+    EXPECT_EQ(resp_json["message_type"], cppsim::protocol::message_types::RELOAD_RESPONSE);
+    EXPECT_EQ(resp_json["payload"]["granted"], true);
+    EXPECT_DOUBLE_EQ(resp_json["payload"]["new_stack"].get<double>(), 500.0);
+
+    // Second reload to verify cumulative stacking
+    env.payload = nlohmann::json{
+        {"session_id", session_id},
+        {"requested_amount", 300.0}
+    };
+    cppsim::protocol::to_json(j, env);
+    ws.write(net::buffer(j.dump()));
+
+    beast::flat_buffer buf2;
+    ws.read(buf2);
+    resp = beast::buffers_to_string(buf2.data());
+    resp_json = nlohmann::json::parse(resp);
+    EXPECT_DOUBLE_EQ(resp_json["payload"]["new_stack"].get<double>(), 800.0);
+
+    ws.close(websocket::close_code::normal);
+}
+
+// Test: Valid DISCONNECT through the server
+TEST_F(ActionTest, ValidDisconnect) {
+    net::io_context ioc;
+    websocket::stream<tcp::socket> ws(ioc);
+    std::string session_id = do_handshake(ws, test_port);
+    ASSERT_FALSE(session_id.empty());
+
+    // Send DISCONNECT
+    cppsim::protocol::message_envelope env;
+    env.message_type = cppsim::protocol::message_types::DISCONNECT;
+    env.protocol_version = cppsim::protocol::PROTOCOL_VERSION;
+    env.payload = nlohmann::json{
+        {"session_id", session_id},
+        {"reason", "Goodbye"}
+    };
+    nlohmann::json j;
+    cppsim::protocol::to_json(j, env);
+    ws.write(net::buffer(j.dump()));
+
+    // Server should close the connection
+    beast::flat_buffer buf;
+    try {
+        ws.read(buf);
+        FAIL() << "Connection should be closed after DISCONNECT";
+    } catch (const beast::system_error& se) {
+        bool expected = (se.code() == websocket::error::closed) ||
+                        (se.code() == net::error::eof) ||
+                        (se.code() == net::error::connection_reset);
+        EXPECT_TRUE(expected) << "Unexpected error: " << se.code().message();
+    }
+}
+
+// Test: ACTION with wrong session_id should be rejected
+TEST_F(ActionTest, ActionWrongSessionId) {
+    net::io_context ioc;
+    websocket::stream<tcp::socket> ws(ioc);
+    std::string session_id = do_handshake(ws, test_port);
+    ASSERT_FALSE(session_id.empty());
+
+    // Send ACTION with a different session_id
+    cppsim::protocol::message_envelope env;
+    env.message_type = cppsim::protocol::message_types::ACTION;
+    env.protocol_version = cppsim::protocol::PROTOCOL_VERSION;
+    env.payload = nlohmann::json{
+        {"session_id", "sess_deadbeef1234fake"},
+        {"action_type", "FOLD"},
+        {"sequence_number", 1}
+    };
+    nlohmann::json j;
+    cppsim::protocol::to_json(j, env);
+    ws.write(net::buffer(j.dump()));
+
+    // Expect error or close
+    beast::flat_buffer buf;
+    try {
+        ws.read(buf);
+        std::string resp = beast::buffers_to_string(buf.data());
+        auto resp_json = nlohmann::json::parse(resp);
+        EXPECT_EQ(resp_json["payload"]["error_code"], cppsim::protocol::error_codes::PROTOCOL_ERROR);
+    } catch (const beast::system_error& se) {
+        bool expected = (se.code() == websocket::error::closed) ||
+                        (se.code() == net::error::eof);
+        EXPECT_TRUE(expected);
+    }
+}
+
+// Test: Rate limiting closes the connection
+TEST_F(ActionTest, RateLimitExceeded) {
+    net::io_context ioc;
+    websocket::stream<tcp::socket> ws(ioc);
+    std::string session_id = do_handshake(ws, test_port);
+    ASSERT_FALSE(session_id.empty());
+
+    // Send more messages than the rate limit allows.
+    // config::MAX_MESSAGES_PER_WINDOW = 10, so send 11 rapid-fire messages.
+    for (size_t i = 0; i <= cppsim::server::config::MAX_MESSAGES_PER_WINDOW; ++i) {
+        cppsim::protocol::message_envelope env;
+        env.message_type = cppsim::protocol::message_types::ACTION;
+        env.protocol_version = cppsim::protocol::PROTOCOL_VERSION;
+        // Use sequence_number = i+1 to avoid replay detection
+        env.payload = nlohmann::json{
+            {"session_id", session_id},
+            {"action_type", "FOLD"},
+            {"sequence_number", static_cast<int64_t>(i + 1)}
+        };
+        nlohmann::json j;
+        cppsim::protocol::to_json(j, env);
+        ws.write(net::buffer(j.dump()));
+    }
+
+    // Server should close due to rate limit
+    beast::flat_buffer buf;
+    try {
+        ws.read(buf);
+        std::string resp = beast::buffers_to_string(buf.data());
+        auto resp_json = nlohmann::json::parse(resp);
+        // The server sends a PROTOCOL_ERROR before closing
+        EXPECT_EQ(resp_json["payload"]["error_code"], cppsim::protocol::error_codes::PROTOCOL_ERROR);
+    } catch (const beast::system_error& se) {
+        bool expected = (se.code() == websocket::error::closed) ||
+                        (se.code() == net::error::eof) ||
+                        (se.code() == net::error::connection_reset);
+        EXPECT_TRUE(expected) << "Unexpected error: " << se.code().message();
+    }
+}

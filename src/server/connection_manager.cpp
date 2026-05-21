@@ -268,12 +268,17 @@ void connection_manager::stop_all() noexcept {
     // iterating and moving each element individually.
   }
 
+  const size_t count = sessions_to_stop.size();
   for (auto& [id, session] : sessions_to_stop) {
     (void)id;
     session->close();
   }
 
-  log_message("[ConnectionManager] All sessions stopped.");
+  try {
+    log_message("[ConnectionManager] Stopped " + std::to_string(count) + " session(s).");
+  } catch (...) {
+    // Allocation failure — sessions were still stopped successfully.
+  }
 }
 
 }  // namespace server
