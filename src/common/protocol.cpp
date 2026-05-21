@@ -222,6 +222,11 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
     handshake_message msg;
     from_json(envelope.payload, msg);
     
+    if (msg.protocol_version.empty()) {
+      log_protocol_error("[Protocol] Empty protocol_version in HANDSHAKE message");
+      return std::nullopt;
+    }
+
     if (msg.client_name && msg.client_name->size() > MAX_CLIENT_NAME_LENGTH) {
       log_protocol_error("[Protocol] Client name exceeds maximum length");
       return std::nullopt;

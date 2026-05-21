@@ -299,7 +299,11 @@ void websocket_session::handle_handshake_message(const std::string& message) {
 
   if (handshake_msg.client_name) {
     const auto& cname = *handshake_msg.client_name;
-    log_message(std::string("[WebSocketSession] Client Name: ") + trunc_field(cname, 32));
+    try {
+      log_message(std::string("[WebSocketSession] Client Name: ") + trunc_field(cname, 32));
+    } catch (...) {
+      // Non-fatal: log allocation failure must not unwind a successful handshake.
+    }
   }
 
   std::string new_session_id;
@@ -336,7 +340,11 @@ void websocket_session::handle_handshake_message(const std::string& message) {
 
   state_.store(state::authenticated, std::memory_order_release);
 
-  log_message(std::string("[WebSocketSession] Handshake successful for session: ") + sanitize_session_id(new_session_id));
+  try {
+    log_message(std::string("[WebSocketSession] Handshake successful for session: ") + sanitize_session_id(new_session_id));
+  } catch (...) {
+    // Non-fatal: handshake already succeeded, session is registered and response queued.
+  }
 }
 
 void websocket_session::handle_authenticated_message(const std::string& message) {
@@ -401,8 +409,12 @@ void websocket_session::handle_action(const protocol::parsed_message_header& hea
     return;
   }
   last_sequence_number_.store(seq, std::memory_order_release);
-  log_message(std::string("[WebSocketSession] Validated ACTION from ") + sanitize_session_id(sid) + ": type=" +
-              action_opt->action_type + " seq=" + std::to_string(seq));
+  try {
+    log_message(std::string("[WebSocketSession] Validated ACTION from ") + sanitize_session_id(sid) + ": type=" +
+                action_opt->action_type + " seq=" + std::to_string(seq));
+  } catch (...) {
+    // Non-fatal: log allocation failure must not close a healthy session.
+  }
 }
 
 void websocket_session::handle_reload_msg(const protocol::parsed_message_header& header, const std::string& sid) {
@@ -417,7 +429,11 @@ void websocket_session::handle_reload_msg(const protocol::parsed_message_header&
     return;
   }
 
-  log_message(std::string("[WebSocketSession] Validated RELOAD_REQUEST from ") + sanitize_session_id(sid));
+  try {
+    log_message(std::string("[WebSocketSession] Validated RELOAD_REQUEST from ") + sanitize_session_id(sid));
+  } catch (...) {
+    // Non-fatal: log allocation failure must not close a healthy session.
+  }
 
   // Compute the new stack but only commit after the response is queued.
   // Safe without atomics: current_stack_ is only accessed from the session's
@@ -450,7 +466,11 @@ void websocket_session::handle_disconnect_msg(const protocol::parsed_message_hea
     return;
   }
 
-  log_message(std::string("[WebSocketSession] Validated DISCONNECT from ") + sanitize_session_id(sid));
+  try {
+    log_message(std::string("[WebSocketSession] Validated DISCONNECT from ") + sanitize_session_id(sid));
+  } catch (...) {
+    // Non-fatal: log allocation failure must not prevent clean disconnect.
+  }
   close();
 }
 

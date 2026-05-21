@@ -846,6 +846,23 @@ TEST(ProtocolTest, DisconnectReasonNonPrintable) {
   EXPECT_FALSE(result.has_value());
 }
 
+// Test: Handshake with empty protocol_version should fail
+TEST(ProtocolTest, EmptyProtocolVersion) {
+  message_envelope env;
+  env.message_type = message_types::HANDSHAKE;
+  env.protocol_version = "";
+  env.payload = nlohmann::json{
+      {"protocol_version", ""},
+      {"client_name", "test"}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_handshake(j.dump());
+
+  EXPECT_FALSE(result.has_value());
+}
+
 // Test: Handshake with envelope+payload versions matching each other (but not
 // the server's PROTOCOL_VERSION) parses successfully.
 // Version compatibility is the caller's responsibility.
@@ -925,6 +942,23 @@ TEST(ProtocolTest, ExtractMessageTypeAndJsonReuseInParseAction) {
   EXPECT_EQ(action->session_id, "sess_aabbccdd11223344");
   EXPECT_EQ(action->action_type, "FOLD");
   EXPECT_EQ(action->sequence_number, 42);
+}
+
+// Test: Handshake with empty protocol_version in payload (but non-empty envelope) fails
+TEST(ProtocolTest, EmptyPayloadProtocolVersion) {
+  message_envelope env;
+  env.message_type = message_types::HANDSHAKE;
+  env.protocol_version = PROTOCOL_VERSION;
+  env.payload = nlohmann::json{
+      {"protocol_version", ""},
+      {"client_name", "test"}
+  };
+
+  nlohmann::json j;
+  to_json(j, env);
+  auto result = parse_handshake(j.dump());
+
+  EXPECT_FALSE(result.has_value());
 }
 
 // NOTE: Infinity and NaN amounts are serialized as `null` by nlohmann::json,
