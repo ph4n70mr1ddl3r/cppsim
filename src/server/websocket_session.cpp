@@ -196,14 +196,14 @@ void websocket_session::on_read(boost::beast::error_code ec,
     return;
   }
 
-  std::string message = boost::beast::buffers_to_string(buffer_.data());
-  buffer_.consume(buffer_.size());
-
-  if (!check_rate_limit_or_close()) {
-    return;
-  }
-
   try {
+    std::string message = boost::beast::buffers_to_string(buffer_.data());
+    buffer_.consume(buffer_.size());
+
+    if (!check_rate_limit_or_close()) {
+      return;
+    }
+
     if (current_state == state::unauthenticated) {
       handle_handshake_message(message);
     } else {
@@ -243,7 +243,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
   }
 }
 
-bool websocket_session::check_rate_limit_or_close() {
+bool websocket_session::check_rate_limit_or_close() noexcept {
   auto now = std::chrono::steady_clock::now();
   bool should_close = false;
 
@@ -264,10 +264,16 @@ bool websocket_session::check_rate_limit_or_close() {
   if (should_close) {
     // Read session_id outside the rate_limit_mutex_ to avoid nested lock
     // acquisition (rate_limit_mutex_ -> session_id_mutex_).
-    std::string session_id_str = get_session_id_safe();
-    std::string id_str = session_id_str.empty() ? "(unauthenticated)" : sanitize_session_id(session_id_str);
-    log_error("[WebSocketSession] Rate limit exceeded (max " +
-        std::to_string(config::MAX_MESSAGES_PER_WINDOW) + " messages per window) for session " + id_str);
+    // String construction is wrapped in try/catch because this function is
+    // noexcept — an allocation failure in concatenation would call std::terminate.
+    try {
+      std::string session_id_str = get_session_id_safe();
+      std::string id_str = session_id_str.empty() ? "(unauthenticated)" : sanitize_session_id(session_id_str);
+      log_error("[WebSocketSession] Rate limit exceeded (max " +
+          std::to_string(config::MAX_MESSAGES_PER_WINDOW) + " messages per window) for session " + id_str);
+    } catch (...) {
+      log_error("[WebSocketSession] Rate limit exceeded");
+    }
     send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Rate limit exceeded");
     close();
     return false;
@@ -476,6 +482,7 @@ void websocket_session::handle_disconnect_msg(const protocol::parsed_message_hea
 
 bool websocket_session::queue_message(std::string&& message) noexcept {
   bool should_post = false;
+  bool queue_full = false;
   {
     std::lock_guard<std::mutex> lock(write_queue_mutex_);
     if (state_.load(std::memory_order_acquire) == state::closed ||
@@ -483,12 +490,25 @@ bool websocket_session::queue_message(std::string&& message) noexcept {
       return false;
     }
     if (write_queue_.size() >= config::MAX_WRITE_QUEUE_SIZE) {
-      log_error(std::string("[WebSocketSession] Write queue full for session ") + sanitize_session_id(get_session_id_safe()) + ", dropping message");
-      return false;
+      queue_full = true;
+    } else {
+      write_queue_.push(std::move(message));
+      should_post = !writing_;
+      if (should_post) writing_ = true;
     }
-    write_queue_.push(std::move(message));
-    should_post = !writing_;
-    if (should_post) writing_ = true;
+  }
+
+  if (queue_full) {
+    // Log outside the lock to reduce contention.  Wrapped in try/catch because
+    // this function is noexcept — string concatenation failure would call
+    // std::terminate.
+    try {
+      log_error("[WebSocketSession] Write queue full for session " +
+                sanitize_session_id(get_session_id_safe()) + ", dropping message");
+    } catch (...) {
+      // Allocation failure — message was dropped regardless.
+    }
+    return false;
   }
 
   if (should_post) {
