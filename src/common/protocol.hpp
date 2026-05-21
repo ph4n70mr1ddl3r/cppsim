@@ -31,6 +31,7 @@ constexpr const char* INCOMPATIBLE_VERSION = "INCOMPATIBLE_VERSION";
 constexpr const char* PROTOCOL_ERROR = "PROTOCOL_ERROR";
 constexpr const char* MALFORMED_HANDSHAKE = "MALFORMED_HANDSHAKE";
 constexpr const char* MALFORMED_MESSAGE = "MALFORMED_MESSAGE";
+constexpr const char* SESSION_CLOSED = "SESSION_CLOSED";
 }
 
 // Message Types

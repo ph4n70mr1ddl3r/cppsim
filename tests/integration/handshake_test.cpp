@@ -225,11 +225,17 @@ TEST_F(HandshakeTest, HandshakeTimeout) {
     perform_handshake(ws);
 
     // Do NOTHING — server should close the connection after handshake timeout (1s).
+    // The server sends a SESSION_CLOSED error before closing.
     beast::flat_buffer buffer;
     try {
         ws.read(buffer);
-        FAIL() << "Should not have received any data, connection should close";
+        std::string response = beast::buffers_to_string(buffer.data());
+        auto resp_json = nlohmann::json::parse(response);
+        // Server sends SESSION_CLOSED error before closing
+        EXPECT_EQ(resp_json["message_type"], cppsim::protocol::message_types::ERROR);
+        EXPECT_EQ(resp_json["payload"]["error_code"], cppsim::protocol::error_codes::SESSION_CLOSED);
     } catch (const beast::system_error& se) {
+        // Close without error message is also acceptable (timing-dependent)
         bool expected = (se.code() == websocket::error::closed) ||
                         (se.code() == net::error::eof) ||
                         (se.code() == net::error::connection_reset);
@@ -243,6 +249,8 @@ TEST_F(HandshakeTest, HandshakeTimeout) {
 
 // Helper: perform a full handshake and return the session_id.
 // The ws reference is out-parameter (already connected and handshaked).
+// Validates the HANDSHAKE_RESPONSE envelope before extracting session_id
+// to ensure the server responded correctly (catches silent protocol bugs).
 static std::string do_handshake(websocket::stream<tcp::socket>& ws, uint16_t port) {
     tcp::resolver resolver(ws.get_executor());
     auto const results = resolver.resolve("localhost", std::to_string(port));
@@ -262,6 +270,16 @@ static std::string do_handshake(websocket::stream<tcp::socket>& ws, uint16_t por
     ws.read(buf);
     std::string resp = beast::buffers_to_string(buf.data());
     auto resp_json = nlohmann::json::parse(resp);
+
+    // Validate response envelope before extracting session_id
+    EXPECT_EQ(resp_json["message_type"].get<std::string>(),
+              cppsim::protocol::message_types::HANDSHAKE_RESPONSE);
+    EXPECT_EQ(resp_json["protocol_version"].get<std::string>(),
+              cppsim::protocol::PROTOCOL_VERSION);
+    EXPECT_TRUE(resp_json["payload"].contains("session_id"));
+    EXPECT_TRUE(resp_json["payload"].contains("seat_number"));
+    EXPECT_TRUE(resp_json["payload"].contains("starting_stack"));
+
     return resp_json["payload"]["session_id"].get<std::string>();
 }
 
@@ -469,7 +487,81 @@ TEST_F(ActionTest, RateLimitExceeded) {
         ws.read(buf);
         std::string resp = beast::buffers_to_string(buf.data());
         auto resp_json = nlohmann::json::parse(resp);
-        // The server sends a PROTOCOL_ERROR before closing
+        // The server sends a SESSION_CLOSED error before closing
+        EXPECT_EQ(resp_json["payload"]["error_code"], cppsim::protocol::error_codes::SESSION_CLOSED);
+    } catch (const beast::system_error& se) {
+        bool expected = (se.code() == websocket::error::closed) ||
+                        (se.code() == net::error::eof) ||
+                        (se.code() == net::error::connection_reset);
+        EXPECT_TRUE(expected) << "Unexpected error: " << se.code().message();
+    }
+}
+
+// Test: Sequence number gap exceeding MAX_SEQUENCE_GAP should be rejected
+TEST_F(ActionTest, SequenceGapTooLarge) {
+    net::io_context ioc;
+    websocket::stream<tcp::socket> ws(ioc);
+    std::string session_id = do_handshake(ws, test_port);
+    ASSERT_FALSE(session_id.empty());
+
+    // Send ACTION with a sequence number far beyond the allowed gap
+    int64_t huge_seq = cppsim::server::config::MAX_SEQUENCE_GAP + 100;
+    cppsim::protocol::message_envelope env;
+    env.message_type = cppsim::protocol::message_types::ACTION;
+    env.protocol_version = cppsim::protocol::PROTOCOL_VERSION;
+    env.payload = nlohmann::json{
+        {"session_id", session_id},
+        {"action_type", "FOLD"},
+        {"sequence_number", huge_seq}
+    };
+    nlohmann::json j;
+    cppsim::protocol::to_json(j, env);
+    ws.write(net::buffer(j.dump()));
+
+    // Server should send PROTOCOL_ERROR and close
+    beast::flat_buffer buf;
+    try {
+        ws.read(buf);
+        std::string resp = beast::buffers_to_string(buf.data());
+        auto resp_json = nlohmann::json::parse(resp);
+        EXPECT_EQ(resp_json["payload"]["error_code"], cppsim::protocol::error_codes::PROTOCOL_ERROR);
+    } catch (const beast::system_error& se) {
+        bool expected = (se.code() == websocket::error::closed) ||
+                        (se.code() == net::error::eof) ||
+                        (se.code() == net::error::connection_reset);
+        EXPECT_TRUE(expected) << "Unexpected error: " << se.code().message();
+    }
+}
+
+// Test: Replayed sequence number should be rejected
+TEST_F(ActionTest, ReplayedSequenceNumber) {
+    net::io_context ioc;
+    websocket::stream<tcp::socket> ws(ioc);
+    std::string session_id = do_handshake(ws, test_port);
+    ASSERT_FALSE(session_id.empty());
+
+    // Send first action with seq=1
+    cppsim::protocol::message_envelope env;
+    env.message_type = cppsim::protocol::message_types::ACTION;
+    env.protocol_version = cppsim::protocol::PROTOCOL_VERSION;
+    env.payload = nlohmann::json{
+        {"session_id", session_id},
+        {"action_type", "FOLD"},
+        {"sequence_number", 1}
+    };
+    nlohmann::json j;
+    cppsim::protocol::to_json(j, env);
+    ws.write(net::buffer(j.dump()));
+
+    // Send duplicate seq=1 (replay)
+    ws.write(net::buffer(j.dump()));
+
+    // Server should send PROTOCOL_ERROR and close
+    beast::flat_buffer buf;
+    try {
+        ws.read(buf);
+        std::string resp = beast::buffers_to_string(buf.data());
+        auto resp_json = nlohmann::json::parse(resp);
         EXPECT_EQ(resp_json["payload"]["error_code"], cppsim::protocol::error_codes::PROTOCOL_ERROR);
     } catch (const beast::system_error& se) {
         bool expected = (se.code() == websocket::error::closed) ||

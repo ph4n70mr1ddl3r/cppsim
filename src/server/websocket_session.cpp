@@ -274,7 +274,7 @@ bool websocket_session::check_rate_limit_or_close() noexcept {
     } catch (...) {
       log_error("[WebSocketSession] Rate limit exceeded");
     }
-    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Rate limit exceeded");
+    send_protocol_error(protocol::error_codes::SESSION_CLOSED, "Rate limit exceeded");
     close();
     return false;
   }
@@ -704,6 +704,7 @@ void websocket_session::check_deadline() {
 
         if (current_state == state::unauthenticated) {
           log_error("[WebSocketSession] Handshake timeout");
+          self->send_protocol_error(protocol::error_codes::SESSION_CLOSED, "Handshake timeout");
           self->close();
         } else {
           try {
@@ -712,6 +713,7 @@ void websocket_session::check_deadline() {
             // Allocation failure in async handler — log is best-effort.
             log_error("[WebSocketSession] Idle timeout");
           }
+          self->send_protocol_error(protocol::error_codes::SESSION_CLOSED, "Idle timeout");
           self->close();
         }
       });
