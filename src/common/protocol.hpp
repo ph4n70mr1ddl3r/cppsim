@@ -100,6 +100,17 @@ namespace validation {
      */
     [[nodiscard]] bool validate_sequence_gap(int64_t current, int64_t previous, int64_t max_gap = 10000) noexcept;
     
+    /**
+     * @brief Constant-time comparison to prevent timing attacks
+     * @param a First string to compare
+     * @param b Second string to compare
+     * @return true if strings are equal, false otherwise
+     * 
+     * Uses constant-time comparison to prevent timing attacks when comparing
+     * sensitive data like session IDs or authentication tokens.
+     */
+    [[nodiscard]] bool constant_time_compare(const std::string& a, const std::string& b) noexcept;
+    
 } // namespace validation
 
 } // namespace protocol

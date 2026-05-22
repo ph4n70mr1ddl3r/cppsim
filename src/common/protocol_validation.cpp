@@ -125,7 +125,16 @@ std::string sanitize_input(const std::string& input) noexcept {
 bool validate_message_envelope(const std::string& json_str,
                              const std::vector<std::string>& required_fields) noexcept {
     try {
+        if (json_str.empty()) {
+            return false;
+        }
+        
         auto json = nlohmann::json::parse(json_str);
+        
+        // Check if it's a JSON object
+        if (!json.is_object()) {
+            return false;
+        }
         
         // Check all required fields exist
         for (const auto& field : required_fields) {
@@ -174,6 +183,20 @@ bool validate_sequence_gap(int64_t current, int64_t previous, int64_t max_gap) n
     }
     
     return true;
+}
+
+// Constant-time comparison to prevent timing attacks
+[[nodiscard]] bool constant_time_compare(const std::string& a, const std::string& b) noexcept {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    
+    bool result = true;
+    for (size_t i = 0; i < a.size(); ++i) {
+        result &= (a[i] == b[i]);
+    }
+    
+    return result;
 }
 
 } // namespace validation

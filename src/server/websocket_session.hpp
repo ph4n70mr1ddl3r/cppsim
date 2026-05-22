@@ -47,7 +47,7 @@ struct error_context {
     protocol_error type;                                ///< Type of error
     std::string details;                               ///< Human-readable error details
     std::string session_id;                             ///< Associated session ID (if available)
-    int64_t sequence_number = -1;                       /// Sequence number (if available)
+    int64_t sequence_number = -1;                       ///< Sequence number (if available)
     std::chrono::steady_clock::time_point timestamp;    ///< Error timestamp
     std::string action_type;                            ///< Action type (if applicable)
     std::optional<int64_t> amount;                      ///< Amount (if applicable)
@@ -95,20 +95,6 @@ class websocket_session final
   websocket_session(boost::asio::ip::tcp::socket socket,
                     std::shared_ptr<connection_manager> mgr,
                     std::chrono::seconds handshake_timeout = config::HANDSHAKE_TIMEOUT);
-  // Thread safety model:
-  //   - Strand-only state (no lock needed): current_stack_, handshake_timeout_
-  //     — accessed only from handlers dispatched to the session's strand.
-  //   - Mutex-protected state: session_id_ (session_id_mutex_), write_queue_ +
-  //     writing_ (write_queue_mutex_), message_timestamps_ (rate_limit_mutex_).
-  //   - Atomic state: state_, last_sequence_number_, close_requested_,
-  //     close_initiated_.
-  //   - All public methods (send, close, is_authenticated, session_id) are safe
-  //     to call from any thread; they either use atomics, mutexes, or dispatch
-  //     to the strand internally.
-  websocket_session(boost::asio::ip::tcp::socket socket,
-                    std::shared_ptr<connection_manager> mgr,
-                    std::chrono::seconds handshake_timeout = config::HANDSHAKE_TIMEOUT);
-
   ~websocket_session() noexcept;
 
   void run() noexcept;
@@ -213,6 +199,10 @@ class websocket_session final
       std::optional<int64_t> amount,
       int64_t current_stack,
       int64_t current_bet) noexcept;
+  
+  void validate_action_phase_and_amount(const std::string& action_type,
+                                     std::optional<int64_t> amount,
+                                     int64_t sequence_number) noexcept;
   
   /**
    * @brief Validate sequence numbers for replay protection
