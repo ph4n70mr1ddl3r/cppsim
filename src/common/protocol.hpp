@@ -11,6 +11,103 @@
 namespace cppsim {
 namespace protocol {
 
+/**
+ * @brief Enhanced validation utilities for protocol messages
+ * 
+ * Provides comprehensive validation functions for all protocol message types
+ * with detailed error reporting and input sanitization.
+ */
+namespace validation {
+    
+    /**
+     * @brief Validates message types against allowed values
+     * @param message_type The message type to validate
+     * @param allowed_types List of allowed message types
+     * @return true if valid, false otherwise
+     */
+    [[nodiscard]] bool is_valid_message_type(const std::string& message_type,
+                                            const std::vector<std::string>& allowed_types) noexcept;
+    
+    /**
+     * @brief Validates protocol version format
+     * @param version The version string to validate
+     * @return true if valid, false otherwise
+     */
+    [[nodiscard]] bool is_valid_protocol_version(const std::string& version) noexcept;
+    
+    /**
+     * @brief Validates session ID format
+     * @param session_id The session ID to validate
+     * @return true if valid, false otherwise
+     */
+    [[nodiscard]] bool is_valid_session_id(const std::string& session_id) noexcept;
+    
+    /**
+     * @brief validates action types
+     * @param action_type The action type to validate
+     * @return true if valid, false otherwise
+     */
+    [[nodiscard]] bool is_valid_action_type(const std::string& action_type) noexcept;
+    
+    /**
+     * @brief Validates monetary amounts
+     * @param amount The amount to validate
+     * @param min_amount Minimum allowed amount (optional)
+     * @param max_amount Maximum allowed amount (optional)
+     * @return true if valid, false otherwise
+     */
+    [[nodiscard]] bool is_valid_amount(int64_t amount,
+                                      std::optional<int64_t> min_amount = std::nullopt,
+                                      std::optional<int64_t> max_amount = std::nullopt) noexcept;
+    
+    /**
+     * @brief Validates game phase strings
+     * @param game_phase The game phase to validate
+     * @return true if valid, false otherwise
+     */
+    [[nodiscard]] bool is_valid_game_phase(const std::string& game_phase) noexcept;
+    
+    /**
+     * @brief Validates seat numbers
+     * @param seat The seat number to validate
+     * @param max_seats Maximum allowed seats
+     * @return true if valid, false otherwise
+     */
+    [[nodiscard]] bool is_valid_seat_number(int seat, int max_seats = 10) noexcept;
+    
+    /**
+     * @brief Sanitizes string input for safe logging and transmission
+     * @param input The input string to sanitize
+     * @return Sanitized string with control characters removed
+     */
+    [[nodiscard]] std::string sanitize_input(const std::string& input) noexcept;
+    
+    /**
+     * @brief Validates JSON structure for message envelopes
+     * @param json_str JSON string to validate
+     * @param required_fields List of required top-level fields
+     * @return true if valid JSON with required fields, false otherwise
+     */
+    [[nodiscard]] bool validate_message_envelope(const std::string& json_str,
+                                                const std::vector<std::string>& required_fields) noexcept;
+    
+    /**
+     * @brief Validates sequence number gap
+     * @param current Current sequence number
+     * @param previous Previous sequence number
+     * @param max_gap Maximum allowed gap
+     * @return true if valid gap, false otherwise
+     */
+    [[nodiscard]] bool validate_sequence_gap(int64_t current, int64_t previous, int64_t max_gap = 10000) noexcept;
+    
+} // namespace validation
+
+} // namespace protocol
+} // namespace cppsim
+
+namespace cppsim {
+namespace protocol {
+
 void set_error_logger(std::function<void(std::string_view)> logger);
 
 // Protocol version constant

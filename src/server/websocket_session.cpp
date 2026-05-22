@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <sstream>
 #include <utility>
 
 #include "connection_manager.hpp"
@@ -916,6 +917,199 @@ void websocket_session::do_close() noexcept {
     ws_.next_layer().socket().close(fallback_ec);
   }
 }
+
+// Enhanced error handling implementation
+bool websocket_session::send_error(protocol_error error_type,
+                                 const std::string& details,
+                                 int64_t sequence_number) noexcept {
+  try {
+    error_context ctx = create_error_context(error_type, details, sequence_number);
+    
+    nlohmann::json error_json = {
+      {"message_type", "ERROR"},
+      {"error_code", error_code_to_string(ctx.type)},
+      {"message", ctx.details}
+    };
+    
+    if (!ctx.session_id.empty()) {
+      error_json["session_id"] = ctx.session_id;
+    }
+    
+    if (ctx.sequence_number >= 0) {
+      error_json["sequence_number"] = ctx.sequence_number;
+    }
+    
+    return queue_message(error_json.dump());
+  } catch (...) {
+    // Allocation failure in noexcept function — fallback to basic protocol error
+    return send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Internal server error");
+  }
+}
+
+void websocket_session::add_security_event(const std::string& event) noexcept {
+  try {
+    std::lock_guard<std::mutex> lock(security_events_mutex_);
+    security_events_.push_back(event);
+    
+    // Keep only recent events to prevent unbounded growth
+    if (security_events_.size() > 100) {
+      security_events_.erase(security_events_.begin(), 
+                           security_events_.begin() + security_events_.size() - 100);
+    }
+    
+    // Log security events at warning level
+    log_error(std::string("[WebSocketSession Security] ") + event);
+  } catch (...) {
+    // Allocation failure — security event was not recorded, but this is non-critical
+  }
+}
+
+bool websocket_session::check_suspicious_activity() noexcept {
+  try {
+    // Check for rapid message bursts
+    if (message_count_.load() > 100) {
+      auto now = std::chrono::steady_clock::now();
+      auto time_since_start = std::chrono::duration_cast<std::chrono::seconds>(
+          now - last_activity_).count();
+      
+      if (time_since_start < 5 && message_count_.load() > 50) {
+        add_security_event("Rapid message burst detected");
+        return true;
+      }
+    }
+    
+    // Check for sequence number anomalies
+    if (last_sequence_number_.load() > 0) {
+      // Simple heuristic: detect unusually large gaps
+      if (last_sequence_number_.load() > 1000) {
+        add_security_event("Large sequence gap detected");
+        return true;
+      }
+    }
+    
+    return false;
+  } catch (...) {
+    // Check failure — assume safe rather than flag false positive
+    return false;
+  }
+}
+
+std::optional<std::string> websocket_session::validate_action(
+    const std::string& action_type,
+    std::optional<int64_t> amount,
+    int64_t current_stack,
+    int64_t current_bet) noexcept {
+  try {
+    // Validate action type
+    if (action_type != "FOLD" && action_type != "CHECK" && 
+        action_type != "CALL" && action_type != "RAISE" && 
+        action_type != "ALL_IN") {
+      return "Invalid action type: " + trunc_field(action_type, 32);
+    }
+    
+    // Validate amount for actions that require it
+    if (action_type == "RAISE" || action_type == "ALL_IN" || action_type == "CALL") {
+      if (!amount.has_value()) {
+        return "Amount required for " + action_type + " action";
+      }
+      
+      if (amount.value() <= 0) {
+        return "Amount must be positive for " + action_type + " action";
+      }
+      
+      if (amount.value() > protocol::MAX_AMOUNT) {
+        return "Amount exceeds maximum allowed value";
+      }
+      
+      if (action_type == "RAISE" && amount.value() <= current_bet) {
+        return "Raise amount must be greater than current bet";
+      }
+      
+      if (amount.value() > current_stack) {
+        if (action_type != "ALL_IN") {
+          return "Amount exceeds available stack";
+        }
+      }
+    }
+    
+    // Additional validation for ALL_IN
+    if (action_type == "ALL_IN" && amount.value() > current_stack) {
+      return "ALL_IN amount cannot exceed available stack";
+    }
+    
+    return std::nullopt;  // Validation passed
+  } catch (...) {
+    return "Internal validation error";
+  }
+}
+
+bool websocket_session::validate_sequence_number(int64_t received, int64_t expected) noexcept {
+  try {
+    // Exact match (normal case)
+    if (received == expected) {
+      return true;
+    }
+    
+    // Allow for small gaps (network reordering)
+    if (received > expected && received <= expected + enhanced_config::get_max_sequence_gap()) {
+      return true;
+    }
+    
+    // Detect replay attacks (old sequence numbers)
+    if (received <= expected) {
+      add_security_event(std::string("Possible replay attack: sequence number ") + 
+                        std::to_string(received) + " <= " + std::to_string(expected));
+      return false;
+    }
+    
+    // Gap too large
+    add_security_event(std::string("Sequence number gap too large: received ") + 
+                      std::to_string(received) + ", expected ") + std::to_string(expected);
+    return false;
+  } catch (...) {
+    return false;
+  }
+}
+
+error_context websocket_session::create_error_context(
+    protocol_error error_type,
+    const std::string& details,
+    int64_t sequence_number) const noexcept {
+  error_context ctx;
+  ctx.type = error_type;
+  ctx.details = details;
+  ctx.sequence_number = sequence_number;
+  ctx.timestamp = std::chrono::steady_clock::now();
+  
+  try {
+    ctx.session_id = get_session_id_safe();
+  } catch (...) {
+    ctx.session_id = "(unknown)";
+  }
+  
+  return ctx;
+}
+
+void websocket_session::handle_rate_limit_exceeded() noexcept {
+  try {
+    std::string session_id_str = get_session_id_safe();
+    std::string id_str = session_id_str.empty() ? "(unauthenticated)" : sanitize_session_id(session_id_str);
+    
+    log_error(std::string("[WebSocketSession] Rate limit exceeded for session ") + id_str);
+    add_security_event("Rate limit exceeded");
+    
+    send_error(protocol_error::rate_limit_exceeded, 
+               "Rate limit exceeded. Please reduce message frequency.");
+    close();
+  } catch (...) {
+    // Fallback for allocation failure
+    send_protocol_error(protocol::error_codes::SESSION_CLOSED, "Rate limit exceeded");
+    close();
+  }
+}
+
+}  // namespace server
+}  // namespace cppsim
 
 }  // namespace server
 }  // namespace cppsim

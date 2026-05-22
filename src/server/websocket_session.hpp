@@ -1,6 +1,7 @@
 #pragma once
 
 #include "boost_wrapper.hpp"
+#include "session_metrics.hpp"
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -10,6 +11,7 @@
 #include <queue>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "config.hpp"
 #include "protocol.hpp"
@@ -17,11 +19,82 @@
 namespace cppsim {
 namespace server {
 
+/**
+ * @brief Enhanced error types for protocol-level errors
+ * 
+ * Provides structured error categorization for better debugging and client feedback.
+ * Each error type includes context information for detailed error reporting.
+ */
+enum class protocol_error {
+    invalid_session_id,         ///< Invalid or malformed session ID
+    sequence_number_mismatch,   ///< Sequence number out of order
+    invalid_action_type,       ///< Unknown or invalid action type
+    insufficient_funds,        ///< Insufficient balance for action
+    amount_out_of_bounds,       ///< Amount exceeds maximum limits
+    malformed_message,         ///< JSON parsing failed or missing required fields
+    rate_limit_exceeded,       ///< Client exceeded message rate limit
+    server_internal_error,     ///< Internal server error (should be rare)
+    authentication_failed      ///< Handshake or authentication failed
+};
+
+/**
+ * @brief Context information for protocol errors
+ * 
+ * Contains detailed error information including session ID, sequence number,
+ * and timestamp for debugging and logging purposes.
+ */
+struct error_context {
+    protocol_error type;                                ///< Type of error
+    std::string details;                               ///< Human-readable error details
+    std::string session_id;                             ///< Associated session ID (if available)
+    int64_t sequence_number = -1;                       /// Sequence number (if available)
+    std::chrono::steady_clock::time_point timestamp;    ///< Error timestamp
+    std::string action_type;                            ///< Action type (if applicable)
+    std::optional<int64_t> amount;                      ///< Amount (if applicable)
+};
+
+
+
+namespace cppsim {
+namespace server {
+
 class connection_manager;
 
+/**
+ * @class websocket_session
+ * @brief Manages individual WebSocket connections for poker game sessions
+ * 
+ * Provides thread-safe connection handling, message processing, authentication,
+ * and lifecycle management for WebSocket connections. Handles both handshake
+ * and authenticated message phases with proper error handling and rate limiting.
+ * 
+ * Thread Safety Model:
+ * - Strand-only state (no lock needed): current_stack_, handshake_timeout_
+ *   — accessed only from handlers dispatched to the session's strand.
+ * - Mutex-protected state: session_id_ (session_id_mutex_), write_queue_ +
+ *   writing_ (write_queue_mutex_), message_timestamps_ (rate_limit_mutex_).
+ * - Atomic state: state_, last_sequence_number_, close_requested_,
+ *   close_initiated_.
+ * - All public methods (send, close, is_authenticated, session_id) are safe
+ *   to call from any thread; they either use atomics, mutexes, or dispatch
+ *   to the strand internally.
+ */
 class websocket_session final
     : public std::enable_shared_from_this<websocket_session> {
  public:
+  // Thread safety model:
+  //   - Strand-only state (no lock needed): current_stack_, handshake_timeout_
+  //     — accessed only from handlers dispatched to the session's strand.
+  //   - Mutex-protected state: session_id_ (session_id_mutex_), write_queue_ +
+  //     writing_ (write_queue_mutex_), message_timestamps_ (rate_limit_mutex_).
+  //   - Atomic state: state_, last_sequence_number_, close_requested_,
+  //     close_initiated_.
+  //   - All public methods (send, close, is_authenticated, session_id) are safe
+  //     to call from any thread; they either use atomics, mutexes, or dispatch
+  //     to the strand internally.
+  websocket_session(boost::asio::ip::tcp::socket socket,
+                    std::shared_ptr<connection_manager> mgr,
+                    std::chrono::seconds handshake_timeout = config::HANDSHAKE_TIMEOUT);
   // Thread safety model:
   //   - Strand-only state (no lock needed): current_stack_, handshake_timeout_
   //     — accessed only from handlers dispatched to the session's strand.
@@ -41,11 +114,31 @@ class websocket_session final
   void run() noexcept;
 
   [[nodiscard]] bool send(std::string message);
+  
+  /**
+   * @brief Send a structured error message to the client
+   * @param error_type Type of protocol error
+   * @param details Human-readable error details
+   * @param sequence_number Sequence number context (if applicable)
+   * @return true if error message was queued successfully, false otherwise
+   * 
+   * Thread Safety: Safe to call from any thread. Queues error message
+   * with proper thread synchronization. Returns false only if write queue is full.
+   */
+  [[nodiscard]] bool send_error(protocol_error error_type,
+                             const std::string& details,
+                             int64_t sequence_number = -1) noexcept;
 
   [[nodiscard]] bool is_authenticated() const noexcept {
     return state_.load(std::memory_order_acquire) == state::authenticated;
   }
 
+  /**
+   * @brief Gracefully close the WebSocket connection
+   * 
+   * Sets close_requested_ flag and dispatches cleanup to the strand.
+   * Thread-safe to call from any thread.
+   */
   void close() noexcept;
 
   [[nodiscard]] std::string session_id() const noexcept {
@@ -77,6 +170,25 @@ class websocket_session final
   void do_close() noexcept;
 
   [[nodiscard]] bool check_rate_limit_or_close() noexcept;
+  
+  /**
+   * @brief Add security event for audit logging
+   * @param event Description of security-related event
+   * 
+   * Thread Safety: Safe to call from any thread. Handles allocation failures
+   * gracefully to prevent std::terminate in noexcept context.
+   */
+  void add_security_event(const std::string& event) noexcept;
+  
+  /**
+   * @brief Check for suspicious activity patterns
+   * @return true if activity appears suspicious, false otherwise
+   * 
+   * Monitors message frequency, sequence number patterns, and other
+   * potential security indicators.
+   */
+  [[nodiscard]] bool check_suspicious_activity() noexcept;
+  
   void handle_handshake_message(const std::string& message);
   void handle_authenticated_message(const std::string& message);
   void handle_action(const protocol::parsed_message_header& header, const std::string& sid);
@@ -85,6 +197,51 @@ class websocket_session final
 
   [[nodiscard]] bool queue_message(std::string&& message) noexcept;
   [[nodiscard]] std::string get_session_id_safe() const noexcept;
+  
+  /**
+   * @brief Validate action types and amounts with comprehensive checks
+   * @param action_type Type of action (FOLD, CHECK, CALL, RAISE, ALL_IN)
+   * @param amount Optional amount for CALL/RAISE/ALL_IN actions
+   * @param current_stack Current stack size for validation
+   * @param current_bet Current bet size for validation
+   * @return Error message if validation fails, std::nullopt if valid
+   * 
+   * Thread Safety: Safe to call from any thread (noexcept)
+   */
+  [[nodiscard]] std::optional<std::string> validate_action(
+      const std::string& action_type,
+      std::optional<int64_t> amount,
+      int64_t current_stack,
+      int64_t current_bet) noexcept;
+  
+  /**
+   * @brief Validate sequence numbers for replay protection
+   * @param received Received sequence number
+   * @param expected Expected sequence number
+   * @return true if sequence number is valid, false otherwise
+   * 
+   * Handles sequence gaps and detects potential replay attacks
+   */
+  [[nodiscard]] bool validate_sequence_number(int64_t received, int64_t expected) noexcept;
+  
+  /**
+   * @brief Create error context structure from current state
+   * @param error_type Type of error
+   * @param details Human-readable error details
+   * @param sequence_number Sequence number context (if applicable)
+   * @return Populated error_context structure
+   */
+  [[nodiscard]] error_context create_error_context(
+      protocol_error error_type,
+      const std::string& details,
+      int64_t sequence_number = -1) const noexcept;
+  
+  /**
+   * @brief Handle rate limit exceeded condition
+   * 
+   * Queues appropriate error message and closes the connection
+   */
+  void handle_rate_limit_exceeded() noexcept;
 
   boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;
   boost::beast::flat_buffer buffer_;
@@ -107,6 +264,15 @@ class websocket_session final
 
   std::deque<std::chrono::steady_clock::time_point> message_timestamps_;
   mutable std::mutex rate_limit_mutex_;
+  
+  // Security monitoring
+  std::chrono::steady_clock::time_point last_activity_;
+  std::atomic<int64_t> message_count_{0};
+  std::vector<std::string> security_events_;
+  mutable std::mutex security_events_mutex_;
+  
+  // Performance metrics
+  session_metrics metrics_;
 
   // Mutable state — only accessed from the session's strand (single-threaded).
   // No mutex needed: all reads/writes happen in handlers dispatched to the

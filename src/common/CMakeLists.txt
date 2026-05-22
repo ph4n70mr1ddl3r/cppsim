@@ -2,6 +2,7 @@
 add_library(poker_common STATIC
   protocol.cpp
   protocol.hpp
+  protocol_validation.cpp
 )
 
 # Include directories

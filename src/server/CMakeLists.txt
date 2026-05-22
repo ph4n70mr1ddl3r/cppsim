@@ -5,6 +5,7 @@ add_library(poker_server_lib STATIC
   connection_manager.cpp
   logger.cpp
   runtime_config.cpp
+  session_metrics.hpp
 )
 
 target_link_libraries(poker_server_lib
