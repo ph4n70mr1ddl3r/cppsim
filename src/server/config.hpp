@@ -32,7 +32,7 @@ struct config {
     static constexpr auto MAX_BACKOFF = std::chrono::seconds{30};
     
     static constexpr int PLACEHOLDER_SEAT = -1;
-    static constexpr double PLACEHOLDER_STACK = 0.0;
+    static constexpr int64_t PLACEHOLDER_STACK = 0;
     
     // WebSocket stream idle/read timeouts.
     // Set to 24 hours so the application-level timeouts (HANDSHAKE_TIMEOUT,

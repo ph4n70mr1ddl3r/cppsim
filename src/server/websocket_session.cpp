@@ -23,30 +23,16 @@ websocket_session::websocket_session(
       handshake_timeout_(handshake_timeout) {}
 
 websocket_session::~websocket_session() noexcept {
-  try {
-    boost::beast::error_code ec;
-    deadline_.cancel(ec);
-    if (ec) {
-      // Timer cancellation failed, but we're in destructor so continue cleanup
-    }
-    
-    if (state_.load(std::memory_order_acquire) != state::closed) {
-      if (auto mgr = conn_mgr_.lock()) {
-        std::string sid = get_session_id_safe();
-        if (!sid.empty()) {
-          mgr->unregister_session(sid);
-        }
+  boost::beast::error_code ec;
+  deadline_.cancel(ec);
+  
+  if (state_.load(std::memory_order_acquire) != state::closed) {
+    if (auto mgr = conn_mgr_.lock()) {
+      std::string sid = get_session_id_safe();
+      if (!sid.empty()) {
+        mgr->unregister_session(sid);
       }
     }
-  } catch (const std::exception& e) {
-    // Log the exception but don't throw from destructor
-    try {
-      std::fprintf(stderr, "[WebSocketSession] Destructor exception: %s\n", e.what());
-    } catch (...) {
-      // Last resort - can't do anything if fprintf fails
-    }
-  } catch (...) {
-    // Unknown exception in destructor - suppress it
   }
 }
 
@@ -461,7 +447,7 @@ void websocket_session::handle_reload_msg(const protocol::parsed_message_header&
   // Compute the new stack but only commit after the response is queued.
   // Safe without atomics: current_stack_ is only accessed from the session's
   // strand (single-threaded), so the read-then-write is not a data race.
-  double new_stack = std::min(current_stack_ + reload_opt->requested_amount, protocol::MAX_AMOUNT);
+  int64_t new_stack = std::min(current_stack_ + reload_opt->requested_amount, protocol::MAX_AMOUNT);
   protocol::reload_response_message resp;
   resp.granted = true;
   resp.new_stack = new_stack;

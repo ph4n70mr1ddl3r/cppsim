@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.15)
-
 function(enable_sanitizers target)
   option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
   option(ENABLE_USAN "Enable UndefinedBehaviorSanitizer" OFF)

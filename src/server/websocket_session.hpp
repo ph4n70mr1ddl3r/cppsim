@@ -111,7 +111,7 @@ class websocket_session final
   // Mutable state — only accessed from the session's strand (single-threaded).
   // No mutex needed: all reads/writes happen in handlers dispatched to the
   // strand executor (do_read -> on_read -> handle_* -> do_write -> on_write).
-  double current_stack_{config::PLACEHOLDER_STACK};
+  int64_t current_stack_{config::PLACEHOLDER_STACK};
   std::chrono::seconds handshake_timeout_;
 };
 

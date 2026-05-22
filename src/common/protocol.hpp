@@ -20,7 +20,7 @@ void set_error_logger(std::function<void(std::string_view)> logger);
 constexpr const char* PROTOCOL_VERSION = "v1.0";
 
 // Validation constants
-constexpr double MAX_AMOUNT = 1e15;  // Maximum valid amount for bets/reloads
+constexpr int64_t MAX_AMOUNT = 1000000000000000LL;  // Maximum valid amount (in cents)
 // Maximum length for session IDs. Must match server config.
 // Generated IDs are "sess_" + 32 hex chars = 37 bytes; the limit allows future formats.
 constexpr size_t MAX_SESSION_ID_LENGTH = 128;
@@ -58,7 +58,7 @@ constexpr const char* ALL_IN = "ALL_IN";
 // Player stack information for state updates
 struct player_stack {
   int seat;
-  double stack;
+  int64_t stack;  // Amount in cents
 };
 
 // HANDSHAKE message - Client initiates connection
@@ -71,14 +71,14 @@ struct handshake_message {
 struct handshake_response {
   std::string session_id;
   int seat_number;
-  double starting_stack;
+  int64_t starting_stack;  // Amount in cents
 };
 
 // ACTION message - Client sends poker action
 struct action_message {
   std::string session_id;
   std::string action_type;  // "FOLD", "CALL", "RAISE", "CHECK", "ALL_IN"
-  std::optional<double> amount;
+  std::optional<int64_t> amount;  // Amount in cents, if applicable
   int64_t sequence_number;
 };
 
@@ -86,8 +86,8 @@ struct action_message {
 struct state_update_message {
   std::string game_phase;  // "WAITING", "PREFLOP", "FLOP", "TURN", "RIVER",
                            // "SHOWDOWN", "HAND_COMPLETE"
-  double pot_size;
-  double current_bet;
+  int64_t pot_size;       // Amount in cents
+  int64_t current_bet;    // Amount in cents
   std::vector<player_stack> player_stacks;
   std::optional<std::vector<std::string>> community_cards;
   std::optional<std::vector<std::string>> hole_cards;
@@ -106,13 +106,13 @@ struct error_message {
 // RELOAD_REQUEST message - Client requests chip reload
 struct reload_request_message {
   std::string session_id;
-  double requested_amount;
+  int64_t requested_amount;  // Amount in cents
 };
 
 // RELOAD_RESPONSE message - Server responds to reload request
 struct reload_response_message {
   bool granted;
-  double new_stack;
+  int64_t new_stack;  // Amount in cents
 };
 
 // DISCONNECT message - Graceful disconnection
@@ -205,7 +205,7 @@ inline void from_json(const nlohmann::json& j, action_message& m) {
   j.at("action_type").get_to(m.action_type);
   j.at("sequence_number").get_to(m.sequence_number);
   if (j.contains("amount") && !j["amount"].is_null()) {
-    m.amount = j["amount"].get<double>();
+    m.amount = j["amount"].get<int64_t>();
   }
 }
 
