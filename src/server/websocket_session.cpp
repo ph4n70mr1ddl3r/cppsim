@@ -8,6 +8,7 @@
 #include "logger.hpp"
 #include "protocol.hpp"
 #include "sanitize.hpp"
+#include "runtime_config.hpp"
 #include "string_utils.hpp"
 
 namespace cppsim {
@@ -43,7 +44,7 @@ void websocket_session::run() noexcept {
         config::WS_READ_TIMEOUT,
         false});
 
-    ws_.read_message_max(config::MAX_MESSAGE_SIZE);
+    ws_.read_message_max(enhanced_config::get_max_message_size());
 
     deadline_.expires_after(handshake_timeout_);
     check_deadline();
@@ -224,7 +225,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
   // do_read() from being scheduled, avoiding a use-after-close read.
   if (state_.load(std::memory_order_acquire) != state::closed &&
       !close_requested_.load(std::memory_order_acquire)) {
-    deadline_.expires_after(config::IDLE_TIMEOUT);
+    deadline_.expires_after(enhanced_config::get_idle_timeout());
     do_read();
   }
 }
@@ -235,12 +236,12 @@ bool websocket_session::check_rate_limit_or_close() noexcept {
 
   {
     std::lock_guard<std::mutex> lock(rate_limit_mutex_);
-    auto window_start = now - config::RATE_LIMIT_WINDOW;
+    auto window_start = now - enhanced_config::get_rate_limit_window();
     auto it = std::remove_if(message_timestamps_.begin(), message_timestamps_.end(),
         [window_start](const auto& timestamp) { return timestamp < window_start; });
     message_timestamps_.erase(it, message_timestamps_.end());
 
-    if (message_timestamps_.size() >= config::MAX_MESSAGES_PER_WINDOW) {
+    if (message_timestamps_.size() >= enhanced_config::get_max_messages_per_window()) {
       should_close = true;
     } else {
       message_timestamps_.push_back(now);
@@ -388,6 +389,39 @@ void websocket_session::handle_action(const protocol::parsed_message_header& hea
     return;
   }
 
+  // Basic action validation
+  if (action_opt->action_type.empty()) {
+    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Action type cannot be empty");
+    close();
+    return;
+  }
+
+  // Validate action-specific requirements
+  if (action_opt->action_type == protocol::action_types::RAISE || 
+      action_opt->action_type == protocol::action_types::ALL_IN) {
+    if (!action_opt->amount || *action_opt->amount <= 0) {
+      send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "RAISE and ALL_IN require a positive amount");
+      close();
+      return;
+    }
+    
+    // Validate amount against maximum
+    if (*action_opt->amount > protocol::MAX_AMOUNT) {
+      send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Amount exceeds maximum allowed");
+      close();
+      return;
+    }
+  } else if (action_opt->amount) {
+    // Non-raise actions should not have an amount field
+    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, 
+                       (action_opt->action_type == protocol::action_types::FOLD ||
+                        action_opt->action_type == protocol::action_types::CHECK ||
+                        action_opt->action_type == protocol::action_types::CALL) 
+                       ? "Action type does not accept amount" : "Invalid amount for action type");
+    close();
+    return;
+  }
+
   int64_t seq = action_opt->sequence_number;
   int64_t last_seq = last_sequence_number_.load(std::memory_order_acquire);
   if (seq <= last_seq) {
@@ -405,11 +439,11 @@ void websocket_session::handle_action(const protocol::parsed_message_header& hea
   // When last_seq is -1 (initial sentinel), casting to uint64_t wraps to UINT64_MAX,
   // so the subtraction yields seq + 1 — the correct gap from "no prior sequence".
   uint64_t gap = static_cast<uint64_t>(seq) - static_cast<uint64_t>(last_seq);
-  if (gap > static_cast<uint64_t>(config::MAX_SEQUENCE_GAP)) {
+  if (gap > static_cast<uint64_t>(enhanced_config::get_max_sequence_gap())) {
     try {
       log_error("[WebSocketSession] Sequence number too far ahead: " +
                 std::to_string(seq) + " (gap: " + std::to_string(gap) +
-                ", max allowed: " + std::to_string(config::MAX_SEQUENCE_GAP) + ")");
+                ", max allowed: " + std::to_string(enhanced_config::get_max_sequence_gap()) + ")");
     } catch (...) {
       // Allocation failure in log — session will still be closed below.
     }
@@ -424,6 +458,13 @@ void websocket_session::handle_action(const protocol::parsed_message_header& hea
   } catch (...) {
     // Non-fatal: log allocation failure must not close a healthy session.
   }
+
+  // TODO: Add game state validation once game engine is implemented:
+  // - Verify current game phase allows this action type
+  // - Check if it's the player's turn to act
+  // - Validate stack amounts (RAISE/ALL_IN cannot exceed player stack)
+  // - Check action legality against current betting round (e.g., cannot CHECK if bet made)
+  // - Validate pot and bet amounts are within expected ranges
 }
 
 void websocket_session::handle_reload_msg(const protocol::parsed_message_header& header, const std::string& sid) {
@@ -785,14 +826,27 @@ void websocket_session::send_protocol_error(const char* error_code, std::string_
   try {
     protocol::error_message err;
     err.error_code = error_code;
-    err.message = std::string(message);
+    
+    // Use string_view to avoid allocation where possible
+    // Fallback to empty string if allocation fails
+    try {
+      err.message = std::string(message);
+    } catch (...) {
+      err.message = "Error processing message";  // Non-allocating fallback
+    }
+    
     auto sid = get_session_id_safe();
     if (!sid.empty()) err.session_id = sid;
-    if (!send(protocol::serialize_error(err))) {
-      log_error("[WebSocketSession] Failed to send protocol error for session " + sanitize_session_id(sid));
+    
+    try {
+      if (!send(protocol::serialize_error(err))) {
+        log_error("[WebSocketSession] Failed to send protocol error for session " + sanitize_session_id(sid));
+      }
+    } catch (...) {
+      // Non-fatal: failure to log shouldn't propagate
     }
   } catch (...) {
-    log_error("[WebSocketSession] Exception in send_protocol_error");
+    // Ultimate fallback: don't let any exception escape noexcept function
   }
 }
 

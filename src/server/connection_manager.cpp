@@ -254,7 +254,12 @@ std::string connection_manager::generate_session_id() noexcept {
   try {
     return generate_crypto_session_id();
   } catch (const std::exception& e) {
-    log_error(std::string("[ConnectionManager] Failed to generate session ID: ") + e.what());
+    // Avoid allocation in noexcept function - use string_view and separate calls
+    try {
+      log_error("[ConnectionManager] Failed to generate session ID");
+    } catch (...) {
+      // Ultimate fallback
+    }
     return std::string();
   }
 }
@@ -275,7 +280,13 @@ void connection_manager::stop_all() noexcept {
   }
 
   try {
-    log_message("[ConnectionManager] Stopped " + std::to_string(count) + " session(s).");
+    // Use snprintf to avoid allocations in noexcept function
+    char buffer[128];
+    int len = std::snprintf(buffer, sizeof(buffer), 
+                             "[ConnectionManager] Stopped %zu session(s).", count);
+    if (len > 0 && len < static_cast<int>(sizeof(buffer))) {
+      log_message(std::string_view(buffer, static_cast<size_t>(len)));
+    }
   } catch (...) {
     // Allocation failure — sessions were still stopped successfully.
   }

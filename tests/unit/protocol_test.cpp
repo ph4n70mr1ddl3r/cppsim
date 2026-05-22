@@ -109,16 +109,16 @@ TEST(ProtocolTest, ActionMessageRaise) {
   ASSERT_TRUE(parsed.has_value());
   EXPECT_EQ(parsed->action_type, "RAISE");
   ASSERT_TRUE(parsed->amount.has_value());
-  EXPECT_DOUBLE_EQ(parsed->amount.value(), 10.5);
+  EXPECT_EQ(parsed->amount.value(), 1050);  // 10.5 dollars in cents
 }
 
 // Test: state_update_message with all optional fields
 TEST(ProtocolTest, StateUpdateMessageComplete) {
   state_update_message msg;
   msg.game_phase = "FLOP";
-  msg.pot_size = 15.5;
-  msg.current_bet = 5.0;
-  msg.player_stacks = {{1, 95.0}, {2, 90.0}};
+  msg.pot_size = 1550;  // 15.5 dollars in cents
+  msg.current_bet = 500;  // 5.0 dollars in cents
+  msg.player_stacks = {{1, 9500}, {2, 9000}};  // 95.0 and 90.0 dollars in cents
   msg.community_cards = std::vector<std::string>{"Kh", "9d", "3c"};
   msg.hole_cards = std::vector<std::string>{"As", "Kc"};
   msg.valid_actions = {"FOLD", "CALL", "RAISE"};
@@ -133,7 +133,7 @@ TEST(ProtocolTest, StateUpdateMessageComplete) {
   // Check payload
   nlohmann::json payload = j["payload"];
   EXPECT_EQ(payload["game_phase"], "FLOP");
-  EXPECT_DOUBLE_EQ(payload["pot_size"], 15.5);
+  EXPECT_EQ(payload["pot_size"], 1550);
   EXPECT_EQ(payload["community_cards"].size(), 3);
   EXPECT_EQ(payload["hole_cards"].size(), 2);
   EXPECT_EQ(payload["acting_seat"], 1);
@@ -196,7 +196,7 @@ TEST(ProtocolTest, ReloadRequestRoundTrip) {
 
   ASSERT_TRUE(parsed.has_value());
   EXPECT_EQ(parsed->session_id, original.session_id);
-  EXPECT_DOUBLE_EQ(parsed->requested_amount, original.requested_amount);
+  EXPECT_EQ(parsed->requested_amount, original.requested_amount);
 }
 
 // Test: Malformed JSON handling
@@ -583,7 +583,7 @@ TEST(ProtocolTest, LargeValidAmount) {
   auto result = parse_action(j.dump());
 
   ASSERT_TRUE(result.has_value());
-  EXPECT_DOUBLE_EQ(result->amount.value(), 1e10);
+  EXPECT_EQ(result->amount.value(), static_cast<int64_t>(1e12));  // 1e10 dollars = 1e12 cents
 }
 
 // Test: Handshake version mismatch between envelope and payload

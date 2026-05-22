@@ -4,6 +4,7 @@ add_library(poker_server_lib STATIC
   websocket_session.cpp
   connection_manager.cpp
   logger.cpp
+  runtime_config.cpp
 )
 
 target_link_libraries(poker_server_lib
