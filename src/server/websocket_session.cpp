@@ -757,7 +757,7 @@ std::string websocket_session::get_session_id_safe() const noexcept {
     std::lock_guard<std::mutex> lock(session_id_mutex_);
     return session_id_;
   } catch (...) {
-    return "";
+    return std::string();
   }
 }
 

@@ -59,13 +59,13 @@ bool get_secure_random(unsigned char* buf, size_t len) noexcept {
       return false;
     }
     // Use all bytes from each rand_s() call
+    size_t to_copy = std::min(len - i, static_cast<size_t>(RAND_S_BYTES_PER_CALL));
     unsigned char bytes[RAND_S_BYTES_PER_CALL] = {
       static_cast<unsigned char>(val & 0xFF),
       static_cast<unsigned char>((val >> 8) & 0xFF),
       static_cast<unsigned char>((val >> 16) & 0xFF),
       static_cast<unsigned char>((val >> 24) & 0xFF)
     };
-    size_t to_copy = std::min(len - i, static_cast<size_t>(RAND_S_BYTES_PER_CALL));
     std::memcpy(buf + i, bytes, to_copy);
     i += to_copy;
   }
@@ -128,7 +128,7 @@ std::string connection_manager::register_session(
     std::shared_ptr<websocket_session> session) {
   if (!session) {
     log_error("[ConnectionManager] Cannot register null session");
-    return "";
+    return std::string();
   }
   
   for (int attempt = 0; attempt < MAX_SESSION_ID_RETRIES; ++attempt) {
@@ -136,12 +136,12 @@ std::string connection_manager::register_session(
 
     if (session_id.empty()) {
       log_error("[ConnectionManager] Failed to generate session ID");
-      return "";
+      return std::string();
     }
 
     if (session_id.size() > config::MAX_SESSION_ID_LENGTH) {
       log_error("[ConnectionManager] Generated session ID exceeds maximum length");
-      return "";
+      return std::string();
     }
 
     // emplace_result distinguishes the three outcomes so logging can happen
@@ -171,7 +171,7 @@ std::string connection_manager::register_session(
       case emplace_result::max_connections:
         log_error("[ConnectionManager] Maximum connections reached (" +
             std::to_string(config::MAX_CONNECTIONS) + ")");
-        return "";
+        return std::string();
       case emplace_result::collision:
         log_error("[ConnectionManager] Session ID collision (attempt " +
             std::to_string(attempt + 1) + "), retrying: " + cppsim::server::sanitize_session_id(session_id));
@@ -180,7 +180,7 @@ std::string connection_manager::register_session(
         break;
       default:
         log_error("[ConnectionManager] Unexpected emplace result");
-        return "";
+        return std::string();
     }
 
     log_message("[ConnectionManager] Registered session: " + cppsim::server::sanitize_session_id(session_id) + " (total: " + std::to_string(count) + ")");
@@ -189,7 +189,7 @@ std::string connection_manager::register_session(
   }
 
   log_error("[ConnectionManager] Session ID collision after all retries");
-  return "";
+  return std::string();
 }
 
 void connection_manager::unregister_session(std::string_view session_id) noexcept {
@@ -255,7 +255,7 @@ std::string connection_manager::generate_session_id() noexcept {
     return generate_crypto_session_id();
   } catch (const std::exception& e) {
     log_error(std::string("[ConnectionManager] Failed to generate session ID: ") + e.what());
-    return "";
+    return std::string();
   }
 }
 
