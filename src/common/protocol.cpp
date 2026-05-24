@@ -2,7 +2,6 @@
 #include "string_utils.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <limits>
 #include <mutex>
 #include <unordered_set>
@@ -298,8 +297,9 @@ std::optional<action_message> validate_action(std::optional<action_message> resu
     return std::nullopt;
   }
 
-  if (msg.amount && (*msg.amount <= 0 || !std::isfinite(*msg.amount) || *msg.amount > MAX_AMOUNT)) {
-    log_protocol_error("[Protocol] Invalid amount in action: must be positive, finite, and within bounds");
+  // amount is int64_t — always finite, no isfinite() check needed.
+  if (msg.amount && (*msg.amount <= 0 || *msg.amount > MAX_AMOUNT)) {
+    log_protocol_error("[Protocol] Invalid amount in action: must be positive and within bounds");
     return std::nullopt;
   }
 
@@ -344,8 +344,9 @@ std::optional<reload_request_message> validate_reload(std::optional<reload_reque
     return std::nullopt;
   }
 
-  if (msg.requested_amount <= 0 || !std::isfinite(msg.requested_amount) || msg.requested_amount > MAX_AMOUNT) {
-    log_protocol_error("[Protocol] Invalid reload amount: must be positive, finite, and within bounds");
+  // requested_amount is int64_t — always finite, no isfinite() check needed.
+  if (msg.requested_amount <= 0 || msg.requested_amount > MAX_AMOUNT) {
+    log_protocol_error("[Protocol] Invalid reload amount: must be positive and within bounds");
     return std::nullopt;
   }
 

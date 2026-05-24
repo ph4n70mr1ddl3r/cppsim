@@ -22,6 +22,7 @@ websocket_session::websocket_session(
     : ws_(std::move(socket)),
       conn_mgr_(mgr),
       deadline_(ws_.get_executor()),
+      last_activity_(std::chrono::steady_clock::now()),
       handshake_timeout_(handshake_timeout) {}
 
 websocket_session::~websocket_session() noexcept {
@@ -914,6 +915,27 @@ void websocket_session::do_close() noexcept {
   }
 }
 
+// Convert protocol_error enum to string for JSON error messages.
+// Kept in named namespace (not anonymous) for testability.
+namespace detail {
+
+std::string error_code_to_string(protocol_error error_type) {
+  switch (error_type) {
+    case protocol_error::invalid_session_id: return "INVALID_SESSION_ID";
+    case protocol_error::sequence_number_mismatch: return "SEQUENCE_NUMBER_MISMATCH";
+    case protocol_error::invalid_action_type: return "INVALID_ACTION_TYPE";
+    case protocol_error::insufficient_funds: return "INSUFFICIENT_FUNDS";
+    case protocol_error::amount_out_of_bounds: return "AMOUNT_OUT_OF_BOUNDS";
+    case protocol_error::malformed_message: return "MALFORMED_MESSAGE";
+    case protocol_error::rate_limit_exceeded: return "RATE_LIMIT_EXCEEDED";
+    case protocol_error::server_internal_error: return "SERVER_INTERNAL_ERROR";
+    case protocol_error::authentication_failed: return "AUTHENTICATION_FAILED";
+    default: return "UNKNOWN_ERROR";
+  }
+}
+
+}  // namespace detail
+
 // Enhanced error handling implementation
 bool websocket_session::send_error(protocol_error error_type,
                                  const std::string& details,
@@ -923,7 +945,7 @@ bool websocket_session::send_error(protocol_error error_type,
     
     nlohmann::json error_json = {
       {"message_type", "ERROR"},
-      {"error_code", error_code_to_string(ctx.type)},
+      {"error_code", detail::error_code_to_string(ctx.type)},
       {"message", ctx.details}
     };
     
@@ -938,7 +960,8 @@ bool websocket_session::send_error(protocol_error error_type,
     return queue_message(error_json.dump());
   } catch (...) {
     // Allocation failure in noexcept function — fallback to basic protocol error
-    return send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Internal server error");
+    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Internal server error");
+    return false;
   }
 }
 
@@ -950,7 +973,7 @@ void websocket_session::add_security_event(const std::string& event) noexcept {
     // Keep only recent events to prevent unbounded growth
     if (security_events_.size() > 100) {
       security_events_.erase(security_events_.begin(), 
-                           security_events_.begin() + security_events_.size() - 100);
+                           security_events_.begin() + static_cast<long>(security_events_.size()) - 100);
     }
     
     // Log security events at warning level
@@ -962,23 +985,19 @@ void websocket_session::add_security_event(const std::string& event) noexcept {
 
 bool websocket_session::check_suspicious_activity() noexcept {
   try {
+    // Update activity tracking
+    last_activity_ = std::chrono::steady_clock::now();
+    message_count_.fetch_add(1, std::memory_order_relaxed);
+    
     // Check for rapid message bursts
-    if (message_count_.load() > 100) {
+    int64_t count = message_count_.load(std::memory_order_relaxed);
+    if (count > 50) {
       auto now = std::chrono::steady_clock::now();
       auto time_since_start = std::chrono::duration_cast<std::chrono::seconds>(
           now - last_activity_).count();
       
-      if (time_since_start < 5 && message_count_.load() > 50) {
-        add_security_event("Rapid message burst detected");
-        return true;
-      }
-    }
-    
-    // Check for sequence number anomalies
-    if (last_sequence_number_.load() > 0) {
-      // Simple heuristic: detect unusually large gaps
-      if (last_sequence_number_.load() > 1000) {
-        add_security_event("Large sequence gap detected");
+      if (time_since_start == 0) {
+        add_security_event("Rapid message burst detected: " + std::to_string(count) + " messages");
         return true;
       }
     }
@@ -1053,14 +1072,16 @@ bool websocket_session::validate_sequence_number(int64_t received, int64_t expec
     
     // Detect replay attacks (old sequence numbers)
     if (received <= expected) {
-      add_security_event(std::string("Possible replay attack: sequence number ") + 
-                        std::to_string(received) + " <= " + std::to_string(expected));
+      std::string replay_msg = "Possible replay attack: sequence number " + 
+                              std::to_string(received) + " <= " + std::to_string(expected);
+      add_security_event(replay_msg);
       return false;
     }
     
     // Gap too large
-    add_security_event(std::string("Sequence number gap too large: received ") + 
-                      std::to_string(received) + ", expected ") + std::to_string(expected);
+    std::string gap_msg = "Sequence number gap too large: received " + 
+                         std::to_string(received) + ", expected " + std::to_string(expected);
+    add_security_event(gap_msg);
     return false;
   } catch (...) {
     return false;
@@ -1094,8 +1115,12 @@ void websocket_session::handle_rate_limit_exceeded() noexcept {
     log_error(std::string("[WebSocketSession] Rate limit exceeded for session ") + id_str);
     add_security_event("Rate limit exceeded");
     
-    send_error(protocol_error::rate_limit_exceeded, 
-               "Rate limit exceeded. Please reduce message frequency.");
+    if (!send_error(protocol_error::rate_limit_exceeded, 
+                     "Rate limit exceeded. Please reduce message frequency.")) {
+        // Failed to send error, close immediately
+        close();
+        return;
+    }
     close();
   } catch (...) {
     // Fallback for allocation failure
@@ -1124,16 +1149,22 @@ void websocket_session::validate_action_phase_and_amount(const std::string& acti
       action_valid = true;
       // Validate that amount is provided for CALL/ALL_IN
       if (!amount.has_value() || amount.value() <= 0) {
-        send_error(protocol_error::invalid_action_type, 
-                   std::string("Invalid amount for ") + action_type + " action");
+        if (!send_error(protocol_error::invalid_action_type, 
+                         std::string("Invalid amount for ") + action_type + " action")) {
+          close();
+          return;
+        }
         return;
       }
     } else if (action_type == "RAISE") {
       action_valid = true;
       // Validate that amount is provided and positive
       if (!amount.has_value() || amount.value() <= 0) {
-        send_error(protocol_error::invalid_action_type, 
-                   "RAISE action requires a positive amount");
+        if (!send_error(protocol_error::invalid_action_type, 
+                         "RAISE action requires a positive amount")) {
+          close();
+          return;
+        }
         return;
       }
       // Additional raise validation would go here
@@ -1141,31 +1172,43 @@ void websocket_session::validate_action_phase_and_amount(const std::string& acti
     }
     
     if (!action_valid) {
-      send_error(protocol_error::invalid_action_type, 
-                 "Invalid action type: " + action_type);
+      if (!send_error(protocol_error::invalid_action_type, 
+                       "Invalid action type: " + action_type)) {
+        close();
+        return;
+      }
       return;
     }
     
     // Validate amount against maximum limits
     if (amount.has_value() && amount.value() > protocol::MAX_AMOUNT) {
-      send_error(protocol_error::amount_out_of_bounds, 
-                 std::string("Amount exceeds maximum limit: ") + 
-                 std::to_string(amount.value()));
+      if (!send_error(protocol_error::amount_out_of_bounds, 
+                       std::string("Amount exceeds maximum limit: ") + 
+                       std::to_string(amount.value()))) {
+        close();
+        return;
+      }
       return;
     }
     
     // Validate stack amount (RAISE/ALL_IN cannot exceed player stack)
     if (action_type == "RAISE" || action_type == "ALL_IN") {
       if (current_stack_ <= 0) {
-        send_error(protocol_error::insufficient_funds, 
-                   "Insufficient stack for " + action_type + " action");
+        if (!send_error(protocol_error::insufficient_funds, 
+                         "Insufficient stack for " + action_type + " action")) {
+          close();
+          return;
+        }
         return;
       }
       
       if (amount.has_value() && amount.value() > current_stack_) {
-        send_error(protocol_error::insufficient_funds, 
-                   std::string("Insufficient stack for raise amount: ") + 
-                   std::to_string(amount.value()));
+        if (!send_error(protocol_error::insufficient_funds, 
+                         std::string("Insufficient stack for raise amount: ") + 
+                         std::to_string(amount.value()))) {
+          close();
+          return;
+        }
         return;
       }
     }
@@ -1180,13 +1223,12 @@ void websocket_session::validate_action_phase_and_amount(const std::string& acti
     
   } catch (...) {
     // Catch-all for any unexpected errors during validation
-    send_error(protocol_error::server_internal_error, 
-               "Internal error during action validation");
+    if (!send_error(protocol_error::server_internal_error, 
+                     "Internal error during action validation")) {
+      close();
+    }
   }
 }
-
-}  // namespace server
-}  // namespace cppsim
 
 }  // namespace server
 }  // namespace cppsim

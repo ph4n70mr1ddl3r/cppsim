@@ -1,0 +1,16 @@
+{
+  "max_connections": 1000,
+  "handshake_timeout": 10,
+  "max_message_size": 65536,
+  "max_write_queue_size": 100,
+  "max_messages_per_window": 10,
+  "rate_limit_window": 1,
+  "max_backoff": 30,
+  "ws_idle_timeout": 86400,
+  "ws_read_timeout": 86400,
+  "max_amount": 1000000000000000,
+  "max_sequence_gap": 10000,
+  "security_enabled": true,
+  "metrics_enabled": true,
+  "reload_interval": 5
+}

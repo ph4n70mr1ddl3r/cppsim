@@ -3,10 +3,14 @@
 #include <algorithm>
 #include <limits>
 #include <stdexcept>
+#include <string>
+#include <memory>
 
 #include "config.hpp"
 #include "logger.hpp"
 #include "websocket_session.hpp"
+#include "runtime_config_manager.hpp"
+#include "metrics_collector.hpp"
 
 namespace cppsim {
 namespace server {
@@ -21,6 +25,10 @@ websocket_server::websocket_server(boost::asio::io_context& ioc, uint16_t port,
       acceptor_(boost::asio::make_strand(ioc)),
       conn_mgr_(std::make_shared<connection_manager>()),
       handshake_timeout_(handshake_timeout) {
+    
+    // Record server creation metrics
+    metrics_collector::record_event("server_created");
+    metrics_collector::set_gauge("server_port", static_cast<double>(port));
   boost::beast::error_code ec;
 
   boost::asio::ip::tcp::endpoint endpoint{boost::asio::ip::tcp::v4(), port};
@@ -71,6 +79,9 @@ void websocket_server::run() noexcept {
   }
   // Start accepting connections
   do_accept();
+  
+  // Log server startup with metrics
+  metrics_collector::increment_counter("server_connections_accepted");
 }
 
 void websocket_server::stop() noexcept {
@@ -79,6 +90,9 @@ void websocket_server::stop() noexcept {
     return;  // Already stopped
   }
 
+  // Record stop event
+  metrics_collector::record_event("server_stop");
+  
   alive_.store(false, std::memory_order_release);
   
   // Cancel any pending backoff timer
@@ -107,6 +121,9 @@ void websocket_server::stop() noexcept {
   // Stop all active sessions
   if (conn_mgr_) {
       conn_mgr_->stop_all();
+      
+      // Record session metrics
+      metrics_collector::set_gauge("active_sessions", static_cast<double>(conn_mgr_->session_count()));
   }
 
   log_message("[WebSocketServer] Stopped accepting connections");

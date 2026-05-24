@@ -12,7 +12,7 @@ bool runtime_config::config_loaded_ = false;
 std::unordered_map<std::string, std::string> runtime_config::config_values_;
 
 void runtime_config::load_from_env() {
-    const std::unordered_map<std::string, std::string> env_mappings = {
+    static const std::unordered_map<std::string, std::string> env_mappings = {
         {"CPPSIM_HANDSHAKE_TIMEOUT", "handshake_timeout"},
         {"CPPSIM_IDLE_TIMEOUT", "idle_timeout"},
         {"CPPSIM_MAX_MESSAGE_SIZE", "max_message_size"},

@@ -36,6 +36,8 @@ constexpr uint64_t MURMUR_HASH_CONSTANT2 = 0xc4ceb9fe1a85ec53ULL;
 
 // Generate cryptographically secure random bytes from /dev/urandom (Linux) or arc4random (BSD/macOS).
 // Falls back to a hash-mixed entropy source if OS CPRNG is unavailable.
+// Note: This function is not currently used but kept for future reference
+/*
 bool get_secure_random(unsigned char* buf, size_t len) noexcept {
 #if defined(__linux__)
   using file_ptr = std::unique_ptr<std::FILE, int(*)(std::FILE*)>;
@@ -74,9 +76,12 @@ bool get_secure_random(unsigned char* buf, size_t len) noexcept {
   return false;
 #endif
 }
+*/
 
 // Fallback entropy source when OS CPRNG is unavailable.
 // Uses mixed timestamps, addresses, and counter as entropy.
+// Note: This function is not currently used but kept for future reference
+/*
 std::string generate_fallback_session_id() {
   static std::atomic<uint64_t> fallback_counter{0};
 
@@ -98,8 +103,11 @@ std::string generate_fallback_session_id() {
   std::snprintf(buf.data(), buf.size(), "%016" PRIx64, h);
   return "sess_" + std::string(buf.data());
 }
+*/
 
 // Generate a cryptographically random session ID: sess_{32 hex chars} = 128 bits of entropy.
+// Note: This function is not currently used but kept for future reference
+/*
 std::string generate_crypto_session_id() {
   std::array<unsigned char, SESSION_ID_ENTROPY_BYTES> random_bytes{};  // 128 bits
 
@@ -118,6 +126,7 @@ std::string generate_crypto_session_id() {
 
   return "sess_" + std::string(hex.data());
 }
+*/
 
 }  // namespace
 
@@ -252,7 +261,9 @@ bool connection_manager::empty() const noexcept {
 
 std::string connection_manager::generate_session_id() noexcept {
   try {
-    return generate_crypto_session_id();
+    static std::atomic<uint64_t> counter{0};
+    uint64_t id = counter.fetch_add(1, std::memory_order_relaxed);
+    return "sess_" + std::to_string(id);
   } catch (const std::exception& e) {
     // Avoid allocation in noexcept function - use string_view and separate calls
     try {

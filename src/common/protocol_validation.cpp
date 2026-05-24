@@ -17,7 +17,7 @@ bool is_valid_message_type(const std::string& message_type,
     
     // Check for control characters and ensure it's alphanumeric with underscores
     for (char c : message_type) {
-        if (!isalnum(c) && c != '_') {
+        if (!isalnum(static_cast<unsigned char>(c)) && c != '_') {
             return false;
         }
     }
@@ -42,14 +42,13 @@ bool is_valid_session_id(const std::string& session_id) noexcept {
     }
     
     // Session IDs should start with "sess_" followed by hex characters
-    if (session_id.size() < 5 || session_id.substr(0, 5) != "sess_") {
+    if (session_id.size() < 5 || session_id.compare(0, 5, "sess_") != 0) {
         return false;
     }
     
     // Check that the rest are valid hex characters
-    std::string hex_part = session_id.substr(5);
-    for (char c : hex_part) {
-        if (!isxdigit(c)) {
+    for (size_t i = 5; i < session_id.size(); ++i) {
+        if (!isxdigit(static_cast<unsigned char>(session_id[i]))) {
             return false;
         }
     }
@@ -107,7 +106,7 @@ std::string sanitize_input(const std::string& input) noexcept {
     
     for (char c : input) {
         // Remove control characters except for common whitespace
-        if (iscntrl(c) && !isspace(c)) {
+        if (iscntrl(static_cast<unsigned char>(c)) && !isspace(static_cast<unsigned char>(c))) {
             continue;
         }
         
@@ -158,8 +157,8 @@ bool validate_message_envelope(const std::string& json_str,
         }
         
         return true;
-    } catch (const nlohmann::json::exception&) {
-        // JSON parsing failed
+    } catch (const std::exception&) {
+        // JSON parsing or field access failed
         return false;
     } catch (...) {
         // Any other exception
@@ -186,17 +185,21 @@ bool validate_sequence_gap(int64_t current, int64_t previous, int64_t max_gap) n
 }
 
 // Constant-time comparison to prevent timing attacks
+// Compares all bytes even when sizes differ to avoid leaking length info.
+// Size mismatch still returns false, but comparison time is independent of content.
 [[nodiscard]] bool constant_time_compare(const std::string& a, const std::string& b) noexcept {
-    if (a.size() != b.size()) {
-        return false;
+    // Compare over the full range of the longer string to avoid timing leak.
+    // Use volatile to prevent the compiler from optimizing away the loop.
+    const size_t max_len = std::max(a.size(), b.size());
+    volatile bool size_match = (a.size() == b.size());
+    volatile bool result = true;
+    for (size_t i = 0; i < max_len; ++i) {
+        // Access within bounds: char from the string, or 0 if past its end
+        char ca = (i < a.size()) ? a[i] : '\0';
+        char cb = (i < b.size()) ? b[i] : '\0';
+        result = result & (ca == cb);
     }
-    
-    bool result = true;
-    for (size_t i = 0; i < a.size(); ++i) {
-        result &= (a[i] == b[i]);
-    }
-    
-    return result;
+    return size_match && result;
 }
 
 } // namespace validation

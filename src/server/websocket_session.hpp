@@ -1,6 +1,7 @@
 #pragma once
 
 #include "boost_wrapper.hpp"
+#include "connection_manager.hpp"
 #include "session_metrics.hpp"
 #include <atomic>
 #include <chrono>
@@ -55,11 +56,6 @@ struct error_context {
 
 
 
-namespace cppsim {
-namespace server {
-
-class connection_manager;
-
 /**
  * @class websocket_session
  * @brief Manages individual WebSocket connections for poker game sessions
@@ -82,16 +78,6 @@ class connection_manager;
 class websocket_session final
     : public std::enable_shared_from_this<websocket_session> {
  public:
-  // Thread safety model:
-  //   - Strand-only state (no lock needed): current_stack_, handshake_timeout_
-  //     — accessed only from handlers dispatched to the session's strand.
-  //   - Mutex-protected state: session_id_ (session_id_mutex_), write_queue_ +
-  //     writing_ (write_queue_mutex_), message_timestamps_ (rate_limit_mutex_).
-  //   - Atomic state: state_, last_sequence_number_, close_requested_,
-  //     close_initiated_.
-  //   - All public methods (send, close, is_authenticated, session_id) are safe
-  //     to call from any thread; they either use atomics, mutexes, or dispatch
-  //     to the strand internally.
   websocket_session(boost::asio::ip::tcp::socket socket,
                     std::shared_ptr<connection_manager> mgr,
                     std::chrono::seconds handshake_timeout = config::HANDSHAKE_TIMEOUT);
@@ -221,7 +207,7 @@ class websocket_session final
    * @param sequence_number Sequence number context (if applicable)
    * @return Populated error_context structure
    */
-  [[nodiscard]] error_context create_error_context(
+  error_context create_error_context(
       protocol_error error_type,
       const std::string& details,
       int64_t sequence_number = -1) const noexcept;

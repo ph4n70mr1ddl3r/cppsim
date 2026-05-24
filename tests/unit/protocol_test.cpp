@@ -92,7 +92,7 @@ TEST(ProtocolTest, ActionMessageRaise) {
   action_message msg;
   msg.session_id = "sess_a1b2c3d4e5f6aabb";
   msg.action_type = "RAISE";
-  msg.amount = 10.5;
+  msg.amount = 1050;  // $10.50 in cents
   msg.sequence_number = 2;
 
   message_envelope env;
@@ -574,7 +574,7 @@ TEST(ProtocolTest, LargeValidAmount) {
   env.payload = nlohmann::json{
       {"session_id", "sess_aabbccdd11223344"},
       {"action_type", "RAISE"},
-      {"amount", 1e10},
+      {"amount", 10000000000LL},  // 10 billion cents (not dollars)
       {"sequence_number", 1}
   };
 
@@ -583,7 +583,7 @@ TEST(ProtocolTest, LargeValidAmount) {
   auto result = parse_action(j.dump());
 
   ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(result->amount.value(), static_cast<int64_t>(1e12));  // 1e10 dollars = 1e12 cents
+  EXPECT_EQ(result->amount.value(), 10000000000LL);  // Should be the same: 10 billion cents
 }
 
 // Test: Handshake version mismatch between envelope and payload

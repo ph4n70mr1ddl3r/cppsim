@@ -168,16 +168,16 @@ TEST_F(WebsocketSessionTest, SuspiciousActivityDetection) {
 
 // Test error code conversion
 TEST(ErrorCodeConversion, ErrorCodeToString) {
-    EXPECT_EQ(error_code_to_string(protocol_error::invalid_session_id), "INVALID_SESSION_ID");
-    EXPECT_EQ(error_code_to_string(protocol_error::sequence_number_mismatch), "SEQUENCE_NUMBER_MISMATCH");
-    EXPECT_EQ(error_code_to_string(protocol_error::invalid_action_type), "INVALID_ACTION_TYPE");
-    EXPECT_EQ(error_code_to_string(protocol_error::insufficient_funds), "INSUFFICIENT_FUNDS");
-    EXPECT_EQ(error_code_to_string(protocol_error::amount_out_of_bounds), "AMOUNT_OUT_OF_BOUNDS");
-    EXPECT_EQ(error_code_to_string(protocol_error::malformed_message), "MALFORMED_MESSAGE");
-    EXPECT_EQ(error_code_to_string(protocol_error::rate_limit_exceeded), "RATE_LIMIT_EXCEEDED");
-    EXPECT_EQ(error_code_to_string(protocol_error::server_internal_error), "SERVER_INTERNAL_ERROR");
-    EXPECT_EQ(error_code_to_string(protocol_error::authentication_failed), "AUTHENTICATION_FAILED");
-    EXPECT_EQ(error_code_to_string(static_cast<protocol_error>(999)), "UNKNOWN_ERROR");
+    EXPECT_EQ(cppsim::server::detail::error_code_to_string(protocol_error::invalid_session_id), "INVALID_SESSION_ID");
+    EXPECT_EQ(cppsim::server::detail::error_code_to_string(protocol_error::sequence_number_mismatch), "SEQUENCE_NUMBER_MISMATCH");
+    EXPECT_EQ(cppsim::server::detail::error_code_to_string(protocol_error::invalid_action_type), "INVALID_ACTION_TYPE");
+    EXPECT_EQ(cppsim::server::detail::error_code_to_string(protocol_error::insufficient_funds), "INSUFFICIENT_FUNDS");
+    EXPECT_EQ(cppsim::server::detail::error_code_to_string(protocol_error::amount_out_of_bounds), "AMOUNT_OUT_OF_BOUNDS");
+    EXPECT_EQ(cppsim::server::detail::error_code_to_string(protocol_error::malformed_message), "MALFORMED_MESSAGE");
+    EXPECT_EQ(cppsim::server::detail::error_code_to_string(protocol_error::rate_limit_exceeded), "RATE_LIMIT_EXCEEDED");
+    EXPECT_EQ(cppsim::server::detail::error_code_to_string(protocol_error::server_internal_error), "SERVER_INTERNAL_ERROR");
+    EXPECT_EQ(cppsim::server::detail::error_code_to_string(protocol_error::authentication_failed), "AUTHENTICATION_FAILED");
+    EXPECT_EQ(cppsim::server::detail::error_code_to_string(static_cast<protocol_error>(999)), "UNKNOWN_ERROR");
 }
 
 // Test stress validation

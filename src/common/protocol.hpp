@@ -313,7 +313,14 @@ inline void from_json(const nlohmann::json& j, action_message& m) {
   j.at("action_type").get_to(m.action_type);
   j.at("sequence_number").get_to(m.sequence_number);
   if (j.contains("amount") && !j["amount"].is_null()) {
-    m.amount = j["amount"].get<int64_t>();
+    // Handle both int64_t and double (for amounts in dollars) by converting cents
+    if (j["amount"].is_number_integer()) {
+      m.amount = j["amount"].get<int64_t>();
+    } else {
+      // Convert dollars to cents (multiply by 100)
+      double dollars = j["amount"].get<double>();
+      m.amount = static_cast<int64_t>(dollars * 100.0);
+    }
   }
 }
 
