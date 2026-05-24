@@ -169,55 +169,11 @@ class websocket_session final
 
   [[nodiscard]] bool queue_message(std::string&& message) noexcept;
   [[nodiscard]] std::string get_session_id_safe() const noexcept;
-  
-  /**
-   * @brief Validate action types and amounts with comprehensive checks
-   * @param action_type Type of action (FOLD, CHECK, CALL, RAISE, ALL_IN)
-   * @param amount Optional amount for CALL/RAISE/ALL_IN actions
-   * @param current_stack Current stack size for validation
-   * @param current_bet Current bet size for validation
-   * @return Error message if validation fails, std::nullopt if valid
-   * 
-   * Thread Safety: Safe to call from any thread (noexcept)
-   */
-  [[nodiscard]] std::optional<std::string> validate_action(
-      const std::string& action_type,
-      std::optional<int64_t> amount,
-      int64_t current_stack,
-      int64_t current_bet) noexcept;
-  
-  void validate_action_phase_and_amount(const std::string& action_type,
-                                     std::optional<int64_t> amount,
-                                     int64_t sequence_number) noexcept;
-  
-  /**
-   * @brief Validate sequence numbers for replay protection
-   * @param received Received sequence number
-   * @param expected Expected sequence number
-   * @return true if sequence number is valid, false otherwise
-   * 
-   * Handles sequence gaps and detects potential replay attacks
-   */
-  [[nodiscard]] bool validate_sequence_number(int64_t received, int64_t expected) noexcept;
-  
-  /**
-   * @brief Create error context structure from current state
-   * @param error_type Type of error
-   * @param details Human-readable error details
-   * @param sequence_number Sequence number context (if applicable)
-   * @return Populated error_context structure
-   */
+
   error_context create_error_context(
       protocol_error error_type,
       const std::string& details,
       int64_t sequence_number = -1) const noexcept;
-  
-  /**
-   * @brief Handle rate limit exceeded condition
-   * 
-   * Queues appropriate error message and closes the connection
-   */
-  void handle_rate_limit_exceeded() noexcept;
 
   boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;
   boost::beast::flat_buffer buffer_;

@@ -2,7 +2,6 @@
 
 #include <string>
 #include <string_view>
-#include <charconv>
 
 namespace cppsim {
 namespace server {
@@ -24,29 +23,6 @@ namespace error_templates {
         "Invalid JSON format: {}";
     constexpr std::string_view INVALID_AMOUNT = 
         "Invalid amount: {}. Must be between {} and {}";
-}
-
-/**
- * @brief Format error message with arguments
- * @param template_str Error message template with {} placeholders
- * @param args Arguments to substitute
- * @return Formatted error message
- * 
- * NOTE: This is a placeholder implementation. The variadic template expansion
- * does not correctly substitute arguments one-by-one. For production use,
- * consider std::format (C++20) or fmtlib. Currently unused in production code.
- */
-template<typename... Args>
-[[nodiscard]] std::string format_error(std::string_view template_str, Args... args) {
-    // Suppress unused parameter warnings
-    (void)template_str;
-    (void)(..., static_cast<void>(args));
-    
-    try {
-        return std::string(template_str);
-    } catch (...) {
-        return std::string(template_str);
-    }
 }
 
 } // namespace server

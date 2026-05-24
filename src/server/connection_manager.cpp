@@ -1,17 +1,12 @@
 #include "connection_manager.hpp"
 
 #include <algorithm>
-#include <array>
 #include <atomic>
 #include <chrono>
-#include <cinttypes>
-#include <cstdint>
 #include <cstdio>
-#include <cstring>
 #include <memory>
 #include <mutex>
 #include <string_view>
-#include <thread>
 #include <utility>
 
 #include "config.hpp"
@@ -19,116 +14,14 @@
 #include "sanitize.hpp"
 #include "websocket_session.hpp"
 
-// Anonymous namespace: file-scope helpers for session ID generation.
-// Note: These functions use cppsim::server:: qualified calls for log_error/log_message
-// because they reside outside the cppsim::server namespace block below.
 namespace {
 
-// Cryptographic constants
-constexpr size_t SESSION_ID_ENTROPY_BYTES = 16;  // 128 bits of entropy
-constexpr size_t HEX_CHARS_PER_BYTE = 2;
-constexpr size_t HEX_BUFFER_SIZE = SESSION_ID_ENTROPY_BYTES * HEX_CHARS_PER_BYTE + 1;  // +1 for null terminator
-constexpr size_t FALLBACK_HEX_BUFFER_SIZE = sizeof(uint64_t) * HEX_CHARS_PER_BYTE + 1;  // 64-bit hex + null terminator
-constexpr size_t RAND_S_BYTES_PER_CALL = 4;
 constexpr int MAX_SESSION_ID_RETRIES = 3;
-constexpr uint64_t MURMUR_HASH_CONSTANT1 = 0xff51afd7ed558ccdULL;
-constexpr uint64_t MURMUR_HASH_CONSTANT2 = 0xc4ceb9fe1a85ec53ULL;
-
-// Generate cryptographically secure random bytes from /dev/urandom (Linux) or arc4random (BSD/macOS).
-// Falls back to a hash-mixed entropy source if OS CPRNG is unavailable.
-// Note: This function is not currently used but kept for future reference
-/*
-bool get_secure_random(unsigned char* buf, size_t len) noexcept {
-#if defined(__linux__)
-  using file_ptr = std::unique_ptr<std::FILE, int(*)(std::FILE*)>;
-  file_ptr f(std::fopen("/dev/urandom", "rb"), &std::fclose);
-  if (!f) {
-    return false;
-  }
-  size_t read = std::fread(buf, 1, len, f.get());
-  return read == len;
-#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
-  arc4random_buf(buf, len);
-  return true;
-#elif defined(_WIN32)
-  // Use rand_s() which calls RtlGenRandom (aka SystemFunction036) —
-  // a user-mode CSPRNG backed by the Windows kernel. Available since
-  // MSVC 2005 on all supported Windows versions.
-  size_t i = 0;
-  while (i < len) {
-    unsigned int val = 0;
-    if (rand_s(&val) != 0) {
-      return false;
-    }
-    // Use all bytes from each rand_s() call
-    size_t to_copy = std::min(len - i, static_cast<size_t>(RAND_S_BYTES_PER_CALL));
-    unsigned char bytes[RAND_S_BYTES_PER_CALL] = {
-      static_cast<unsigned char>(val & 0xFF),
-      static_cast<unsigned char>((val >> 8) & 0xFF),
-      static_cast<unsigned char>((val >> 16) & 0xFF),
-      static_cast<unsigned char>((val >> 24) & 0xFF)
-    };
-    std::memcpy(buf + i, bytes, to_copy);
-    i += to_copy;
-  }
-  return true;
-#else
-  return false;
-#endif
-}
-*/
-
-// Fallback entropy source when OS CPRNG is unavailable.
-// Uses mixed timestamps, addresses, and counter as entropy.
-// Note: This function is not currently used but kept for future reference
-/*
-std::string generate_fallback_session_id() {
-  static std::atomic<uint64_t> fallback_counter{0};
-
-  uint64_t counter = fallback_counter.fetch_add(1, std::memory_order_relaxed);
-  auto steady = std::chrono::steady_clock::now().time_since_epoch().count();
-  auto system = std::chrono::system_clock::now().time_since_epoch().count();
-  auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
-
-  // Mix entropy through MurmurHash3 finalizer
-  uint64_t h = counter ^ static_cast<uint64_t>(steady) ^ static_cast<uint64_t>(system) ^
-               static_cast<uint64_t>(thread_hash);
-  h ^= h >> 33;
-  h *= MURMUR_HASH_CONSTANT1;
-  h ^= h >> 33;
-  h *= MURMUR_HASH_CONSTANT2;
-  h ^= h >> 33;
-
-  std::array<char, FALLBACK_HEX_BUFFER_SIZE> buf;
-  std::snprintf(buf.data(), buf.size(), "%016" PRIx64, h);
-  return "sess_" + std::string(buf.data());
-}
-*/
-
-// Generate a cryptographically random session ID: sess_{32 hex chars} = 128 bits of entropy.
-// Note: This function is not currently used but kept for future reference
-/*
-std::string generate_crypto_session_id() {
-  std::array<unsigned char, SESSION_ID_ENTROPY_BYTES> random_bytes{};  // 128 bits
-
-  if (!get_secure_random(random_bytes.data(), random_bytes.size())) {
-    cppsim::server::log_error("[ConnectionManager] CSPRNG unavailable, using fallback session ID");
-    return generate_fallback_session_id();
-  }
-
-  std::array<char, HEX_BUFFER_SIZE> hex;
-  static constexpr char hex_chars[] = "0123456789abcdef";
-  for (size_t i = 0; i < random_bytes.size(); ++i) {
-    hex[i * HEX_CHARS_PER_BYTE] = hex_chars[(random_bytes[i] >> 4) & 0x0f];
-    hex[i * HEX_CHARS_PER_BYTE + 1] = hex_chars[random_bytes[i] & 0x0f];
-  }
-  hex[SESSION_ID_ENTROPY_BYTES * HEX_CHARS_PER_BYTE] = '\0';
-
-  return "sess_" + std::string(hex.data());
-}
-*/
 
 }  // namespace
+
+// Anonymous namespace helpers reference log_error/log_message via
+// cppsim::server:: qualified calls.
 
 namespace cppsim {
 namespace server {

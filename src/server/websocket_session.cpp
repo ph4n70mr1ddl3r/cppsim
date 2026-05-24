@@ -1,8 +1,6 @@
 #include "websocket_session.hpp"
 
 #include <algorithm>
-#include <cstdio>
-#include <sstream>
 #include <utility>
 
 #include "connection_manager.hpp"
@@ -391,39 +389,7 @@ void websocket_session::handle_action(const protocol::parsed_message_header& hea
     return;
   }
 
-  // Basic action validation
-  if (action_opt->action_type.empty()) {
-    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Action type cannot be empty");
-    close();
-    return;
-  }
-
-  // Validate action-specific requirements
-  if (action_opt->action_type == protocol::action_types::RAISE || 
-      action_opt->action_type == protocol::action_types::ALL_IN) {
-    if (!action_opt->amount || *action_opt->amount <= 0) {
-      send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "RAISE and ALL_IN require a positive amount");
-      close();
-      return;
-    }
-    
-    // Validate amount against maximum
-    if (*action_opt->amount > protocol::MAX_AMOUNT) {
-      send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Amount exceeds maximum allowed");
-      close();
-      return;
-    }
-  } else if (action_opt->amount) {
-    // Non-raise actions should not have an amount field
-    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, 
-                       (action_opt->action_type == protocol::action_types::FOLD ||
-                        action_opt->action_type == protocol::action_types::CHECK ||
-                        action_opt->action_type == protocol::action_types::CALL) 
-                       ? "Action type does not accept amount" : "Invalid amount for action type");
-    close();
-    return;
-  }
-
+  // Sequence number validation
   int64_t seq = action_opt->sequence_number;
   int64_t last_seq = last_sequence_number_.load(std::memory_order_acquire);
   if (seq <= last_seq) {
@@ -460,9 +426,6 @@ void websocket_session::handle_action(const protocol::parsed_message_header& hea
   } catch (...) {
     // Non-fatal: log allocation failure must not close a healthy session.
   }
-
-  // Enhanced game state validation
-  validate_action_phase_and_amount(action_opt->action_type, action_opt->amount, seq);
 }
 
 void websocket_session::handle_reload_msg(const protocol::parsed_message_header& header, const std::string& sid) {
@@ -1009,85 +972,6 @@ bool websocket_session::check_suspicious_activity() noexcept {
   }
 }
 
-std::optional<std::string> websocket_session::validate_action(
-    const std::string& action_type,
-    std::optional<int64_t> amount,
-    int64_t current_stack,
-    int64_t current_bet) noexcept {
-  try {
-    // Validate action type
-    if (action_type != "FOLD" && action_type != "CHECK" && 
-        action_type != "CALL" && action_type != "RAISE" && 
-        action_type != "ALL_IN") {
-      return "Invalid action type: " + trunc_field(action_type, 32);
-    }
-    
-    // Validate amount for actions that require it
-    if (action_type == "RAISE" || action_type == "ALL_IN" || action_type == "CALL") {
-      if (!amount.has_value()) {
-        return "Amount required for " + action_type + " action";
-      }
-      
-      if (amount.value() <= 0) {
-        return "Amount must be positive for " + action_type + " action";
-      }
-      
-      if (amount.value() > protocol::MAX_AMOUNT) {
-        return "Amount exceeds maximum allowed value";
-      }
-      
-      if (action_type == "RAISE" && amount.value() <= current_bet) {
-        return "Raise amount must be greater than current bet";
-      }
-      
-      if (amount.value() > current_stack) {
-        if (action_type != "ALL_IN") {
-          return "Amount exceeds available stack";
-        }
-      }
-    }
-    
-    // Additional validation for ALL_IN
-    if (action_type == "ALL_IN" && amount.value() > current_stack) {
-      return "ALL_IN amount cannot exceed available stack";
-    }
-    
-    return std::nullopt;  // Validation passed
-  } catch (...) {
-    return "Internal validation error";
-  }
-}
-
-bool websocket_session::validate_sequence_number(int64_t received, int64_t expected) noexcept {
-  try {
-    // Exact match (normal case)
-    if (received == expected) {
-      return true;
-    }
-    
-    // Allow for small gaps (network reordering)
-    if (received > expected && received <= expected + enhanced_config::get_max_sequence_gap()) {
-      return true;
-    }
-    
-    // Detect replay attacks (old sequence numbers)
-    if (received <= expected) {
-      std::string replay_msg = "Possible replay attack: sequence number " + 
-                              std::to_string(received) + " <= " + std::to_string(expected);
-      add_security_event(replay_msg);
-      return false;
-    }
-    
-    // Gap too large
-    std::string gap_msg = "Sequence number gap too large: received " + 
-                         std::to_string(received) + ", expected " + std::to_string(expected);
-    add_security_event(gap_msg);
-    return false;
-  } catch (...) {
-    return false;
-  }
-}
-
 error_context websocket_session::create_error_context(
     protocol_error error_type,
     const std::string& details,
@@ -1105,129 +989,6 @@ error_context websocket_session::create_error_context(
   }
   
   return ctx;
-}
-
-void websocket_session::handle_rate_limit_exceeded() noexcept {
-  try {
-    std::string session_id_str = get_session_id_safe();
-    std::string id_str = session_id_str.empty() ? "(unauthenticated)" : sanitize_session_id(session_id_str);
-    
-    log_error(std::string("[WebSocketSession] Rate limit exceeded for session ") + id_str);
-    add_security_event("Rate limit exceeded");
-    
-    if (!send_error(protocol_error::rate_limit_exceeded, 
-                     "Rate limit exceeded. Please reduce message frequency.")) {
-        // Failed to send error, close immediately
-        close();
-        return;
-    }
-    close();
-  } catch (...) {
-    // Fallback for allocation failure
-    send_protocol_error(protocol::error_codes::SESSION_CLOSED, "Rate limit exceeded");
-    close();
-  }
-}
-
-void websocket_session::validate_action_phase_and_amount(const std::string& action_type,
-                                                           std::optional<int64_t> amount,
-                                                           int64_t sequence_number) noexcept {
-  try {
-    // Validate action type against current game phase
-    // For now, we'll implement basic validation - this can be enhanced
-    // when the game engine is fully implemented
-    
-    static const std::vector<std::string> preflop_actions = {"FOLD", "CHECK", "CALL", "RAISE", "ALL_IN"};
-    static const std::vector<std::string> postflop_actions = {"FOLD", "CHECK", "CALL", "RAISE", "ALL_IN"};
-    
-    bool action_valid = false;
-    
-    // Basic action type validation
-    if (action_type == "FOLD" || action_type == "CHECK") {
-      action_valid = true;
-    } else if (action_type == "CALL" || action_type == "ALL_IN") {
-      action_valid = true;
-      // Validate that amount is provided for CALL/ALL_IN
-      if (!amount.has_value() || amount.value() <= 0) {
-        if (!send_error(protocol_error::invalid_action_type, 
-                         std::string("Invalid amount for ") + action_type + " action")) {
-          close();
-          return;
-        }
-        return;
-      }
-    } else if (action_type == "RAISE") {
-      action_valid = true;
-      // Validate that amount is provided and positive
-      if (!amount.has_value() || amount.value() <= 0) {
-        if (!send_error(protocol_error::invalid_action_type, 
-                         "RAISE action requires a positive amount")) {
-          close();
-          return;
-        }
-        return;
-      }
-      // Additional raise validation would go here
-      // (e.g., minimum raise amount, maximum raise amount)
-    }
-    
-    if (!action_valid) {
-      if (!send_error(protocol_error::invalid_action_type, 
-                       "Invalid action type: " + action_type)) {
-        close();
-        return;
-      }
-      return;
-    }
-    
-    // Validate amount against maximum limits
-    if (amount.has_value() && amount.value() > protocol::MAX_AMOUNT) {
-      if (!send_error(protocol_error::amount_out_of_bounds, 
-                       std::string("Amount exceeds maximum limit: ") + 
-                       std::to_string(amount.value()))) {
-        close();
-        return;
-      }
-      return;
-    }
-    
-    // Validate stack amount (RAISE/ALL_IN cannot exceed player stack)
-    if (action_type == "RAISE" || action_type == "ALL_IN") {
-      if (current_stack_ <= 0) {
-        if (!send_error(protocol_error::insufficient_funds, 
-                         "Insufficient stack for " + action_type + " action")) {
-          close();
-          return;
-        }
-        return;
-      }
-      
-      if (amount.has_value() && amount.value() > current_stack_) {
-        if (!send_error(protocol_error::insufficient_funds, 
-                         std::string("Insufficient stack for raise amount: ") + 
-                         std::to_string(amount.value()))) {
-          close();
-          return;
-        }
-        return;
-      }
-    }
-    
-    // Log successful validation
-    try {
-      log_message(std::string("[WebSocketSession] Action validation passed: ") + 
-                   action_type + " seq=" + std::to_string(sequence_number));
-    } catch (...) {
-      // Non-fatal: log allocation failure must not close a healthy session.
-    }
-    
-  } catch (...) {
-    // Catch-all for any unexpected errors during validation
-    if (!send_error(protocol_error::server_internal_error, 
-                     "Internal error during action validation")) {
-      close();
-    }
-  }
 }
 
 }  // namespace server

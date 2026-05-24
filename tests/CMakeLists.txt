@@ -4,6 +4,7 @@ add_executable(poker_tests)
 target_sources(poker_tests
   PRIVATE
     unit/protocol_test.cpp
+    unit/config_manager_test.cpp
     integration/websocket_server_test.cpp
     integration/handshake_test.cpp
 )

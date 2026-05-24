@@ -301,11 +301,7 @@ public:
     }
 
 private:
-    metrics_collector() : start_time_(std::chrono::steady_clock::now()) {
-        // Initialize minimum values for timing data
-        min_timing_value_ = std::numeric_limits<int64_t>::max();
-    }
-    
+    metrics_collector() = default;
     ~metrics_collector() = default;
     
     // Helper function to calculate percentile
@@ -369,16 +365,16 @@ private:
     
     // System metrics
     std::chrono::steady_clock::time_point start_time_;
-    int64_t min_timing_value_;
 };
 
-// Convenience macros for common metrics
-#define METRICS_INC(name) metrics_collector::increment_counter(name)
-#define METRICS_INC_VALUE(name, value) metrics_collector::increment_counter(name, value)
-#define METRICS_GAUGE(name, value) metrics_collector::set_gauge(name, value)
-#define METRICS_TIMING(name, duration) metrics_collector::record_timing(name, duration)
-#define METRICS_EVENT(name, ...) metrics_collector::record_event(name, ##__VA_ARGS__)
-#define METRICS_ERROR(type, ...) metrics_collector::record_error(type, ##__VA_ARGS__)
+// Convenience inline functions for common metrics (preferred over macros for
+// type safety and standard compliance).
+inline void MetricsInc(const std::string& name) { metrics_collector::increment_counter(name); }
+inline void MetricsIncValue(const std::string& name, int64_t value) { metrics_collector::increment_counter(name, value); }
+inline void MetricsGauge(const std::string& name, double value) { metrics_collector::set_gauge(name, value); }
+inline void MetricsTiming(const std::string& name, std::chrono::milliseconds duration) { metrics_collector::record_timing(name, duration); }
+inline void MetricsEvent(const std::string& name, const std::vector<std::string>& tags = {}) { metrics_collector::record_event(name, tags); }
+inline void MetricsError(const std::string& type, const std::string& details = "") { metrics_collector::record_error(type, details); }
 
 } // namespace server
 } // namespace cppsim
