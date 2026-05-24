@@ -292,8 +292,9 @@ public:
     static void reset() noexcept {
         try {
             auto& metrics = instance();
-            std::lock_guard<std::mutex> lock(metrics.export_mutex_);
-            
+
+            // Reset each data structure under its own lock.  No export_mutex_
+            // needed here — we're not reading across structures atomically.
             {
                 std::lock_guard<std::mutex> clk(metrics.counters_mutex_);
                 metrics.counters_.clear();
@@ -314,9 +315,9 @@ public:
                 std::lock_guard<std::mutex> erlk(metrics.errors_mutex_);
                 metrics.errors_.clear();
             }
-            
+
             metrics.start_time_ = std::chrono::steady_clock::now();
-            
+
         } catch (...) {
             // Ignore reset errors
         }
@@ -402,12 +403,12 @@ private:
 
 // Convenience inline functions for common metrics (preferred over macros for
 // type safety and standard compliance).
-inline void MetricsInc(const std::string& name) { metrics_collector::increment_counter(name); }
-inline void MetricsIncValue(const std::string& name, int64_t value) { metrics_collector::increment_counter(name, value); }
-inline void MetricsGauge(const std::string& name, double value) { metrics_collector::set_gauge(name, value); }
-inline void MetricsTiming(const std::string& name, std::chrono::milliseconds duration) { metrics_collector::record_timing(name, duration); }
-inline void MetricsEvent(const std::string& name, const std::vector<std::string>& tags = {}) { metrics_collector::record_event(name, tags); }
-inline void MetricsError(const std::string& type, const std::string& details = "") { metrics_collector::record_error(type, details); }
+inline void MetricsInc(std::string_view name) { metrics_collector::increment_counter(std::string(name)); }
+inline void MetricsIncValue(std::string_view name, int64_t value) { metrics_collector::increment_counter(std::string(name), value); }
+inline void MetricsGauge(std::string_view name, double value) { metrics_collector::set_gauge(std::string(name), value); }
+inline void MetricsTiming(std::string_view name, std::chrono::milliseconds duration) { metrics_collector::record_timing(std::string(name), duration); }
+inline void MetricsEvent(std::string_view name, const std::vector<std::string>& tags = {}) { metrics_collector::record_event(std::string(name), tags); }
+inline void MetricsError(std::string_view type, std::string_view details = "") { metrics_collector::record_error(std::string(type), std::string(details)); }
 
 } // namespace server
 } // namespace cppsim

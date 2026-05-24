@@ -110,24 +110,29 @@ bool is_valid_seat_number(int seat, int max_seats) noexcept {
 }
 
 std::string sanitize_input(const std::string& input) noexcept {
-    std::string result;
-    result.reserve(input.size());
-    
-    for (char c : input) {
-        // Remove control characters except for common whitespace
-        if (iscntrl(static_cast<unsigned char>(c)) && !isspace(static_cast<unsigned char>(c))) {
-            continue;
+    try {
+        std::string result;
+        result.reserve(input.size());
+        
+        for (char c : input) {
+            // Remove control characters except for common whitespace
+            if (iscntrl(static_cast<unsigned char>(c)) && !isspace(static_cast<unsigned char>(c))) {
+                continue;
+            }
+            
+            // Escape quotes for JSON safety
+            if (c == '\"' || c == '\\') {
+                result += '\\';
+            }
+            
+            result += c;
         }
         
-        // Escape quotes for JSON safety
-        if (c == '\"' || c == '\\') {
-            result += '\\';
-        }
-        
-        result += c;
+        return result;
+    } catch (...) {
+        // Allocation failure in noexcept function — return empty string
+        return std::string();
     }
-    
-    return result;
 }
 
 bool validate_message_envelope(const std::string& json_str,

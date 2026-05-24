@@ -949,8 +949,8 @@ void websocket_session::add_security_event(const std::string& event) noexcept {
     
     // Keep only recent events to prevent unbounded growth
     if (security_events_.size() > 100) {
-      security_events_.erase(security_events_.begin(), 
-                           security_events_.begin() + static_cast<long>(security_events_.size()) - 100);
+      security_events_.erase(security_events_.begin(),
+                           security_events_.end() - 100);
     }
     
     // Log security events at warning level
@@ -968,21 +968,22 @@ bool websocket_session::check_suspicious_activity() noexcept {
     int64_t count = message_count_.fetch_add(1, std::memory_order_relaxed) + 1;
 
     // Check for rapid message bursts: if we've seen more than 100 messages
-    // and the session has been alive for less than 1 second, flag it.
-    // This threshold is intentionally high to avoid false positives from
-    // legitimate fast-playing clients; rate limiting is the primary guard.
-    if (count > 100) {
-      auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-          now - last_activity_).count();
+    // and the elapsed time since the *current activity window* is less than
+    // 1 second, flag it.
+    // Use the time since the previous activity update as a proxy for burst
+    // speed.  If the session has sent 100+ messages and the inter-message
+    // gap is essentially zero (< 1s since last update), that's a burst.
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+        now - last_activity_).count();
 
-      if (elapsed == 0) {
-        add_security_event("Rapid message burst detected: " + std::to_string(count) + " messages in < 1s");
-        return true;
-      }
+    // Update activity timestamp *after* the check
+    last_activity_ = now;
+
+    if (count > 100 && elapsed == 0) {
+      add_security_event("Rapid message burst detected: " + std::to_string(count) + " messages in < 1s");
+      return true;
     }
 
-    // Update activity timestamp after the check
-    last_activity_ = now;
     return false;
   } catch (...) {
     // Check failure — assume safe rather than flag false positive
