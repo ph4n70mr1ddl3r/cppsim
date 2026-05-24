@@ -187,7 +187,17 @@ void websocket_session::on_read(boost::beast::error_code ec,
     std::string message = boost::beast::buffers_to_string(buffer_.data());
     buffer_.consume(buffer_.size());
 
+    metrics_.increment_messages_received();
+    metrics_.increment_bytes_received(bytes_transferred);
+
     if (!check_rate_limit_or_close()) {
+      return;
+    }
+
+    if (check_suspicious_activity()) {
+      add_security_event("Suspicious activity detected — closing session");
+      send_protocol_error(protocol::error_codes::SESSION_CLOSED, "Suspicious activity detected");
+      close();
       return;
     }
 
@@ -586,6 +596,10 @@ void websocket_session::do_write() {
 
 void websocket_session::on_write(boost::beast::error_code ec,
                                    [[maybe_unused]] std::size_t bytes_transferred) {
+  if (!ec) {
+    metrics_.increment_messages_sent();
+    metrics_.increment_bytes_sent(bytes_transferred);
+  }
   try {
     if (ec) {
       // String construction for log messages happens before the noexcept
@@ -947,18 +961,22 @@ void websocket_session::add_security_event(const std::string& event) noexcept {
 }
 
 bool websocket_session::check_suspicious_activity() noexcept {
+  // NOTE: This method runs on the session's strand (called from on_read),
+  // so last_activity_ doesn't need its own synchronization.
   try {
     auto now = std::chrono::steady_clock::now();
     int64_t count = message_count_.fetch_add(1, std::memory_order_relaxed) + 1;
 
-    // Check for rapid message bursts: if we've seen more than 50 messages
+    // Check for rapid message bursts: if we've seen more than 100 messages
     // and the session has been alive for less than 1 second, flag it.
-    if (count > 50) {
+    // This threshold is intentionally high to avoid false positives from
+    // legitimate fast-playing clients; rate limiting is the primary guard.
+    if (count > 100) {
       auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
           now - last_activity_).count();
 
       if (elapsed == 0) {
-        add_security_event("Rapid message burst detected: " + std::to_string(count) + " messages");
+        add_security_event("Rapid message burst detected: " + std::to_string(count) + " messages in < 1s");
         return true;
       }
     }

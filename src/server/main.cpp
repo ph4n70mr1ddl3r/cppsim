@@ -71,20 +71,35 @@ int main() {
     cppsim::server::log_message("[Main] Server running. Press Ctrl+C to stop.");
     
     // Start metrics collection thread if enabled
+    std::thread metrics_thread;
     if (config.is_metrics_enabled()) {
-      std::thread metrics_thread([&running]() {
+      metrics_thread = std::thread([&running]() {
         while (running) {
-          std::this_thread::sleep_for(std::chrono::seconds(30));
-          std::string metrics = cppsim::server::metrics_collector::export_metrics();
-          // In a real implementation, you might write this to a file or send to monitoring system
-          cppsim::server::log_message("[Metrics] Exporting server metrics...");
+          // Sleep in short increments so the thread exits promptly when
+          // `running` becomes false during shutdown.
+          for (int i = 0; i < 30 && running; ++i) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+          }
+          if (!running) break;
+          try {
+            std::string metrics = cppsim::server::metrics_collector::export_metrics();
+            cppsim::server::log_message("[Metrics] Exported " + std::to_string(metrics.size()) + " bytes of metrics");
+          } catch (const std::exception& e) {
+            cppsim::server::log_error(std::string("[Metrics] Export failed: ") + e.what());
+          }
         }
       });
-      metrics_thread.detach();
     }
     
     server->run();
     ioc.run();
+
+    // Join metrics thread before destroying shared state (the `running` flag,
+    // metrics_collector singleton, etc.).  A detached thread could outlive
+    // main() and touch destroyed objects during shutdown.
+    if (metrics_thread.joinable()) {
+      metrics_thread.join();
+    }
 
     cppsim::server::log_message("[Main] Server stopped.");
     return EXIT_SUCCESS;

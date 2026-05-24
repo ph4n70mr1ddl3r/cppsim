@@ -2,8 +2,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <regex>
-#include <sstream>
 
 namespace cppsim {
 namespace protocol {
@@ -32,8 +30,17 @@ bool is_valid_protocol_version(const std::string& version) noexcept {
     }
     
     // Expected format: v{major}.{minor} where major and minor are digits
-    static const std::regex version_regex(R"(^v(\d+)\.(\d+)$)");
-    return std::regex_match(version, version_regex);
+    // Hand-rolled to avoid std::regex overhead on the hot path.
+    if (version.size() < 4 || version[0] != 'v') return false;
+    auto dot_pos = version.find('.');
+    if (dot_pos == std::string::npos || dot_pos < 2 || dot_pos == version.size() - 1) return false;
+    for (size_t i = 1; i < dot_pos; ++i) {
+        if (version[i] < '0' || version[i] > '9') return false;
+    }
+    for (size_t i = dot_pos + 1; i < version.size(); ++i) {
+        if (version[i] < '0' || version[i] > '9') return false;
+    }
+    return true;
 }
 
 bool is_valid_session_id(const std::string& session_id) noexcept {
