@@ -948,23 +948,23 @@ void websocket_session::add_security_event(const std::string& event) noexcept {
 
 bool websocket_session::check_suspicious_activity() noexcept {
   try {
-    // Update activity tracking
-    last_activity_ = std::chrono::steady_clock::now();
-    message_count_.fetch_add(1, std::memory_order_relaxed);
-    
-    // Check for rapid message bursts
-    int64_t count = message_count_.load(std::memory_order_relaxed);
+    auto now = std::chrono::steady_clock::now();
+    int64_t count = message_count_.fetch_add(1, std::memory_order_relaxed) + 1;
+
+    // Check for rapid message bursts: if we've seen more than 50 messages
+    // and the session has been alive for less than 1 second, flag it.
     if (count > 50) {
-      auto now = std::chrono::steady_clock::now();
-      auto time_since_start = std::chrono::duration_cast<std::chrono::seconds>(
+      auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
           now - last_activity_).count();
-      
-      if (time_since_start == 0) {
+
+      if (elapsed == 0) {
         add_security_event("Rapid message burst detected: " + std::to_string(count) + " messages");
         return true;
       }
     }
-    
+
+    // Update activity timestamp after the check
+    last_activity_ = now;
     return false;
   } catch (...) {
     // Check failure — assume safe rather than flag false positive

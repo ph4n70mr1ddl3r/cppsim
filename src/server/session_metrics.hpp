@@ -26,9 +26,9 @@ public:
     session_metrics(const session_metrics&) = delete;
     session_metrics& operator=(const session_metrics&) = delete;
     
-    // Default move constructor and assignment operator
-    session_metrics(session_metrics&&) = default;
-    session_metrics& operator=(session_metrics&&) = default;
+    // std::atomic members are not move-constructible — delete move semantics.
+    session_metrics(session_metrics&&) = delete;
+    session_metrics& operator=(session_metrics&&) = delete;
     
     /**
      * @brief Increment message counter

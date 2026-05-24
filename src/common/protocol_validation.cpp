@@ -41,14 +41,16 @@ bool is_valid_session_id(const std::string& session_id) noexcept {
         return false;
     }
     
-    // Session IDs should start with "sess_" followed by hex characters
+    // Session IDs should start with "sess_" followed by alphanumeric characters
+    // (hex from UUID generation or decimal from counter-based generation)
     if (session_id.size() < 5 || session_id.compare(0, 5, "sess_") != 0) {
         return false;
     }
     
-    // Check that the rest are valid hex characters
+    // Check that the rest are valid session ID characters (alphanumeric + underscore)
     for (size_t i = 5; i < session_id.size(); ++i) {
-        if (!isxdigit(static_cast<unsigned char>(session_id[i]))) {
+        char c = session_id[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) {
             return false;
         }
     }
@@ -142,26 +144,25 @@ bool validate_message_envelope(const std::string& json_str,
             }
         }
         
-        // Validate message type field if it's required
-        if (std::find(required_fields.begin(), required_fields.end(), "message_type") != required_fields.end()) {
-            if (!json["message_type"].is_string()) {
-                return false;
-            }
+        // Validate specific field types if they are present in required_fields
+        // Use a single sorted set lookup instead of linear search per field.
+        const auto field_end = required_fields.end();
+        auto field_find = [&](const std::string& name) -> bool {
+            return std::find(required_fields.begin(), field_end, name) != field_end;
+        };
+        
+        if (field_find("message_type") && !json["message_type"].is_string()) {
+            return false;
         }
         
-        // Validate protocol version field if it's required
-        if (std::find(required_fields.begin(), required_fields.end(), "protocol_version") != required_fields.end()) {
-            if (!json["protocol_version"].is_string()) {
-                return false;
-            }
+        if (field_find("protocol_version") && !json["protocol_version"].is_string()) {
+            return false;
         }
         
         return true;
     } catch (const std::exception&) {
-        // JSON parsing or field access failed
         return false;
     } catch (...) {
-        // Any other exception
         return false;
     }
 }

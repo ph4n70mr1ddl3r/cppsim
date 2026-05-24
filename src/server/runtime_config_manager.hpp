@@ -1,10 +1,11 @@
 #pragma once
 
-#include <string>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <fstream>
+#include <string>
+
 #include <nlohmann/json.hpp>
 
 namespace cppsim {

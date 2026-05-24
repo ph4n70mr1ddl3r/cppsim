@@ -163,61 +163,80 @@ public:
             
             nlohmann::json json_result;
             
+            // Snapshot each data structure under its own lock to avoid torn reads.
+            // The export_mutex_ serializes full exports; individual mutexes
+            // prevent concurrent mutation while we iterate.
+            
             // Export counters
             json_result["counters"] = nlohmann::json::object();
-            for (const auto& [name, value] : metrics.counters_) {
-                json_result["counters"][name] = value;
+            {
+                std::lock_guard<std::mutex> clk(metrics.counters_mutex_);
+                for (const auto& [name, value] : metrics.counters_) {
+                    json_result["counters"][name] = value;
+                }
             }
             
             // Export gauges
             json_result["gauges"] = nlohmann::json::object();
-            for (const auto& [name, value] : metrics.gauges_) {
-                json_result["gauges"][name] = value;
+            {
+                std::lock_guard<std::mutex> glk(metrics.gauges_mutex_);
+                for (const auto& [name, value] : metrics.gauges_) {
+                    json_result["gauges"][name] = value;
+                }
             }
             
             // Export timings
             json_result["timings"] = nlohmann::json::object();
-            for (const auto& [name, data] : metrics.timings_) {
-                nlohmann::json timing_json;
-                timing_json["count"] = data.count;
-                timing_json["sum_ms"] = data.sum;
-                timing_json["min_ms"] = data.min;
-                timing_json["max_ms"] = data.max;
-                timing_json["avg_ms"] = data.count > 0 ? static_cast<double>(data.sum) / static_cast<double>(data.count) : 0.0;
-                
-                // Calculate percentiles
-                if (!data.samples.empty()) {
-                    std::vector<int64_t> sorted_samples(data.samples.begin(), data.samples.end());
-                    std::sort(sorted_samples.begin(), sorted_samples.end());
+            {
+                std::lock_guard<std::mutex> tlk(metrics.timings_mutex_);
+                for (const auto& [name, data] : metrics.timings_) {
+                    nlohmann::json timing_json;
+                    timing_json["count"] = data.count;
+                    timing_json["sum_ms"] = data.sum;
+                    timing_json["min_ms"] = data.min;
+                    timing_json["max_ms"] = data.max;
+                    timing_json["avg_ms"] = data.count > 0 ? static_cast<double>(data.sum) / static_cast<double>(data.count) : 0.0;
                     
-                    timing_json["p50_ms"] = calculate_percentile(sorted_samples, 50);
-                    timing_json["p95_ms"] = calculate_percentile(sorted_samples, 95);
-                    timing_json["p99_ms"] = calculate_percentile(sorted_samples, 99);
+                    // Calculate percentiles
+                    if (!data.samples.empty()) {
+                        std::vector<int64_t> sorted_samples(data.samples.begin(), data.samples.end());
+                        std::sort(sorted_samples.begin(), sorted_samples.end());
+                        
+                        timing_json["p50_ms"] = calculate_percentile(sorted_samples, 50);
+                        timing_json["p95_ms"] = calculate_percentile(sorted_samples, 95);
+                        timing_json["p99_ms"] = calculate_percentile(sorted_samples, 99);
+                    }
+                    
+                    json_result["timings"][name] = timing_json;
                 }
-                
-                json_result["timings"][name] = timing_json;
             }
             
             // Export recent events
             json_result["events"] = nlohmann::json::array();
-            for (const auto& event : metrics.events_) {
-                nlohmann::json event_json;
-                auto timestamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-                event_json["timestamp"] = std::to_string(timestamp);
-                event_json["name"] = event.name;
-                event_json["tags"] = event.tags;
-                json_result["events"].push_back(event_json);
+            {
+                std::lock_guard<std::mutex> elk(metrics.events_mutex_);
+                for (const auto& event : metrics.events_) {
+                    nlohmann::json event_json;
+                    auto timestamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+                    event_json["timestamp"] = std::to_string(timestamp);
+                    event_json["name"] = event.name;
+                    event_json["tags"] = event.tags;
+                    json_result["events"].push_back(event_json);
+                }
             }
             
             // Export recent errors
             json_result["errors"] = nlohmann::json::array();
-            for (const auto& error : metrics.errors_) {
-                nlohmann::json error_json;
-                auto timestamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-                error_json["timestamp"] = std::to_string(timestamp);
-                error_json["type"] = error.type;
-                error_json["details"] = error.details;
-                json_result["errors"].push_back(error_json);
+            {
+                std::lock_guard<std::mutex> erlk(metrics.errors_mutex_);
+                for (const auto& error : metrics.errors_) {
+                    nlohmann::json error_json;
+                    auto timestamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+                    error_json["timestamp"] = std::to_string(timestamp);
+                    error_json["type"] = error.type;
+                    error_json["details"] = error.details;
+                    json_result["errors"].push_back(error_json);
+                }
             }
             
             // Export system info
@@ -275,11 +294,26 @@ public:
             auto& metrics = instance();
             std::lock_guard<std::mutex> lock(metrics.export_mutex_);
             
-            metrics.counters_.clear();
-            metrics.gauges_.clear();
-            metrics.timings_.clear();
-            metrics.events_.clear();
-            metrics.errors_.clear();
+            {
+                std::lock_guard<std::mutex> clk(metrics.counters_mutex_);
+                metrics.counters_.clear();
+            }
+            {
+                std::lock_guard<std::mutex> glk(metrics.gauges_mutex_);
+                metrics.gauges_.clear();
+            }
+            {
+                std::lock_guard<std::mutex> tlk(metrics.timings_mutex_);
+                metrics.timings_.clear();
+            }
+            {
+                std::lock_guard<std::mutex> elk(metrics.events_mutex_);
+                metrics.events_.clear();
+            }
+            {
+                std::lock_guard<std::mutex> erlk(metrics.errors_mutex_);
+                metrics.errors_.clear();
+            }
             
             metrics.start_time_ = std::chrono::steady_clock::now();
             
@@ -301,15 +335,14 @@ public:
     }
 
 private:
-    metrics_collector() = default;
+    metrics_collector() : start_time_(std::chrono::steady_clock::now()) {}
     ~metrics_collector() = default;
     
     // Helper function to calculate percentile
-    static double calculate_percentile(const std::vector<int64_t>& samples, int percentile) {
-        if (samples.empty()) return 0.0;
-        
-        std::vector<int64_t> sorted_samples(samples);  // Make a copy to sort
-        std::sort(sorted_samples.begin(), sorted_samples.end());
+    // Precondition: samples must already be sorted in ascending order.
+    // The caller (export_metrics) sorts before calling this function.
+    static double calculate_percentile(const std::vector<int64_t>& sorted_samples, int percentile) {
+        if (sorted_samples.empty()) return 0.0;
         
         double index = (percentile / 100.0) * static_cast<double>(sorted_samples.size() - 1);
         size_t lower_idx = static_cast<size_t>(std::floor(index));
