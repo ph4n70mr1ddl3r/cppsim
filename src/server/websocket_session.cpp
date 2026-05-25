@@ -267,7 +267,7 @@ bool websocket_session::check_rate_limit_or_close() noexcept {
       std::string session_id_str = get_session_id_safe();
       std::string id_str = session_id_str.empty() ? "(unauthenticated)" : sanitize_session_id(session_id_str);
       log_error("[WebSocketSession] Rate limit exceeded (max " +
-          std::to_string(config::MAX_MESSAGES_PER_WINDOW) + " messages per window) for session " + id_str);
+          std::to_string(enhanced_config::get_max_messages_per_window()) + " messages per window) for session " + id_str);
     } catch (...) {
       log_error("[WebSocketSession] Rate limit exceeded");
     }

@@ -50,8 +50,6 @@ struct error_context {
     std::string session_id;                             ///< Associated session ID (if available)
     int64_t sequence_number = -1;                       ///< Sequence number (if available)
     std::chrono::steady_clock::time_point timestamp;    ///< Error timestamp
-    std::string action_type;                            ///< Action type (if applicable)
-    std::optional<int64_t> amount;                      ///< Amount (if applicable)
 };
 
 

@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <string_view>
 #include <utility>
 
@@ -154,17 +155,38 @@ bool connection_manager::empty() const noexcept {
 
 std::string connection_manager::generate_session_id() noexcept {
   try {
+    // Combine a monotonic counter with random bytes to produce session IDs
+    // that are both unique and unpredictable (prevents session hijacking
+    // via guessable IDs like "sess_42").
     static std::atomic<uint64_t> counter{0};
     uint64_t id = counter.fetch_add(1, std::memory_order_relaxed);
-    return "sess_" + std::to_string(id);
-  } catch (const std::exception& e) {
-    // Avoid allocation in noexcept function - use string_view and separate calls
-    try {
-      log_error("[ConnectionManager] Failed to generate session ID");
-    } catch (...) {
-      // Ultimate fallback
+
+    // Use random_device as an entropy source.  Fall back to the counter
+    // alone if random_device is unavailable.
+    std::random_device rd;
+    uint32_t rnd = rd();
+
+    // Format: "sess_" + 8 hex chars (mixing counter + randomness).
+    // Mixing ensures uniqueness (counter) and unpredictability (randomness).
+    uint64_t mixed = (id << 32) ^ rnd;
+    char buf[21]; // "sess_" + 16 hex chars + NUL
+    constexpr char hex[] = "0123456789abcdef";
+    buf[0] = 's'; buf[1] = 'e'; buf[2] = 's'; buf[3] = 's'; buf[4] = '_';
+    for (int i = 0; i < 16; ++i) {
+      buf[5 + i] = hex[(mixed >> (60 - 4 * i)) & 0xF];
     }
-    return std::string();
+    buf[21] = '\0';
+    return std::string(buf, 21);
+  } catch (...) {
+    // Fallback: counter-only (less secure but still unique)
+    try {
+      static std::atomic<uint64_t> fallback_counter{0};
+      uint64_t id = fallback_counter.fetch_add(1, std::memory_order_relaxed);
+      return "sess_" + std::to_string(id);
+    } catch (...) {
+      log_error("[ConnectionManager] Failed to generate session ID");
+      return std::string();
+    }
   }
 }
 

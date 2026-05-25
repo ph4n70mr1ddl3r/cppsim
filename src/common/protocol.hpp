@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -313,13 +314,16 @@ inline void from_json(const nlohmann::json& j, action_message& m) {
   j.at("action_type").get_to(m.action_type);
   j.at("sequence_number").get_to(m.sequence_number);
   if (j.contains("amount") && !j["amount"].is_null()) {
-    // Handle both int64_t and double (for amounts in dollars) by converting cents
     if (j["amount"].is_number_integer()) {
       m.amount = j["amount"].get<int64_t>();
+    } else if (j["amount"].is_number_unsigned()) {
+      m.amount = static_cast<int64_t>(j["amount"].get<uint64_t>());
     } else {
-      // Convert dollars to cents (multiply by 100)
+      // Convert dollars to cents (multiply by 100).
+      // Use round() to avoid floating-point truncation errors
+      // (e.g. 10.57 * 100 = 1056.999... → round → 1057).
       double dollars = j["amount"].get<double>();
-      m.amount = static_cast<int64_t>(dollars * 100.0);
+      m.amount = static_cast<int64_t>(std::round(dollars * 100.0));
     }
   }
 }

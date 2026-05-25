@@ -303,24 +303,32 @@ std::optional<action_message> validate_action(std::optional<action_message> resu
     return std::nullopt;
   }
 
-  const auto& amount_required = get_amount_required_types();
-  if (amount_required.find(msg.action_type) != amount_required.end() && !msg.amount) {
-    try {
-      log_protocol_error("[Protocol] " + trunc_field(msg.action_type) + " action requires amount field");
-    } catch (...) {
-      // Allocation failure — validation result is unaffected.
+  // Combined amount-policy check: determine whether the action type
+  // requires an amount, forbids it, or allows either.  A single lookup
+  // into the valid_types set was already performed above; now check
+  // the two policy sets with early-return on violation.
+  {
+    const auto& amount_required = get_amount_required_types();
+    bool needs_amount = amount_required.find(msg.action_type) != amount_required.end();
+    if (needs_amount && !msg.amount) {
+      try {
+        log_protocol_error("[Protocol] " + trunc_field(msg.action_type) + " action requires amount field");
+      } catch (...) {
+        // Allocation failure — validation result is unaffected.
+      }
+      return std::nullopt;
     }
-    return std::nullopt;
-  }
 
-  const auto& amount_forbidden = get_amount_forbidden_types();
-  if (amount_forbidden.find(msg.action_type) != amount_forbidden.end() && msg.amount) {
-    try {
-      log_protocol_error("[Protocol] " + trunc_field(msg.action_type) + " action should not have amount field");
-    } catch (...) {
-      // Allocation failure — validation result is unaffected.
+    const auto& amount_forbidden = get_amount_forbidden_types();
+    bool forbids_amount = amount_forbidden.find(msg.action_type) != amount_forbidden.end();
+    if (forbids_amount && msg.amount) {
+      try {
+        log_protocol_error("[Protocol] " + trunc_field(msg.action_type) + " action should not have amount field");
+      } catch (...) {
+        // Allocation failure — validation result is unaffected.
+      }
+      return std::nullopt;
     }
-    return std::nullopt;
   }
 
   return result;

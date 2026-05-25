@@ -48,13 +48,13 @@ bool is_valid_session_id(const std::string& session_id) noexcept {
         return false;
     }
     
-    // Session IDs should start with "sess_" followed by alphanumeric characters
-    // (hex from UUID generation or decimal from counter-based generation)
+    // Session IDs should start with "sess_" followed by hexadecimal or
+    // alphanumeric characters (hex from mixed generation, digits from
+    // fallback counter-based generation).
     if (session_id.size() < 5 || session_id.compare(0, 5, "sess_") != 0) {
         return false;
     }
     
-    // Check that the rest are valid session ID characters (alphanumeric + underscore)
     for (size_t i = 5; i < session_id.size(); ++i) {
         char c = session_id[i];
         if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) {
@@ -114,18 +114,19 @@ std::string sanitize_input(const std::string& input) noexcept {
         std::string result;
         result.reserve(input.size());
         
-        for (char c : input) {
+        for (char raw : input) {
+            auto c = static_cast<unsigned char>(raw);
             // Remove control characters except for common whitespace
-            if (iscntrl(static_cast<unsigned char>(c)) && !isspace(static_cast<unsigned char>(c))) {
+            if (iscntrl(c) && !isspace(c)) {
                 continue;
             }
             
             // Escape quotes for JSON safety
-            if (c == '\"' || c == '\\') {
+            if (raw == '\"' || raw == '\\') {
                 result += '\\';
             }
             
-            result += c;
+            result += raw;
         }
         
         return result;
