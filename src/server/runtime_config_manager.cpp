@@ -215,43 +215,6 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
     }
 }
 
-bool runtime_config_manager::validate_config() noexcept {
-    // validate_config() is no longer called from load_from_json() (validation
-    // is done inline there now).  Kept for potential future external callers.
-    try {
-        std::lock_guard<std::mutex> lock(config_mutex_);
-        if (max_write_queue_size_ < max_messages_per_window_) {
-            log_error("[RuntimeConfig] max_write_queue_size must be >= max_messages_per_window");
-            return false;
-        }
-        return true;
-    } catch (const std::exception& e) {
-        log_error(std::string("[RuntimeConfig] Exception during validation: ") + e.what());
-        return false;
-    } catch (...) {
-        log_error("[RuntimeConfig] Unknown exception during validation");
-        return false;
-    }
-}
-
-void runtime_config_manager::set_defaults() noexcept {
-    std::lock_guard<std::mutex> lock(config_mutex_);
-    max_connections_ = 1000;
-    handshake_timeout_ = std::chrono::seconds{10};
-    max_message_size_ = 64 * 1024;
-    max_write_queue_size_ = 100;
-    max_messages_per_window_ = 10;
-    rate_limit_window_ = std::chrono::seconds{1};
-    max_backoff_ = std::chrono::seconds{30};
-    ws_idle_timeout_ = std::chrono::hours{24};
-    ws_read_timeout_ = std::chrono::hours{24};
-    max_amount_ = 1000000000000000LL;
-    max_sequence_gap_ = 10000;
-    security_enabled_ = true;
-    metrics_enabled_ = true;
-    reload_interval_ = std::chrono::seconds{5};
-}
-
 std::string runtime_config_manager::export_to_json() const noexcept {
     try {
         nlohmann::json config_json;

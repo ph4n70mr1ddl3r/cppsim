@@ -3,9 +3,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
-#include <sstream>
 #include <string>
-#include <vector>
 
 namespace cppsim {
 namespace server {
@@ -205,26 +203,6 @@ public:
      */
     uint64_t get_bytes_received() const noexcept {
         return bytes_received_.load(std::memory_order_relaxed);
-    }
-    
-    /**
-     * @brief Get throughput metrics
-     * @return String with formatted throughput information
-     */
-    std::string get_throughput_info() const noexcept {
-        try {
-            std::stringstream ss;
-            ss << "Messages: sent=" << get_messages_sent() 
-               << ", received=" << get_messages_received()
-               << ", errors=" << get_errors()
-               << " | Bytes: sent=" << get_bytes_sent()
-               << ", received=" << get_bytes_received()
-               << " | Avg processing: " << get_average_processing_time_ms() << "ms"
-               << " | Rate limits: " << get_rate_limit_exceeded_count();
-            return ss.str();
-        } catch (...) {
-            return "Metrics unavailable";
-        }
     }
     
     /**

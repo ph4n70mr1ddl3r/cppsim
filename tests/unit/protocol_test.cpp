@@ -181,7 +181,7 @@ TEST(ProtocolTest, ErrorMessageSerialization) {
 TEST(ProtocolTest, ReloadRequestRoundTrip) {
   reload_request_message original;
   original.session_id = "sess_deadbeef1234cafe";
-  original.requested_amount = 100.0;
+  original.requested_amount = 100;
 
   message_envelope env;
   env.message_type = message_types::RELOAD_REQUEST;

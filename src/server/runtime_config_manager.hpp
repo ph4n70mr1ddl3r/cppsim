@@ -123,9 +123,7 @@ public:
 private:
     runtime_config_manager() = default;
     ~runtime_config_manager() = default;
-    
-    bool validate_config() noexcept;
-    void set_defaults() noexcept;
+
     bool load_from_json(const nlohmann::json& config_json) noexcept;
     
     mutable std::mutex config_mutex_;

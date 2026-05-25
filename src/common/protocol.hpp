@@ -76,42 +76,6 @@ namespace validation {
      */
     [[nodiscard]] bool is_valid_seat_number(int seat, int max_seats = 10) noexcept;
     
-    /**
-     * @brief Sanitizes string input for safe logging and transmission
-     * @param input The input string to sanitize
-     * @return Sanitized string with control characters removed
-     */
-    [[nodiscard]] std::string sanitize_input(const std::string& input) noexcept;
-    
-    /**
-     * @brief Validates JSON structure for message envelopes
-     * @param json_str JSON string to validate
-     * @param required_fields List of required top-level fields
-     * @return true if valid JSON with required fields, false otherwise
-     */
-    [[nodiscard]] bool validate_message_envelope(const std::string& json_str,
-                                                const std::vector<std::string>& required_fields) noexcept;
-    
-    /**
-     * @brief Validates sequence number gap
-     * @param current Current sequence number
-     * @param previous Previous sequence number
-     * @param max_gap Maximum allowed gap
-     * @return true if valid gap, false otherwise
-     */
-    [[nodiscard]] bool validate_sequence_gap(int64_t current, int64_t previous, int64_t max_gap = 10000) noexcept;
-    
-    /**
-     * @brief Constant-time comparison to prevent timing attacks
-     * @param a First string to compare
-     * @param b Second string to compare
-     * @return true if strings are equal, false otherwise
-     * 
-     * Uses constant-time comparison to prevent timing attacks when comparing
-     * sensitive data like session IDs or authentication tokens.
-     */
-    [[nodiscard]] bool constant_time_compare(const std::string& a, const std::string& b) noexcept;
-    
 } // namespace validation
 
 } // namespace protocol
@@ -377,7 +341,16 @@ inline void to_json(nlohmann::json& j, const reload_request_message& m) {
 
 inline void from_json(const nlohmann::json& j, reload_request_message& m) {
   j.at("session_id").get_to(m.session_id);
-  j.at("requested_amount").get_to(m.requested_amount);
+  const auto& amt = j.at("requested_amount");
+  if (amt.is_number_integer()) {
+    m.requested_amount = amt.get<int64_t>();
+  } else if (amt.is_number_unsigned()) {
+    m.requested_amount = static_cast<int64_t>(amt.get<uint64_t>());
+  } else {
+    // Convert dollars to cents (multiply by 100), consistent with action_message.
+    double dollars = amt.get<double>();
+    m.requested_amount = static_cast<int64_t>(std::round(dollars * 100.0));
+  }
 }
 
 inline void to_json(nlohmann::json& j, const reload_response_message& m) {

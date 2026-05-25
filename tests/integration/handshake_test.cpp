@@ -359,7 +359,7 @@ TEST_F(ActionTest, ValidReloadRequest) {
     env.protocol_version = cppsim::protocol::PROTOCOL_VERSION;
     env.payload = nlohmann::json{
         {"session_id", session_id},
-        {"requested_amount", 500.0}
+        {"requested_amount", 500}  // 500 cents = $5.00
     };
     nlohmann::json j;
     cppsim::protocol::to_json(j, env);
@@ -372,12 +372,12 @@ TEST_F(ActionTest, ValidReloadRequest) {
     auto resp_json = nlohmann::json::parse(resp);
     EXPECT_EQ(resp_json["message_type"], cppsim::protocol::message_types::RELOAD_RESPONSE);
     EXPECT_EQ(resp_json["payload"]["granted"], true);
-    EXPECT_DOUBLE_EQ(resp_json["payload"]["new_stack"].get<double>(), 500.0);
+    EXPECT_EQ(resp_json["payload"]["new_stack"].get<int64_t>(), 500);
 
     // Second reload to verify cumulative stacking
     env.payload = nlohmann::json{
         {"session_id", session_id},
-        {"requested_amount", 300.0}
+        {"requested_amount", 300}  // 300 cents = $3.00
     };
     cppsim::protocol::to_json(j, env);
     ws.write(net::buffer(j.dump()));
@@ -386,7 +386,7 @@ TEST_F(ActionTest, ValidReloadRequest) {
     ws.read(buf2);
     resp = beast::buffers_to_string(buf2.data());
     resp_json = nlohmann::json::parse(resp);
-    EXPECT_DOUBLE_EQ(resp_json["payload"]["new_stack"].get<double>(), 800.0);
+    EXPECT_EQ(resp_json["payload"]["new_stack"].get<int64_t>(), 800);
 
     ws.close(websocket::close_code::normal);
 }

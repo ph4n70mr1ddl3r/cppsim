@@ -155,19 +155,20 @@ bool connection_manager::empty() const noexcept {
 
 std::string connection_manager::generate_session_id() noexcept {
   try {
-    // Combine a monotonic counter with random bytes to produce session IDs
-    // that are both unique and unpredictable (prevents session hijacking
-    // via guessable IDs like "sess_42").
+    // Combine a monotonic counter with thread-local PRNG to produce session
+    // IDs that are both unique and unpredictable.
     static std::atomic<uint64_t> counter{0};
     uint64_t id = counter.fetch_add(1, std::memory_order_relaxed);
 
-    // Use random_device as an entropy source.  Fall back to the counter
-    // alone if random_device is unavailable.
-    std::random_device rd;
-    uint32_t rnd = rd();
+    // Thread-local mt19937 seeded once per thread from random_device.
+    // Avoids the overhead of constructing random_device on every call.
+    thread_local std::mt19937 rng([] {
+      std::random_device rd;
+      return rd();
+    }());
+    uint32_t rnd = static_cast<uint32_t>(rng());
 
-    // Format: "sess_" + 8 hex chars (mixing counter + randomness).
-    // Mixing ensures uniqueness (counter) and unpredictability (randomness).
+    // Format: "sess_" + 16 hex chars (mixing counter + randomness).
     uint64_t mixed = (id << 32) ^ rnd;
     char buf[21]; // "sess_" + 16 hex chars + NUL
     constexpr char hex[] = "0123456789abcdef";

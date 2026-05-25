@@ -195,7 +195,12 @@ void websocket_session::on_read(boost::beast::error_code ec,
     }
 
     if (check_suspicious_activity()) {
-      add_security_event("Suspicious activity detected — closing session");
+      try {
+        log_error("[WebSocketSession] Suspicious activity detected — closing session " +
+                  sanitize_session_id(get_session_id_safe()));
+      } catch (...) {
+        // Allocation failure in async handler — log is best-effort.
+      }
       send_protocol_error(protocol::error_codes::SESSION_CLOSED, "Suspicious activity detected");
       close();
       return;
@@ -892,73 +897,6 @@ void websocket_session::do_close() noexcept {
   }
 }
 
-// Convert protocol_error enum to string for JSON error messages.
-// Kept in named namespace (not anonymous) for testability.
-namespace detail {
-
-std::string error_code_to_string(protocol_error error_type) {
-  switch (error_type) {
-    case protocol_error::invalid_session_id: return "INVALID_SESSION_ID";
-    case protocol_error::sequence_number_mismatch: return "SEQUENCE_NUMBER_MISMATCH";
-    case protocol_error::invalid_action_type: return "INVALID_ACTION_TYPE";
-    case protocol_error::insufficient_funds: return "INSUFFICIENT_FUNDS";
-    case protocol_error::amount_out_of_bounds: return "AMOUNT_OUT_OF_BOUNDS";
-    case protocol_error::malformed_message: return "MALFORMED_MESSAGE";
-    case protocol_error::rate_limit_exceeded: return "RATE_LIMIT_EXCEEDED";
-    case protocol_error::server_internal_error: return "SERVER_INTERNAL_ERROR";
-    case protocol_error::authentication_failed: return "AUTHENTICATION_FAILED";
-    default: return "UNKNOWN_ERROR";
-  }
-}
-
-}  // namespace detail
-
-// Enhanced error handling implementation
-bool websocket_session::send_error(protocol_error error_type,
-                                 const std::string& details,
-                                 int64_t sequence_number) noexcept {
-  try {
-    error_context ctx = create_error_context(error_type, details, sequence_number);
-    
-    nlohmann::json error_json = {
-      {"message_type", "ERROR"},
-      {"error_code", detail::error_code_to_string(ctx.type)},
-      {"message", ctx.details}
-    };
-    
-    if (!ctx.session_id.empty()) {
-      error_json["session_id"] = ctx.session_id;
-    }
-    
-    if (ctx.sequence_number >= 0) {
-      error_json["sequence_number"] = ctx.sequence_number;
-    }
-    
-    return queue_message(error_json.dump());
-  } catch (...) {
-    // Allocation failure in noexcept function — fallback to basic protocol error
-    send_protocol_error(protocol::error_codes::PROTOCOL_ERROR, "Internal server error");
-    return false;
-  }
-}
-
-void websocket_session::add_security_event(const std::string& event) noexcept {
-  try {
-    std::lock_guard<std::mutex> lock(security_events_mutex_);
-    security_events_.push_back(event);
-    
-    // Keep only recent events to prevent unbounded growth
-    while (security_events_.size() > 100) {
-      security_events_.pop_front();
-    }
-    
-    // Log security events at warning level
-    log_error(std::string("[WebSocketSession Security] ") + event);
-  } catch (...) {
-    // Allocation failure — security event was not recorded, but this is non-critical
-  }
-}
-
 bool websocket_session::check_suspicious_activity() noexcept {
   // NOTE: This method runs on the session's strand (called from on_read),
   // so last_activity_ and message_count_ are effectively single-threaded here.
@@ -982,7 +920,11 @@ bool websocket_session::check_suspicious_activity() noexcept {
     last_activity_ = now;
 
     if (count > 100 && elapsed == 0) {
-      add_security_event("Rapid message burst detected: " + std::to_string(count) + " messages in < 1s");
+      try {
+        log_error("[WebSocketSession] Rapid message burst detected: " + std::to_string(count) + " messages in < 1s");
+      } catch (...) {
+        // Allocation failure — log is best-effort.
+      }
       return true;
     }
 
@@ -991,25 +933,6 @@ bool websocket_session::check_suspicious_activity() noexcept {
     // Check failure — assume safe rather than flag false positive
     return false;
   }
-}
-
-error_context websocket_session::create_error_context(
-    protocol_error error_type,
-    const std::string& details,
-    int64_t sequence_number) const noexcept {
-  error_context ctx;
-  ctx.type = error_type;
-  ctx.details = details;
-  ctx.sequence_number = sequence_number;
-  ctx.timestamp = std::chrono::steady_clock::now();
-  
-  try {
-    ctx.session_id = get_session_id_safe();
-  } catch (...) {
-    ctx.session_id = "(unknown)";
-  }
-  
-  return ctx;
 }
 
 }  // namespace server
