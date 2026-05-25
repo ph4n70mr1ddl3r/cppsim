@@ -200,7 +200,7 @@ class websocket_session final
   // Security monitoring
   std::chrono::steady_clock::time_point last_activity_;
   std::atomic<int64_t> message_count_{0};
-  std::vector<std::string> security_events_;
+  std::deque<std::string> security_events_;
   mutable std::mutex security_events_mutex_;
   
   // Performance metrics

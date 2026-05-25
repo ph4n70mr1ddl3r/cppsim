@@ -23,9 +23,7 @@ struct enhanced_config {
     }
     
     static auto get_idle_timeout() {
-        // runtime_config_manager doesn't expose idle_timeout separately;
-        // fall back to the compile-time constant.
-        return config::IDLE_TIMEOUT;
+        return runtime_config_manager::instance().get_ws_idle_timeout();
     }
     
     static size_t get_max_message_size() {

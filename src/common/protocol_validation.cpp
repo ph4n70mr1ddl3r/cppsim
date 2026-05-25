@@ -200,17 +200,25 @@ bool validate_sequence_gap(int64_t current, int64_t previous, int64_t max_gap) n
 // Constant-time comparison to prevent timing attacks
 // Compares all bytes even when sizes differ to avoid leaking length info.
 // Size mismatch still returns false, but comparison time is independent of content.
+//
+// WARNING: This is a best-effort implementation. The `volatile` qualifier
+// discourages the compiler from short-circuiting but does NOT guarantee
+// constant-time execution at the hardware level.  CPU branch predictors,
+// speculative execution, and instruction-level parallelism can still leak
+// timing information.  For cryptographically strong constant-time comparison,
+// use a dedicated crypto library (e.g. OpenSSL CRYPTO_memcmp).
 [[nodiscard]] bool constant_time_compare(const std::string& a, const std::string& b) noexcept {
     // Compare over the full range of the longer string to avoid timing leak.
-    // Use volatile to prevent the compiler from optimizing away the loop.
+    // Use volatile to discourage the compiler from optimizing away the loop.
     const size_t max_len = std::max(a.size(), b.size());
     volatile bool size_match = (a.size() == b.size());
-    volatile bool result = true;
+    volatile unsigned char result = 1;  // unsigned char avoids narrow-to-bool issues
     for (size_t i = 0; i < max_len; ++i) {
         // Access within bounds: char from the string, or 0 if past its end
-        char ca = (i < a.size()) ? a[i] : '\0';
-        char cb = (i < b.size()) ? b[i] : '\0';
-        result = result & (ca == cb);
+        unsigned char ca = static_cast<unsigned char>((i < a.size()) ? a[i] : '\0');
+        unsigned char cb = static_cast<unsigned char>((i < b.size()) ? b[i] : '\0');
+        // Use XOR-accumulate instead of comparison to reduce branch predictability
+        result &= static_cast<unsigned char>(ca == cb);
     }
     return size_match && result;
 }

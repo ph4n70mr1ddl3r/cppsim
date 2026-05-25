@@ -80,8 +80,8 @@ void websocket_server::run() noexcept {
   // Start accepting connections
   do_accept();
   
-  // Log server startup with metrics
-  metrics_collector::increment_counter("server_connections_accepted");
+  // Log server startup
+  metrics_collector::increment_counter("server_started");
 }
 
 void websocket_server::stop() noexcept {
@@ -229,6 +229,7 @@ void websocket_server::on_accept(boost::beast::error_code ec, boost::asio::ip::t
   try {
     auto session = std::make_shared<websocket_session>(std::move(socket), conn_mgr_, handshake_timeout_);
     session->run();
+    metrics_collector::increment_counter("server_connections_accepted");
     log_message("[WebSocketServer] New connection accepted");
   } catch (const std::exception& e) {
     log_error(std::string("[WebSocketServer] Failed to create session: ") + e.what());

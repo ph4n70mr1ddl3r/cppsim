@@ -67,21 +67,21 @@ bool runtime_config_manager::reload() noexcept {
 
 bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) noexcept {
     try {
-        // Build the new config outside the lock first, then swap under the
-        // lock.  This minimizes the time readers are blocked.
-        int new_max_connections = get_max_connections();
-        auto new_handshake_timeout = get_handshake_timeout();
-        size_t new_max_message_size = get_max_message_size();
-        size_t new_max_write_queue_size = get_max_write_queue_size();
-        size_t new_max_messages_per_window = get_max_messages_per_window();
-        auto new_rate_limit_window = get_rate_limit_window();
-        auto new_max_backoff = get_max_backoff();
-        auto new_ws_idle_timeout = get_ws_idle_timeout();
-        auto new_ws_read_timeout = get_ws_read_timeout();
-        int64_t new_max_amount = get_max_amount();
-        int64_t new_max_sequence_gap = get_max_sequence_gap();
-        bool new_security_enabled = is_security_enabled();
-        bool new_metrics_enabled = is_metrics_enabled();
+        // Build the new config from defaults, then overlay JSON values.
+        // Avoids 13 individual locked reads of current state.
+        int new_max_connections = 1000;
+        auto new_handshake_timeout = std::chrono::seconds{10};
+        size_t new_max_message_size = 64 * 1024;
+        size_t new_max_write_queue_size = 100;
+        size_t new_max_messages_per_window = 10;
+        auto new_rate_limit_window = std::chrono::seconds{1};
+        auto new_max_backoff = std::chrono::seconds{30};
+        auto new_ws_idle_timeout = std::chrono::seconds{24 * 3600};
+        auto new_ws_read_timeout = std::chrono::seconds{24 * 3600};
+        int64_t new_max_amount = 1000000000000000LL;
+        int64_t new_max_sequence_gap = 10000;
+        bool new_security_enabled = true;
+        bool new_metrics_enabled = true;
 
         // Load values from JSON with per-field clamping
         if (config_json.contains("max_connections") && config_json["max_connections"].is_number()) {

@@ -948,9 +948,8 @@ void websocket_session::add_security_event(const std::string& event) noexcept {
     security_events_.push_back(event);
     
     // Keep only recent events to prevent unbounded growth
-    if (security_events_.size() > 100) {
-      security_events_.erase(security_events_.begin(),
-                           security_events_.end() - 100);
+    while (security_events_.size() > 100) {
+      security_events_.pop_front();
     }
     
     // Log security events at warning level
@@ -962,17 +961,20 @@ void websocket_session::add_security_event(const std::string& event) noexcept {
 
 bool websocket_session::check_suspicious_activity() noexcept {
   // NOTE: This method runs on the session's strand (called from on_read),
-  // so last_activity_ doesn't need its own synchronization.
+  // so last_activity_ and message_count_ are effectively single-threaded here.
+  // message_count_ is atomic for observability from other threads.
   try {
     auto now = std::chrono::steady_clock::now();
     int64_t count = message_count_.fetch_add(1, std::memory_order_relaxed) + 1;
 
-    // Check for rapid message bursts: if we've seen more than 100 messages
-    // and the elapsed time since the *current activity window* is less than
-    // 1 second, flag it.
-    // Use the time since the previous activity update as a proxy for burst
-    // speed.  If the session has sent 100+ messages and the inter-message
-    // gap is essentially zero (< 1s since last update), that's a burst.
+    // Detect rapid message bursts: after the first 100 messages total, check
+    // the inter-message gap.  If messages arrive within the same second
+    // (>100 messages with <1s gap), it indicates a burst.
+    //
+    // This is a lightweight heuristic. The rate limiter (check_rate_limit_or_close)
+    // provides the primary burst protection; this serves as a secondary check
+    // for sustained high-frequency patterns that may not trigger the per-window
+    // limit but still look suspicious.
     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
         now - last_activity_).count();
 
