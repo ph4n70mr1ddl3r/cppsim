@@ -85,7 +85,8 @@ private:
     std::deque<error_data> errors_;
     mutable std::mutex errors_mutex_;
 
-    // Export mutex
+    // Export mutex — also guards start_time_ (read by get_start_time(),
+    // written by reset() and the constructor).
     mutable std::mutex export_mutex_;
 
     // System metrics

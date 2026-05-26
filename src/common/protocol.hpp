@@ -19,7 +19,6 @@ namespace protocol {
  * with detailed error reporting and input sanitization.
  */
 namespace validation {
-    
     /**
      * @brief Validates message types against allowed values
      * @param message_type The message type to validate
@@ -38,6 +37,11 @@ namespace validation {
     
     /**
      * @brief Validates session ID format
+     *
+     * Delegates to the same canonical validation used internally by
+     * protocol.cpp (validate_session_id_format), ensuring a single source
+     * of truth for the sess_ prefix + character-set check.
+     *
      * @param session_id The session ID to validate
      * @return true if valid, false otherwise
      */
@@ -200,6 +204,13 @@ struct message_envelope {
   std::string protocol_version;
   nlohmann::json payload;
 };
+
+// Shared validation detail used by both protocol.cpp and protocol_validation.cpp.
+// Not part of the public API — callers should use validation::is_valid_session_id()
+// or rely on the parse_* functions which call it internally.
+namespace detail {
+[[nodiscard]] bool validate_session_id_format(const std::string& sid) noexcept;
+}  // namespace detail
 
 // Parsing functions - return std::optional for safe error handling
 // These functions log errors internally and return std::nullopt on parse failure

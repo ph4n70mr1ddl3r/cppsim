@@ -9,14 +9,7 @@
 namespace cppsim {
 namespace protocol {
 
-namespace {
-
-constexpr size_t MAX_MESSAGE_TYPE_LENGTH = 32;
-constexpr size_t MAX_CLIENT_NAME_LENGTH = 128;
-constexpr size_t MAX_DISCONNECT_REASON_LENGTH = 256;
-
-// trunc_field is provided by common/string_utils.hpp in the cppsim namespace.
-// It is accessible via unqualified lookup from cppsim::protocol (enclosing namespace).
+namespace detail {
 
 constexpr bool is_printable_ascii(char c) noexcept { return static_cast<unsigned char>(c) >= 0x20 && static_cast<unsigned char>(c) < 0x7f; }
 
@@ -34,6 +27,8 @@ bool validate_session_id_format(const std::string& sid) noexcept {
   return true;
 }
 
+}  // namespace detail
+
 std::mutex error_logger_mutex;
 std::function<void(std::string_view)> error_logger =
     [](std::string_view msg) {
@@ -41,6 +36,15 @@ std::function<void(std::string_view)> error_logger =
       auto safe_size = static_cast<int>(std::min(msg.size(), max_safe_size));
       std::fprintf(stderr, "%.*s\n", safe_size, msg.data());
     };
+
+namespace {
+
+constexpr size_t MAX_MESSAGE_TYPE_LENGTH = 32;
+constexpr size_t MAX_CLIENT_NAME_LENGTH = 128;
+constexpr size_t MAX_DISCONNECT_REASON_LENGTH = 256;
+
+// trunc_field is provided by common/string_utils.hpp in the cppsim namespace.
+// It is accessible via unqualified lookup from cppsim::protocol (enclosing namespace).
 
 using string_view_set = std::unordered_set<std::string_view>;
 
@@ -97,7 +101,7 @@ void log_protocol_error(std::string_view msg) noexcept {
 // noexcept — an allocation failure in string concatenation would otherwise
 // call std::terminate.
 bool validate_session_id_field(const std::string& session_id, const char* message_name) noexcept {
-  if (session_id.empty() || !validate_session_id_format(session_id)) {
+  if (session_id.empty() || !detail::validate_session_id_format(session_id)) {
     try {
       log_protocol_error("[Protocol] Invalid session_id in " + std::string(message_name) + " message");
     } catch (...) {
@@ -235,7 +239,7 @@ std::optional<handshake_message> parse_handshake(std::string_view json_str) {
       const auto& name = *msg.client_name;
       bool all_blank = true;
       for (char c : name) {
-        if (!is_printable_ascii(c)) {
+        if (!detail::is_printable_ascii(c)) {
           log_protocol_error("[Protocol] Client name contains non-printable characters");
           return std::nullopt;
         }
@@ -387,7 +391,7 @@ std::optional<disconnect_message> validate_disconnect(std::optional<disconnect_m
       return std::nullopt;
     }
     for (char c : *msg.reason) {
-      if (!is_printable_ascii(c)) {
+      if (!detail::is_printable_ascii(c)) {
         log_protocol_error("[Protocol] Disconnect reason contains non-printable characters");
         return std::nullopt;
       }

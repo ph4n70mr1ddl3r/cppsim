@@ -241,6 +241,11 @@ void metrics_collector::reset() noexcept {
     try {
         auto& m = instance();
 
+        // Acquire export_mutex_ first to prevent concurrent export_metrics()
+        // from observing partially-cleared state, and to serialize access to
+        // start_time_.
+        std::lock_guard<std::mutex> elk(m.export_mutex_);
+
         {
             std::lock_guard<std::mutex> clk(m.counters_mutex_);
             m.counters_.clear();
@@ -254,7 +259,7 @@ void metrics_collector::reset() noexcept {
             m.timings_.clear();
         }
         {
-            std::lock_guard<std::mutex> elk(m.events_mutex_);
+            std::lock_guard<std::mutex> elkk(m.events_mutex_);
             m.events_.clear();
         }
         {
@@ -270,7 +275,9 @@ void metrics_collector::reset() noexcept {
 
 std::chrono::steady_clock::time_point metrics_collector::get_start_time() noexcept {
     try {
-        return instance().start_time_;
+        auto& m = instance();
+        std::lock_guard<std::mutex> lock(m.export_mutex_);
+        return m.start_time_;
     } catch (...) {
         return std::chrono::steady_clock::now();
     }

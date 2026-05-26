@@ -44,25 +44,13 @@ bool is_valid_protocol_version(const std::string& version) noexcept {
 }
 
 bool is_valid_session_id(const std::string& session_id) noexcept {
-    if (session_id.empty() || session_id.size() > protocol::MAX_SESSION_ID_LENGTH) {
+    if (session_id.empty()) {
         return false;
     }
-    
-    // Session IDs should start with "sess_" followed by hexadecimal or
-    // alphanumeric characters (hex from mixed generation, digits from
-    // fallback counter-based generation).
-    if (session_id.size() < 5 || session_id.compare(0, 5, "sess_") != 0) {
-        return false;
-    }
-    
-    for (size_t i = 5; i < session_id.size(); ++i) {
-        char c = session_id[i];
-        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) {
-            return false;
-        }
-    }
-    
-    return true;
+
+    // Delegate to the canonical validation used by protocol.cpp to ensure
+    // a single source of truth for the sess_ prefix + character-set check.
+    return detail::validate_session_id_format(session_id);
 }
 
 bool is_valid_action_type(const std::string& action_type) noexcept {

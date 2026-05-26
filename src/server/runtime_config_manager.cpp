@@ -54,15 +54,16 @@ bool runtime_config_manager::load_from_file(const std::string& path) noexcept {
 }
 
 bool runtime_config_manager::reload() noexcept {
+    std::string path;
     {
         std::lock_guard<std::mutex> lock(config_mutex_);
         if (config_path_.empty()) {
             log_error("[RuntimeConfig] No config file loaded for reload");
             return false;
         }
+        path = config_path_;
     }
-    // load_from_file() takes its own lock internally.
-    return load_from_file(get_config_path());
+    return load_from_file(path);
 }
 
 bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) noexcept {

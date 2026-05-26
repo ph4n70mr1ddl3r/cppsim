@@ -7,7 +7,7 @@
 #include "logger.hpp"
 #include "protocol.hpp"
 #include "sanitize.hpp"
-#include "runtime_config.hpp"
+#include "runtime_config_manager.hpp"
 #include "string_utils.hpp"
 
 namespace cppsim {
@@ -44,7 +44,7 @@ void websocket_session::run() noexcept {
         config::WS_READ_TIMEOUT,
         false});
 
-    ws_.read_message_max(enhanced_config::get_max_message_size());
+    ws_.read_message_max(runtime_config_manager::instance().get_max_message_size());
 
     deadline_.expires_after(handshake_timeout_);
     check_deadline();
@@ -240,7 +240,7 @@ void websocket_session::on_read(boost::beast::error_code ec,
   // do_read() from being scheduled, avoiding a use-after-close read.
   if (state_.load(std::memory_order_acquire) != state::closed &&
       !close_requested_.load(std::memory_order_acquire)) {
-    deadline_.expires_after(enhanced_config::get_idle_timeout());
+    deadline_.expires_after(runtime_config_manager::instance().get_ws_idle_timeout());
     do_read();
   }
 }
@@ -251,12 +251,12 @@ bool websocket_session::check_rate_limit_or_close() noexcept {
 
   {
     std::lock_guard<std::mutex> lock(rate_limit_mutex_);
-    auto window_start = now - enhanced_config::get_rate_limit_window();
+    auto window_start = now - runtime_config_manager::instance().get_rate_limit_window();
     auto it = std::remove_if(message_timestamps_.begin(), message_timestamps_.end(),
         [window_start](const auto& timestamp) { return timestamp < window_start; });
     message_timestamps_.erase(it, message_timestamps_.end());
 
-    if (message_timestamps_.size() >= enhanced_config::get_max_messages_per_window()) {
+    if (message_timestamps_.size() >= runtime_config_manager::instance().get_max_messages_per_window()) {
       should_close = true;
     } else {
       message_timestamps_.push_back(now);
@@ -272,7 +272,7 @@ bool websocket_session::check_rate_limit_or_close() noexcept {
       std::string session_id_str = get_session_id_safe();
       std::string id_str = session_id_str.empty() ? "(unauthenticated)" : sanitize_session_id(session_id_str);
       log_error("[WebSocketSession] Rate limit exceeded (max " +
-          std::to_string(enhanced_config::get_max_messages_per_window()) + " messages per window) for session " + id_str);
+          std::to_string(runtime_config_manager::instance().get_max_messages_per_window()) + " messages per window) for session " + id_str);
     } catch (...) {
       log_error("[WebSocketSession] Rate limit exceeded");
     }
@@ -422,11 +422,11 @@ void websocket_session::handle_action(const protocol::parsed_message_header& hea
   // When last_seq is -1 (initial sentinel), casting to uint64_t wraps to UINT64_MAX,
   // so the subtraction yields seq + 1 — the correct gap from "no prior sequence".
   uint64_t gap = static_cast<uint64_t>(seq) - static_cast<uint64_t>(last_seq);
-  if (gap > static_cast<uint64_t>(enhanced_config::get_max_sequence_gap())) {
+  if (gap > static_cast<uint64_t>(runtime_config_manager::instance().get_max_sequence_gap())) {
     try {
       log_error("[WebSocketSession] Sequence number too far ahead: " +
                 std::to_string(seq) + " (gap: " + std::to_string(gap) +
-                ", max allowed: " + std::to_string(enhanced_config::get_max_sequence_gap()) + ")");
+                ", max allowed: " + std::to_string(runtime_config_manager::instance().get_max_sequence_gap()) + ")");
     } catch (...) {
       // Allocation failure in log — session will still be closed below.
     }
@@ -821,6 +821,7 @@ void websocket_session::send_protocol_error(const char* error_code, std::string_
     try {
       if (!send(protocol::serialize_error(err))) {
         log_error("[WebSocketSession] Failed to send protocol error for session " + sanitize_session_id(sid));
+        metrics_.increment_errors();
       }
     } catch (...) {
       // Non-fatal: failure to log shouldn't propagate
@@ -903,7 +904,7 @@ bool websocket_session::check_suspicious_activity() noexcept {
   // message_count_ is atomic for observability from other threads.
   try {
     auto now = std::chrono::steady_clock::now();
-    int64_t count = message_count_.fetch_add(1, std::memory_order_relaxed) + 1;
+    int64_t count = ++message_count_;
 
     // Detect rapid message bursts: after the first 100 messages total, check
     // the inter-message gap.  If messages arrive within the same second
