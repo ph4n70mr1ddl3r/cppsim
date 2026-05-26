@@ -108,7 +108,7 @@ class websocket_session final
   
   // Security monitoring
   std::chrono::steady_clock::time_point last_activity_;
-  int64_t message_count_{0};  // Strand-only access (no atomic needed).
+  std::atomic<int64_t> message_count_{0};  // Incremented on strand, observable from admin threads.
   
   // Performance metrics
   session_metrics metrics_;

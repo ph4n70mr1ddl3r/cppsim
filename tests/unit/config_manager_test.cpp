@@ -37,7 +37,6 @@ protected:
     }
     
     void TearDown() override {
-        // Clean up temporary files
         std::filesystem::remove_all(temp_dir_);
     }
     

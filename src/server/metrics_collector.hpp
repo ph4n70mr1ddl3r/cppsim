@@ -93,14 +93,7 @@ private:
     std::chrono::steady_clock::time_point start_time_;
 };
 
-// Convenience inline functions for common metrics (preferred over macros for
-// type safety and standard compliance).
-inline void MetricsInc(std::string_view name) { metrics_collector::increment_counter(std::string(name)); }
-inline void MetricsIncValue(std::string_view name, int64_t value) { metrics_collector::increment_counter(std::string(name), value); }
-inline void MetricsGauge(std::string_view name, double value) { metrics_collector::set_gauge(std::string(name), value); }
-inline void MetricsTiming(std::string_view name, std::chrono::milliseconds duration) { metrics_collector::record_timing(std::string(name), duration); }
-inline void MetricsEvent(std::string_view name, const std::vector<std::string>& tags = {}) { metrics_collector::record_event(std::string(name), tags); }
-inline void MetricsError(std::string_view type, std::string_view details = "") { metrics_collector::record_error(std::string(type), std::string(details)); }
+
 
 } // namespace server
 } // namespace cppsim

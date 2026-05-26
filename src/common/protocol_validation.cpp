@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <unordered_set>
 
 namespace cppsim {
 namespace protocol {
@@ -54,11 +55,11 @@ bool is_valid_session_id(const std::string& session_id) noexcept {
 }
 
 bool is_valid_action_type(const std::string& action_type) noexcept {
-    static const std::vector<std::string> valid_actions = {
+    static const std::unordered_set<std::string> valid_actions = {
         "FOLD", "CHECK", "CALL", "RAISE", "ALL_IN"
     };
     
-    return std::find(valid_actions.begin(), valid_actions.end(), action_type) != valid_actions.end();
+    return valid_actions.count(action_type) > 0;
 }
 
 bool is_valid_amount(int64_t amount,
@@ -85,12 +86,12 @@ bool is_valid_amount(int64_t amount,
 }
 
 bool is_valid_game_phase(const std::string& game_phase) noexcept {
-    static const std::vector<std::string> valid_phases = {
+    static const std::unordered_set<std::string> valid_phases = {
         "WAITING", "PREFLOP", "FLOP", "TURN", "RIVER", 
         "SHOWDOWN", "HAND_COMPLETE"
     };
     
-    return std::find(valid_phases.begin(), valid_phases.end(), game_phase) != valid_phases.end();
+    return valid_phases.count(game_phase) > 0;
 }
 
 bool is_valid_seat_number(int seat, int max_seats) noexcept {
