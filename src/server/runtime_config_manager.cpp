@@ -95,7 +95,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
 
         // Load values from JSON with per-field clamping
         if (config_json.contains("max_connections") && config_json["max_connections"].is_number()) {
-            new_max_connections = config_json["max_connections"].get<int>();
+            new_max_connections = static_cast<int>(config_json["max_connections"].get<int64_t>());
             if (new_max_connections < 1 || new_max_connections > 10000) {
                 log_error("[RuntimeConfig] Invalid max_connections, using default");
                 new_max_connections = config::MAX_CONNECTIONS;
@@ -103,7 +103,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
         }
         
         if (config_json.contains("handshake_timeout") && config_json["handshake_timeout"].is_number()) {
-            new_handshake_timeout = std::chrono::seconds(config_json["handshake_timeout"].get<int>());
+            new_handshake_timeout = std::chrono::seconds(config_json["handshake_timeout"].get<int64_t>());
             if (new_handshake_timeout < std::chrono::seconds(1) || new_handshake_timeout > std::chrono::seconds(300)) {
                 log_error("[RuntimeConfig] Invalid handshake_timeout, using default");
                 new_handshake_timeout = config::HANDSHAKE_TIMEOUT;
@@ -135,7 +135,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
         }
         
         if (config_json.contains("rate_limit_window") && config_json["rate_limit_window"].is_number()) {
-            new_rate_limit_window = std::chrono::seconds(config_json["rate_limit_window"].get<int>());
+            new_rate_limit_window = std::chrono::seconds(config_json["rate_limit_window"].get<int64_t>());
             if (new_rate_limit_window < std::chrono::seconds(1) || new_rate_limit_window > std::chrono::seconds(60)) {
                 log_error("[RuntimeConfig] Invalid rate_limit_window, using default");
                 new_rate_limit_window = config::RATE_LIMIT_WINDOW;
@@ -143,7 +143,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
         }
         
         if (config_json.contains("max_backoff") && config_json["max_backoff"].is_number()) {
-            new_max_backoff = std::chrono::seconds(config_json["max_backoff"].get<int>());
+            new_max_backoff = std::chrono::seconds(config_json["max_backoff"].get<int64_t>());
             if (new_max_backoff < std::chrono::seconds(1) || new_max_backoff > std::chrono::seconds(300)) {
                 log_error("[RuntimeConfig] Invalid max_backoff, using default");
                 new_max_backoff = config::MAX_BACKOFF;
@@ -151,7 +151,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
         }
         
         if (config_json.contains("ws_idle_timeout") && config_json["ws_idle_timeout"].is_number()) {
-            new_ws_idle_timeout = std::chrono::seconds(config_json["ws_idle_timeout"].get<int>());
+            new_ws_idle_timeout = std::chrono::seconds(config_json["ws_idle_timeout"].get<int64_t>());
             if (new_ws_idle_timeout < std::chrono::seconds(1) || new_ws_idle_timeout > std::chrono::hours(48)) {
                 log_error("[RuntimeConfig] Invalid ws_idle_timeout, using default");
                 new_ws_idle_timeout = config::WS_IDLE_TIMEOUT;

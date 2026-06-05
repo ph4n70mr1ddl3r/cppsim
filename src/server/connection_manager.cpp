@@ -1,6 +1,7 @@
 #include "connection_manager.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -156,16 +157,21 @@ std::string connection_manager::generate_session_id() noexcept {
     uint64_t id = counter.fetch_add(1, std::memory_order_relaxed);
 
     // Thread-local mt19937 seeded once per thread from random_device.
-    // Avoids the overhead of constructing random_device on every call.
+    // Uses seed_seq with multiple rd() calls to properly initialize the
+    // full 624-word state (a single 32-bit seed leaves most state
+    // deterministic, reducing effective entropy of session IDs).
     thread_local std::mt19937 rng([] {
       std::random_device rd;
-      return rd();
+      std::array<uint32_t, std::mt19937::state_size> seeds;
+      std::generate(seeds.begin(), seeds.end(), std::ref(rd));
+      std::seed_seq seq(seeds.begin(), seeds.end());
+      return std::mt19937(seq);
     }());
     uint32_t rnd = static_cast<uint32_t>(rng());
 
     // Format: "sess_" + 16 hex chars (mixing counter + randomness).
     uint64_t mixed = (id << 32) ^ rnd;
-    char buf[21]; // "sess_" + 16 hex chars + NUL
+    char buf[22]; // "sess_" (5) + 16 hex chars + NUL = 22 bytes
     constexpr char hex[] = "0123456789abcdef";
     buf[0] = 's'; buf[1] = 'e'; buf[2] = 's'; buf[3] = 's'; buf[4] = '_';
     for (int i = 0; i < 16; ++i) {

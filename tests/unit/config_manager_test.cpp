@@ -6,16 +6,29 @@
 #include <fstream>
 #include <filesystem>
 #include <nlohmann/json.hpp>
+#include <random>
+#include <sstream>
 #include <thread>
 
 using namespace cppsim::server;
 
+// Generate a unique temp directory per test instance to avoid races
+// when tests run in parallel (ctest --parallel).
+static std::filesystem::path make_unique_temp_dir() {
+    std::random_device rd;
+    std::uniform_int_distribution<uint64_t> dist;
+    std::ostringstream oss;
+    oss << "cppsim_test_" << std::hex << dist(rd) << dist(rd);
+    auto dir = std::filesystem::temp_directory_path() / oss.str();
+    std::filesystem::create_directories(dir);
+    return dir;
+}
+
 class ConfigManagerTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Create a temporary config file for testing
-        temp_dir_ = std::filesystem::temp_directory_path() / "cppsim_test";
-        std::filesystem::create_directories(temp_dir_);
+        // Create a unique temporary config file for this test instance
+        temp_dir_ = make_unique_temp_dir();
         config_file_ = temp_dir_ / "test_config.json";
         
         // Create default test config
