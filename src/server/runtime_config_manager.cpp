@@ -56,6 +56,7 @@ bool runtime_config_manager::load_from_file(const std::string& path) noexcept {
 
 bool runtime_config_manager::reload() noexcept {
     std::string path;
+    std::chrono::steady_clock::time_point last_reload;
     {
         std::lock_guard<std::mutex> lock(config_mutex_);
         if (config_path_.empty()) {
@@ -63,7 +64,15 @@ bool runtime_config_manager::reload() noexcept {
             return false;
         }
         path = config_path_;
+        last_reload = last_reload_time_;
     }
+
+    // Throttle rapid reload calls to avoid unnecessary disk I/O.
+    auto now = std::chrono::steady_clock::now();
+    if (now - last_reload < reload_interval_) {
+        return true;  // Recent enough — suppress redundant reload
+    }
+
     return load_from_file(path);
 }
 
@@ -79,7 +88,6 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
         auto new_rate_limit_window = config::RATE_LIMIT_WINDOW;
         auto new_max_backoff = config::MAX_BACKOFF;
         auto new_ws_idle_timeout = std::chrono::duration_cast<std::chrono::seconds>(config::WS_IDLE_TIMEOUT);
-        auto new_ws_read_timeout = std::chrono::duration_cast<std::chrono::seconds>(config::WS_READ_TIMEOUT);
         int64_t new_max_amount = protocol::MAX_AMOUNT;
         int64_t new_max_sequence_gap = config::MAX_SEQUENCE_GAP;
         bool new_security_enabled = true;
@@ -151,13 +159,9 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
         }
         
         if (config_json.contains("ws_read_timeout") && config_json["ws_read_timeout"].is_number()) {
-            new_ws_read_timeout = std::chrono::seconds(config_json["ws_read_timeout"].get<int>());
-            if (new_ws_read_timeout < std::chrono::seconds(1) || new_ws_read_timeout > std::chrono::hours(48)) {
-                log_error("[RuntimeConfig] Invalid ws_read_timeout, using default");
-                new_ws_read_timeout = config::WS_READ_TIMEOUT;
-            }
+            log_message("[RuntimeConfig] ws_read_timeout is deprecated — use ws_idle_timeout instead");
         }
-        
+
         if (config_json.contains("max_amount") && config_json["max_amount"].is_number()) {
             new_max_amount = config_json["max_amount"].get<int64_t>();
             if (new_max_amount < 1000 || new_max_amount > protocol::MAX_AMOUNT) {
@@ -199,7 +203,6 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
             rate_limit_window_ = new_rate_limit_window;
             max_backoff_ = new_max_backoff;
             ws_idle_timeout_ = new_ws_idle_timeout;
-            ws_read_timeout_ = new_ws_read_timeout;
             max_amount_ = new_max_amount;
             max_sequence_gap_ = new_max_sequence_gap;
             security_enabled_ = new_security_enabled;
@@ -230,7 +233,6 @@ std::string runtime_config_manager::export_to_json() const noexcept {
             config_json["rate_limit_window"] = rate_limit_window_.count();
             config_json["max_backoff"] = max_backoff_.count();
             config_json["ws_idle_timeout"] = ws_idle_timeout_.count();
-            config_json["ws_read_timeout"] = ws_read_timeout_.count();
             config_json["max_amount"] = max_amount_;
             config_json["max_sequence_gap"] = max_sequence_gap_;
             config_json["security_enabled"] = security_enabled_;

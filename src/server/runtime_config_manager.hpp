@@ -87,12 +87,7 @@ public:
         std::lock_guard<std::mutex> lock(config_mutex_);
         return ws_idle_timeout_;
     }
-    
-    [[nodiscard]] std::chrono::seconds get_ws_read_timeout() const noexcept {
-        std::lock_guard<std::mutex> lock(config_mutex_);
-        return ws_read_timeout_;
-    }
-    
+
     [[nodiscard]] int64_t get_max_amount() const noexcept {
         std::lock_guard<std::mutex> lock(config_mutex_);
         return max_amount_;
@@ -138,7 +133,6 @@ private:
     std::chrono::seconds rate_limit_window_{std::chrono::seconds{1}};
     std::chrono::seconds max_backoff_{std::chrono::seconds{30}};
     std::chrono::seconds ws_idle_timeout_{std::chrono::seconds{24 * 3600}};
-    std::chrono::seconds ws_read_timeout_{std::chrono::seconds{24 * 3600}};
     int64_t max_amount_{1000000000000000LL};
     int64_t max_sequence_gap_{10000};
     bool security_enabled_{true};

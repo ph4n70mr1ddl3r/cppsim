@@ -56,7 +56,7 @@ void metrics_collector::record_timing(const std::string& name, std::chrono::mill
         timing_data.min = std::min(timing_data.min, duration.count());
         timing_data.max = std::max(timing_data.max, duration.count());
 
-        if (timing_data.samples.size() >= 1000) {
+        if (timing_data.samples.size() > 1000) {
             timing_data.samples.pop_front();
         }
         timing_data.samples.push_back(duration.count());

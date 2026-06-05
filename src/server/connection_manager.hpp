@@ -40,8 +40,6 @@ class connection_manager final {
 
   [[nodiscard]] size_t session_count() const noexcept;
 
-  [[nodiscard]] bool empty() const noexcept;
-
   void stop_all() noexcept;
 
  private:

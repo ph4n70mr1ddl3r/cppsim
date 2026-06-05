@@ -3,7 +3,9 @@
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -296,7 +298,15 @@ inline void from_json(const nlohmann::json& j, action_message& m) {
       // Use round() to avoid floating-point truncation errors
       // (e.g. 10.57 * 100 = 1056.999... → round → 1057).
       double dollars = j["amount"].get<double>();
-      m.amount = static_cast<int64_t>(std::round(dollars * 100.0));
+      if (!std::isfinite(dollars)) {
+        throw std::invalid_argument("amount must be finite");
+      }
+      double cents = std::round(dollars * 100.0);
+      if (cents > static_cast<double>(std::numeric_limits<int64_t>::max()) ||
+          cents < static_cast<double>(std::numeric_limits<int64_t>::min())) {
+        throw std::out_of_range("amount out of representable range after conversion");
+      }
+      m.amount = static_cast<int64_t>(cents);
     }
   }
 }
@@ -358,7 +368,15 @@ inline void from_json(const nlohmann::json& j, reload_request_message& m) {
   } else {
     // Convert dollars to cents (multiply by 100), consistent with action_message.
     double dollars = amt.get<double>();
-    m.requested_amount = static_cast<int64_t>(std::round(dollars * 100.0));
+    if (!std::isfinite(dollars)) {
+      throw std::invalid_argument("requested_amount must be finite");
+    }
+    double cents = std::round(dollars * 100.0);
+    if (cents > static_cast<double>(std::numeric_limits<int64_t>::max()) ||
+        cents < static_cast<double>(std::numeric_limits<int64_t>::min())) {
+      throw std::out_of_range("requested_amount out of representable range after conversion");
+    }
+    m.requested_amount = static_cast<int64_t>(cents);
   }
 }
 

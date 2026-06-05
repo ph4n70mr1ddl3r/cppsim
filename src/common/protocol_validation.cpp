@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <string_view>
 #include <unordered_set>
 
 namespace cppsim {
@@ -55,7 +56,7 @@ bool is_valid_session_id(const std::string& session_id) noexcept {
 }
 
 bool is_valid_action_type(const std::string& action_type) noexcept {
-    static const std::unordered_set<std::string> valid_actions = {
+    static const std::unordered_set<std::string_view> valid_actions = {
         "FOLD", "CHECK", "CALL", "RAISE", "ALL_IN"
     };
     
@@ -88,7 +89,7 @@ bool is_valid_amount(int64_t amount,
 }
 
 bool is_valid_game_phase(const std::string& game_phase) noexcept {
-    static const std::unordered_set<std::string> valid_phases = {
+    static const std::unordered_set<std::string_view> valid_phases = {
         "WAITING", "PREFLOP", "FLOP", "TURN", "RIVER", 
         "SHOWDOWN", "HAND_COMPLETE"
     };
