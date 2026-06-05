@@ -65,7 +65,9 @@ bool is_valid_action_type(const std::string& action_type) noexcept {
 bool is_valid_amount(int64_t amount,
                      std::optional<int64_t> min_amount,
                      std::optional<int64_t> max_amount) noexcept {
-    if (amount < 0) {
+    // Zero and negative amounts are invalid — consistent with parse-time
+    // validation in validate_action / validate_reload (amount > 0).
+    if (amount <= 0) {
         return false;
     }
     

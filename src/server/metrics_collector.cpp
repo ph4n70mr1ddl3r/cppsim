@@ -159,13 +159,15 @@ std::string metrics_collector::export_metrics() noexcept {
             }
         }
 
-        // Export recent events — convert steady_clock timestamps to
-        // approximate system_clock by adding the offset from start_time_.
+        // Compute system_start once — used by both events and errors sections
+        // to convert steady_clock timestamps to approximate system_clock.
+        const auto system_start = std::chrono::system_clock::now() -
+            (std::chrono::steady_clock::now() - m.start_time_);
+
+        // Export recent events
         json_result["events"] = nlohmann::json::array();
         {
             std::lock_guard<std::mutex> elk(m.events_mutex_);
-            auto system_start = std::chrono::system_clock::now() -
-                (std::chrono::steady_clock::now() - m.start_time_);
             for (const auto& event : m.events_) {
                 nlohmann::json event_json;
                 auto offset = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -180,12 +182,10 @@ std::string metrics_collector::export_metrics() noexcept {
             }
         }
 
-        // Export recent errors — same timestamp conversion as events.
+        // Export recent errors — reuses system_start computed above.
         json_result["errors"] = nlohmann::json::array();
         {
             std::lock_guard<std::mutex> erlk(m.errors_mutex_);
-            auto system_start = std::chrono::system_clock::now() -
-                (std::chrono::steady_clock::now() - m.start_time_);
             for (const auto& error : m.errors_) {
                 nlohmann::json error_json;
                 auto offset = std::chrono::duration_cast<std::chrono::milliseconds>(

@@ -8,6 +8,7 @@
 
 #include "logger.hpp"
 #include "config.hpp" // For fallback defaults
+#include "protocol.hpp" // For protocol::MAX_AMOUNT
 
 namespace cppsim {
 namespace server {
@@ -68,19 +69,19 @@ bool runtime_config_manager::reload() noexcept {
 
 bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) noexcept {
     try {
-        // Build the new config from defaults, then overlay JSON values.
-        // Avoids 13 individual locked reads of current state.
-        int new_max_connections = 1000;
-        auto new_handshake_timeout = std::chrono::seconds{10};
-        size_t new_max_message_size = 64 * 1024;
-        size_t new_max_write_queue_size = 100;
-        size_t new_max_messages_per_window = 10;
-        auto new_rate_limit_window = std::chrono::seconds{1};
-        auto new_max_backoff = std::chrono::seconds{30};
-        auto new_ws_idle_timeout = std::chrono::seconds{24 * 3600};
-        auto new_ws_read_timeout = std::chrono::seconds{24 * 3600};
-        int64_t new_max_amount = 1000000000000000LL;
-        int64_t new_max_sequence_gap = 10000;
+        // Build the new config from defaults (sourced from config.hpp constants),
+        // then overlay JSON values.  Single source of truth for defaults.
+        int new_max_connections = config::MAX_CONNECTIONS;
+        auto new_handshake_timeout = config::HANDSHAKE_TIMEOUT;
+        size_t new_max_message_size = config::MAX_MESSAGE_SIZE;
+        size_t new_max_write_queue_size = config::MAX_WRITE_QUEUE_SIZE;
+        size_t new_max_messages_per_window = config::MAX_MESSAGES_PER_WINDOW;
+        auto new_rate_limit_window = config::RATE_LIMIT_WINDOW;
+        auto new_max_backoff = config::MAX_BACKOFF;
+        auto new_ws_idle_timeout = std::chrono::duration_cast<std::chrono::seconds>(config::WS_IDLE_TIMEOUT);
+        auto new_ws_read_timeout = std::chrono::duration_cast<std::chrono::seconds>(config::WS_READ_TIMEOUT);
+        int64_t new_max_amount = protocol::MAX_AMOUNT;
+        int64_t new_max_sequence_gap = config::MAX_SEQUENCE_GAP;
         bool new_security_enabled = true;
         bool new_metrics_enabled = true;
 
@@ -89,7 +90,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
             new_max_connections = config_json["max_connections"].get<int>();
             if (new_max_connections < 1 || new_max_connections > 10000) {
                 log_error("[RuntimeConfig] Invalid max_connections, using default");
-                new_max_connections = 1000;
+                new_max_connections = config::MAX_CONNECTIONS;
             }
         }
         
@@ -97,7 +98,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
             new_handshake_timeout = std::chrono::seconds(config_json["handshake_timeout"].get<int>());
             if (new_handshake_timeout < std::chrono::seconds(1) || new_handshake_timeout > std::chrono::seconds(300)) {
                 log_error("[RuntimeConfig] Invalid handshake_timeout, using default");
-                new_handshake_timeout = std::chrono::seconds{10};
+                new_handshake_timeout = config::HANDSHAKE_TIMEOUT;
             }
         }
         
@@ -105,7 +106,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
             new_max_message_size = config_json["max_message_size"].get<size_t>();
             if (new_max_message_size < 1024 || new_max_message_size > 1024 * 1024) {
                 log_error("[RuntimeConfig] Invalid max_message_size, using default");
-                new_max_message_size = 64 * 1024;
+                new_max_message_size = config::MAX_MESSAGE_SIZE;
             }
         }
         
@@ -113,7 +114,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
             new_max_write_queue_size = config_json["max_write_queue_size"].get<size_t>();
             if (new_max_write_queue_size < 10 || new_max_write_queue_size > 1000) {
                 log_error("[RuntimeConfig] Invalid max_write_queue_size, using default");
-                new_max_write_queue_size = 100;
+                new_max_write_queue_size = config::MAX_WRITE_QUEUE_SIZE;
             }
         }
         
@@ -121,7 +122,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
             new_max_messages_per_window = config_json["max_messages_per_window"].get<size_t>();
             if (new_max_messages_per_window < 1 || new_max_messages_per_window > 1000) {
                 log_error("[RuntimeConfig] Invalid max_messages_per_window, using default");
-                new_max_messages_per_window = 10;
+                new_max_messages_per_window = config::MAX_MESSAGES_PER_WINDOW;
             }
         }
         
@@ -129,7 +130,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
             new_rate_limit_window = std::chrono::seconds(config_json["rate_limit_window"].get<int>());
             if (new_rate_limit_window < std::chrono::seconds(1) || new_rate_limit_window > std::chrono::seconds(60)) {
                 log_error("[RuntimeConfig] Invalid rate_limit_window, using default");
-                new_rate_limit_window = std::chrono::seconds{1};
+                new_rate_limit_window = config::RATE_LIMIT_WINDOW;
             }
         }
         
@@ -137,7 +138,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
             new_max_backoff = std::chrono::seconds(config_json["max_backoff"].get<int>());
             if (new_max_backoff < std::chrono::seconds(1) || new_max_backoff > std::chrono::seconds(300)) {
                 log_error("[RuntimeConfig] Invalid max_backoff, using default");
-                new_max_backoff = std::chrono::seconds{30};
+                new_max_backoff = config::MAX_BACKOFF;
             }
         }
         
@@ -145,7 +146,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
             new_ws_idle_timeout = std::chrono::seconds(config_json["ws_idle_timeout"].get<int>());
             if (new_ws_idle_timeout < std::chrono::seconds(1) || new_ws_idle_timeout > std::chrono::hours(48)) {
                 log_error("[RuntimeConfig] Invalid ws_idle_timeout, using default");
-                new_ws_idle_timeout = std::chrono::seconds{24 * 3600};
+                new_ws_idle_timeout = config::WS_IDLE_TIMEOUT;
             }
         }
         
@@ -153,15 +154,15 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
             new_ws_read_timeout = std::chrono::seconds(config_json["ws_read_timeout"].get<int>());
             if (new_ws_read_timeout < std::chrono::seconds(1) || new_ws_read_timeout > std::chrono::hours(48)) {
                 log_error("[RuntimeConfig] Invalid ws_read_timeout, using default");
-                new_ws_read_timeout = std::chrono::seconds{24 * 3600};
+                new_ws_read_timeout = config::WS_READ_TIMEOUT;
             }
         }
         
         if (config_json.contains("max_amount") && config_json["max_amount"].is_number()) {
             new_max_amount = config_json["max_amount"].get<int64_t>();
-            if (new_max_amount < 1000 || new_max_amount > 1000000000000000LL) {
+            if (new_max_amount < 1000 || new_max_amount > protocol::MAX_AMOUNT) {
                 log_error("[RuntimeConfig] Invalid max_amount, using default");
-                new_max_amount = 1000000000000000LL;
+                new_max_amount = protocol::MAX_AMOUNT;
             }
         }
         
@@ -169,7 +170,7 @@ bool runtime_config_manager::load_from_json(const nlohmann::json& config_json) n
             new_max_sequence_gap = config_json["max_sequence_gap"].get<int64_t>();
             if (new_max_sequence_gap < 100 || new_max_sequence_gap > 100000) {
                 log_error("[RuntimeConfig] Invalid max_sequence_gap, using default");
-                new_max_sequence_gap = 10000;
+                new_max_sequence_gap = config::MAX_SEQUENCE_GAP;
             }
         }
         

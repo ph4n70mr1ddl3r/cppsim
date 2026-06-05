@@ -48,7 +48,7 @@ namespace validation {
     [[nodiscard]] bool is_valid_session_id(const std::string& session_id) noexcept;
     
     /**
-     * @brief validates action types
+     * @brief Validates action types
      * @param action_type The action type to validate
      * @return true if valid, false otherwise
      */
@@ -56,9 +56,13 @@ namespace validation {
     
     /**
      * @brief Validates monetary amounts
-     * @param amount The amount to validate
-     * @param min_amount Minimum allowed amount (optional)
-     * @param max_amount Maximum allowed amount (optional)
+     *
+     * Zero amounts are considered invalid (consistent with parse-time validation
+     * in validate_action / validate_reload which require amount > 0).
+     *
+     * @param amount The amount to validate (in cents)
+     * @param min_amount Minimum allowed amount (optional, defaults to 1)
+     * @param max_amount Maximum allowed amount (optional, defaults to MAX_AMOUNT)
      * @return true if valid, false otherwise
      */
     [[nodiscard]] bool is_valid_amount(int64_t amount,
@@ -81,12 +85,6 @@ namespace validation {
     [[nodiscard]] bool is_valid_seat_number(int seat, int max_seats = 10) noexcept;
     
 } // namespace validation
-
-} // namespace protocol
-} // namespace cppsim
-
-namespace cppsim {
-namespace protocol {
 
 void set_error_logger(std::function<void(std::string_view)> logger);
 
